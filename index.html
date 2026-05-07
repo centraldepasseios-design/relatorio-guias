@@ -31,30 +31,12 @@
       padding: 1rem 1rem 4rem;
     }
 
-    .app {
-      max-width: 460px;
-      margin: 0 auto;
-    }
+    .app { max-width: 460px; margin: 0 auto; }
 
-    .header {
-      text-align: center;
-      padding: 2rem 0 1.5rem;
-    }
-    .header .logo {
-      font-size: 28px;
-      margin-bottom: 6px;
-    }
-    .header h1 {
-      font-size: 20px;
-      font-weight: 500;
-      color: var(--text);
-      letter-spacing: -0.3px;
-    }
-    .header p {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
+    .header { text-align: center; padding: 2rem 0 1.5rem; }
+    .header .logo { font-size: 28px; margin-bottom: 6px; }
+    .header h1 { font-size: 20px; font-weight: 500; color: var(--text); letter-spacing: -0.3px; }
+    .header p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
     .card {
       background: var(--surface);
@@ -73,202 +55,107 @@
       margin-bottom: 1rem;
     }
     .tab {
-      flex: 1;
-      padding: 11px;
-      text-align: center;
-      font-size: 14px;
-      font-family: 'DM Sans', sans-serif;
-      cursor: pointer;
-      background: transparent;
-      color: var(--text-muted);
-      border: none;
-      transition: all 0.15s;
+      flex: 1; padding: 11px; text-align: center; font-size: 14px;
+      font-family: 'DM Sans', sans-serif; cursor: pointer;
+      background: transparent; color: var(--text-muted);
+      border: none; transition: all 0.15s;
     }
-    .tab.active {
-      background: var(--accent);
-      color: #fff;
-      font-weight: 500;
-    }
+    .tab.active { background: var(--accent); color: #fff; font-weight: 500; }
 
     .section { display: none; }
     .section.active { display: block; }
 
     label {
-      display: block;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-muted);
-      margin-bottom: 5px;
-      margin-top: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
+      display: block; font-size: 12px; font-weight: 500;
+      color: var(--text-muted); margin-bottom: 5px; margin-top: 14px;
+      text-transform: uppercase; letter-spacing: 0.4px;
     }
     label:first-child { margin-top: 0; }
 
     input, select, textarea {
-      width: 100%;
-      padding: 10px 12px;
-      font-size: 15px;
-      font-family: 'DM Sans', sans-serif;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: var(--bg);
-      color: var(--text);
-      outline: none;
-      transition: border-color 0.15s;
+      width: 100%; padding: 10px 12px; font-size: 15px;
+      font-family: 'DM Sans', sans-serif; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--bg);
+      color: var(--text); outline: none; transition: border-color 0.15s;
     }
-    input:focus, select:focus, textarea:focus {
-      border-color: var(--border-mid);
-      background: #fff;
-    }
+    input:focus, select:focus, textarea:focus { border-color: var(--border-mid); background: #fff; }
     textarea { resize: vertical; min-height: 60px; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
     .hidden { display: none !important; }
 
-    .divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 1.25rem 0;
-    }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
 
     .servico-card {
-      background: var(--bg);
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      padding: 1rem;
-      margin-bottom: 10px;
+      background: var(--bg); border-radius: var(--radius-sm);
+      border: 1px solid var(--border); padding: 1rem; margin-bottom: 10px;
     }
-    .servico-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    .servico-num {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-    }
-    .btn-remover {
-      background: none;
-      border: none;
-      color: var(--text-hint);
-      cursor: pointer;
-      font-size: 20px;
-      line-height: 1;
-      padding: 2px;
-    }
+    .servico-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .servico-num { font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .btn-remover { background: none; border: none; color: var(--text-hint); cursor: pointer; font-size: 20px; line-height: 1; padding: 2px; }
     .btn-remover:hover { color: #c0392b; }
 
     .btn-add {
-      width: 100%;
-      padding: 11px;
-      font-size: 14px;
-      font-family: 'DM Sans', sans-serif;
-      background: transparent;
-      color: var(--text-muted);
-      border: 1px dashed var(--border-mid);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      margin-bottom: 1rem;
-      transition: all 0.15s;
+      width: 100%; padding: 11px; font-size: 14px; font-family: 'DM Sans', sans-serif;
+      background: transparent; color: var(--text-muted);
+      border: 1px dashed var(--border-mid); border-radius: var(--radius-sm);
+      cursor: pointer; margin-bottom: 1rem; transition: all 0.15s;
     }
     .btn-add:hover { background: var(--surface); color: var(--text); }
 
     .resumo-envio {
-      background: var(--surface);
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      padding: 0.75rem 1rem;
-      margin-bottom: 1rem;
+      background: var(--surface); border-radius: var(--radius-sm);
+      border: 1px solid var(--border); padding: 0.75rem 1rem; margin-bottom: 1rem;
     }
     .resumo-envio p { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
     .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 
     .btn-submit {
-      width: 100%;
-      padding: 13px;
-      font-size: 15px;
-      font-weight: 500;
-      font-family: 'DM Sans', sans-serif;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      transition: opacity 0.15s;
-      letter-spacing: -0.2px;
+      width: 100%; padding: 13px; font-size: 15px; font-weight: 500;
+      font-family: 'DM Sans', sans-serif; background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius-sm); cursor: pointer;
+      transition: opacity 0.15s; letter-spacing: -0.2px;
     }
     .btn-submit:hover { opacity: 0.85; }
     .btn-submit:active { transform: scale(0.99); }
     .btn-submit:disabled { opacity: 0.3; cursor: default; }
 
     .success-box {
-      display: none;
-      text-align: center;
-      padding: 2rem 1rem;
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      margin-top: 1rem;
+      display: none; text-align: center; padding: 2rem 1rem;
+      background: var(--surface); border-radius: var(--radius);
+      border: 1px solid var(--border); margin-top: 1rem;
     }
     .success-box .icon { font-size: 36px; margin-bottom: 10px; }
     .success-box h2 { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
     .success-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 1.25rem; }
 
-    .badge {
-      display: inline-block;
-      font-size: 11px;
-      font-weight: 500;
-      padding: 3px 10px;
-      border-radius: 99px;
-    }
+    .badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; }
     .badge-chegada { background: #e1f5ee; color: #0f6e56; }
     .badge-saida   { background: #e6f1fb; color: #185fa5; }
     .badge-apoio   { background: #faeeda; color: #854f0b; }
     .badge-trf     { background: #eeedfe; color: #534ab7; }
 
     .resumo-hist {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin-bottom: 1rem;
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 8px; margin-bottom: 1rem;
     }
     .resumo-card {
-      background: var(--surface);
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      padding: 0.75rem 0.5rem;
-      text-align: center;
+      background: var(--surface); border-radius: var(--radius-sm);
+      border: 1px solid var(--border); padding: 0.75rem 0.5rem; text-align: center;
     }
     .resumo-card .num { font-size: 16px; font-weight: 500; }
     .resumo-card .lbl { font-size: 10px; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
 
     .rel-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      padding: 1rem 1.1rem;
-      margin-bottom: 10px;
+      background: var(--surface); border-radius: var(--radius);
+      border: 1px solid var(--border); padding: 1rem 1.1rem; margin-bottom: 10px;
     }
     .rel-dia {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; font-weight: 500; color: var(--text-muted);
+      margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
     }
-    .sub-card {
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-    }
+    .sub-card { padding: 8px 0; border-bottom: 1px solid var(--border); }
     .sub-card:last-child { border-bottom: none; padding-bottom: 0; }
     .sub-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .sub-body { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; }
@@ -277,8 +164,27 @@
     .obs-text { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
 
     .empty { text-align: center; padding: 2.5rem 0; color: var(--text-hint); font-size: 14px; }
-
     .guia-select-wrap { margin-bottom: 1rem; }
+
+    .status-firebase {
+      font-size: 11px; padding: 4px 10px; border-radius: 99px;
+      display: inline-block; margin-top: 6px;
+    }
+    .status-ok { background: #e1f5ee; color: #0f6e56; }
+    .status-err { background: #fde8e8; color: #c0392b; }
+    .status-loading { background: #faeeda; color: #854f0b; }
+
+    .loading-overlay {
+      position: fixed; inset: 0; background: rgba(245,244,240,0.8);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; backdrop-filter: blur(2px);
+    }
+    .loading-spinner {
+      width: 32px; height: 32px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -287,6 +193,7 @@
     <div class="logo">🗺️</div>
     <h1>Relatório diário</h1>
     <p id="guia-nome-header">Bem-vindo! Selecione seu nome para começar.</p>
+    <span id="firebase-status" class="status-firebase status-loading">⏳ Conectando...</span>
   </div>
 
   <div class="guia-select-wrap card">
@@ -349,7 +256,7 @@
     <div class="success-box" id="success-box">
       <div class="icon">✅</div>
       <h2>Relatório enviado!</h2>
-      <p>Registrado com sucesso. Você pode consultar no histórico.</p>
+      <p>Registrado com sucesso na nuvem. Você pode consultar no histórico.</p>
       <button class="btn-submit" onclick="novoRelatorio()">Enviar outro dia</button>
     </div>
   </div>
@@ -364,12 +271,48 @@
   </div>
 </div>
 
-<script>
-const GUIAS_KEY = 'relatorios_guias_v4';
-let guiaAtual = '';
-let contador = 0;
-let servicosAtivos = [];
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, query, where, orderBy,
+    getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+  const firebaseConfig = {
+    apiKey: "AIzaSyCFom_SD6rklJ3hTJHC5_VF34TiDYKn-ak",
+    authDomain: "relatorio-guias.firebaseapp.com",
+    projectId: "relatorio-guias",
+    storageBucket: "relatorio-guias.firebasestorage.app",
+    messagingSenderId: "1078535122546",
+    appId: "1:1078535122546:web:fb1669ddaa66a4e5a1dceb"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const statusEl = document.getElementById('firebase-status');
+  statusEl.textContent = '✅ Conectado';
+  statusEl.className = 'status-firebase status-ok';
+
+  // Expõe funções ao escopo global
+  window._db = db;
+  window._fbReady = true;
+  window._addDoc = addDoc;
+  window._collection = collection;
+  window._query = query;
+  window._where = where;
+  window._orderBy = orderBy;
+  window._getDocs = getDocs;
+  window._serverTimestamp = serverTimestamp;
+
+  // Inicializa UI após Firebase pronto
+  document.getElementById('data-geral').value = hoje();
+  document.getElementById('filtro-mes').value = mesAtual();
+  adicionarServico();
+</script>
+
+<script>
 const LABELS = {
   'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo',
   'chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife',
@@ -385,12 +328,27 @@ const BADGE = {
   'apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf'
 };
 
+let guiaAtual = '';
+let contador = 0;
+let servicosAtivos = [];
+
 function isChegada(s) { return s && s.startsWith('chegada'); }
 function isSaida(s) { return s && s.startsWith('saida'); }
-function getData() { try { return JSON.parse(localStorage.getItem(GUIAS_KEY)||'{}'); } catch(e) { return {}; } }
-function salvaData(d) { localStorage.setItem(GUIAS_KEY, JSON.stringify(d)); }
 function hoje() { return new Date().toISOString().slice(0,10); }
 function mesAtual() { return new Date().toISOString().slice(0,7); }
+
+function showLoading() {
+  if (document.getElementById('loading-overlay')) return;
+  const el = document.createElement('div');
+  el.id = 'loading-overlay';
+  el.className = 'loading-overlay';
+  el.innerHTML = '<div class="loading-spinner"></div>';
+  document.body.appendChild(el);
+}
+function hideLoading() {
+  const el = document.getElementById('loading-overlay');
+  if (el) el.remove();
+}
 
 function adicionarServico() {
   const id = ++contador;
@@ -504,8 +462,10 @@ function trocarAba(aba) {
   if (aba==='hist') renderHistorico();
 }
 
-function enviarRelatorio() {
+async function enviarRelatorio() {
   if (!guiaAtual) { alert('Selecione seu nome antes de enviar.'); return; }
+  if (!window._fbReady) { alert('Aguarde a conexão com o servidor.'); return; }
+
   const data = document.getElementById('data-geral').value;
   const motorista = document.getElementById('motorista-geral').value.trim();
   if (!data) { alert('Informe a data do serviço.'); return; }
@@ -533,18 +493,28 @@ function enviarRelatorio() {
     itens.push(item);
   }
 
-  const d = getData();
-  if (!d[guiaAtual]) d[guiaAtual] = [];
-  d[guiaAtual].push({ id: Date.now(), data, motorista, itens });
-  salvaData(d);
+  showLoading();
+  try {
+    await window._addDoc(window._collection(window._db, 'relatorios'), {
+      guia: guiaAtual,
+      data,
+      motorista,
+      itens,
+      criadoEm: window._serverTimestamp()
+    });
 
-  document.getElementById('lista-servicos').innerHTML = '';
-  document.getElementById('motorista-geral').value = '';
-  document.getElementById('data-geral').value = hoje();
-  servicosAtivos = []; contador = 0;
-  atualizarResumo();
-  document.getElementById('btn-enviar').style.display = 'none';
-  document.getElementById('success-box').style.display = 'block';
+    document.getElementById('lista-servicos').innerHTML = '';
+    document.getElementById('motorista-geral').value = '';
+    document.getElementById('data-geral').value = hoje();
+    servicosAtivos = []; contador = 0;
+    atualizarResumo();
+    document.getElementById('btn-enviar').style.display = 'none';
+    document.getElementById('success-box').style.display = 'block';
+  } catch(e) {
+    alert('Erro ao enviar: ' + e.message);
+  } finally {
+    hideLoading();
+  }
 }
 
 function novoRelatorio() {
@@ -554,75 +524,93 @@ function novoRelatorio() {
   adicionarServico();
 }
 
-function renderHistorico() {
+async function renderHistorico() {
   if (!guiaAtual) {
     document.getElementById('lista-relatorios').innerHTML = '<p class="empty">Selecione seu nome acima para ver o histórico.</p>';
     document.getElementById('resumo-hist').innerHTML = '';
     return;
   }
+  if (!window._fbReady) return;
+
   const mes = document.getElementById('filtro-mes').value || mesAtual();
-  const d = getData();
-  const lista = (d[guiaAtual]||[]).filter(r => r.data.startsWith(mes)).sort((a,b) => b.data.localeCompare(a.data));
+  const inicio = mes + '-01';
+  const [ano, m] = mes.split('-').map(Number);
+  const fimDate = new Date(ano, m, 1);
+  const fim = fimDate.toISOString().slice(0,10);
 
-  let totalServicos=0, totalPax=0, totalVendas=0, totalNoshow=0;
-  lista.forEach(r => r.itens.forEach(it => {
-    totalServicos++;
-    if (isChegada(it.servico)) totalPax += (it.pax||0);
-    if (it.vendas) totalVendas += it.vendas;
-    if (it.noshow) totalNoshow += it.noshow;
-  }));
+  showLoading();
+  try {
+    const q = window._query(
+      window._collection(window._db, 'relatorios'),
+      window._where('guia', '==', guiaAtual),
+      window._where('data', '>=', inicio),
+      window._where('data', '<', fim),
+      window._orderBy('data', 'desc')
+    );
+    const snap = await window._getDocs(q);
+    const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  document.getElementById('resumo-hist').innerHTML = `
-    <div class="resumo-card"><div class="num">${totalServicos}</div><div class="lbl">serviços</div></div>
-    <div class="resumo-card"><div class="num">${totalPax}</div><div class="lbl">pax chegada</div></div>
-    <div class="resumo-card"><div class="num">R$${totalVendas.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div><div class="lbl">vendas</div></div>
-    <div class="resumo-card"><div class="num">${totalNoshow}</div><div class="lbl">no-show</div></div>
-  `;
+    let totalServicos=0, totalPax=0, totalVendas=0, totalNoshow=0;
+    lista.forEach(r => r.itens.forEach(it => {
+      totalServicos++;
+      if (isChegada(it.servico)) totalPax += (it.pax||0);
+      if (it.vendas) totalVendas += it.vendas;
+      if (it.noshow) totalNoshow += it.noshow;
+    }));
 
-  if (!lista.length) {
-    document.getElementById('lista-relatorios').innerHTML = '<p class="empty">Nenhum relatório neste mês.</p>';
-    return;
-  }
+    document.getElementById('resumo-hist').innerHTML = `
+      <div class="resumo-card"><div class="num">${totalServicos}</div><div class="lbl">serviços</div></div>
+      <div class="resumo-card"><div class="num">${totalPax}</div><div class="lbl">pax chegada</div></div>
+      <div class="resumo-card"><div class="num">R$${totalVendas.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div><div class="lbl">vendas</div></div>
+      <div class="resumo-card"><div class="num">${totalNoshow}</div><div class="lbl">no-show</div></div>
+    `;
 
-  document.getElementById('lista-relatorios').innerHTML = lista.map(r => {
-    const dataFmt = new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'short'});
-    const itensHtml = r.itens.map(it => {
-      const chegada = isChegada(it.servico);
-      const saida = isSaida(it.servico);
-      let campos = '';
-      if (chegada) {
-        campos = `
-          <div class="sub-item"><label>Voo</label><p>${it.voo||'—'}</p></div>
-          <div class="sub-item"><label>Pax</label><p>${it.pax??0}</p></div>
-          <div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div>
-          <div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
-      } else if (saida) {
-        campos = `<div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
-      } else {
-        campos = `
-          <div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div>
-          <div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
-      }
-      return `<div class="sub-card">
-        <div class="sub-header"><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span></div>
-        <div class="sub-body">${campos}</div>
-        ${it.obs ? `<p class="obs-text">📝 ${it.obs}</p>` : ''}
+    if (!lista.length) {
+      document.getElementById('lista-relatorios').innerHTML = '<p class="empty">Nenhum relatório neste mês.</p>';
+      return;
+    }
+
+    document.getElementById('lista-relatorios').innerHTML = lista.map(r => {
+      const dataFmt = new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'short'});
+      const itensHtml = r.itens.map(it => {
+        const chegada = isChegada(it.servico);
+        const saida = isSaida(it.servico);
+        let campos = '';
+        if (chegada) {
+          campos = `
+            <div class="sub-item"><label>Voo</label><p>${it.voo||'—'}</p></div>
+            <div class="sub-item"><label>Pax</label><p>${it.pax??0}</p></div>
+            <div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div>
+            <div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
+        } else if (saida) {
+          campos = `<div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
+        } else {
+          campos = `
+            <div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div>
+            <div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
+        }
+        return `<div class="sub-card">
+          <div class="sub-header"><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span></div>
+          <div class="sub-body">${campos}</div>
+          ${it.obs ? `<p class="obs-text">📝 ${it.obs}</p>` : ''}
+        </div>`;
+      }).join('');
+
+      return `<div class="rel-card">
+        <div class="rel-dia">
+          <span>${dataFmt} · ${r.motorista}</span>
+          <span>${r.itens.length} serviço${r.itens.length>1?'s':''}</span>
+        </div>
+        ${itensHtml}
       </div>`;
     }).join('');
-
-    return `<div class="rel-card">
-      <div class="rel-dia">
-        <span>${dataFmt} · ${r.motorista}</span>
-        <span>${r.itens.length} serviço${r.itens.length>1?'s':''}</span>
-      </div>
-      ${itensHtml}
-    </div>`;
-  }).join('');
+  } catch(e) {
+    document.getElementById('lista-relatorios').innerHTML = '<p class="empty">Erro ao carregar dados.</p>';
+    console.error(e);
+  } finally {
+    hideLoading();
+  }
 }
-
-document.getElementById('data-geral').value = hoje();
-document.getElementById('filtro-mes').value = mesAtual();
-adicionarServico();
 </script>
 </body>
 </html>
