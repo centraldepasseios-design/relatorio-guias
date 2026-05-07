@@ -162,10 +162,17 @@
     <div class="escala-top">
       <h3>📅 Montar escala do dia</h3>
       <div class="escala-top-btns">
-        <input type="date" id="escala-data" style="width:auto;padding:7px 10px;font-size:13px"/>
+        <input type="date" id="escala-data" style="width:auto;padding:7px 10px;font-size:13px" title="Data para publicar escala"/>
         <button class="btn-sm" onclick="adicionarLinha()">+ Serviço</button>
         <button class="btn-green" onclick="publicarEscala()">✅ Publicar</button>
         <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div><label>Ver escalas de</label><input type="date" id="escala-inicio" style="padding:7px 10px;font-size:13px;width:auto"/></div>
+      <div><label>até</label><input type="date" id="escala-fim" style="padding:7px 10px;font-size:13px;width:auto"/></div>
+      <button class="btn-sm" onclick="buscarEscalaPeriodo()">🔍 Buscar período</button>
+      <div style="flex:1"></div>
       </div>
     </div>
     <div id="escala-linhas"></div>
@@ -270,6 +277,8 @@ function entrar(){
     document.getElementById('f-inicio').value=inicioMes();
     document.getElementById('f-fim').value=hoje();
     document.getElementById('escala-data').value=hoje();
+    document.getElementById('escala-inicio').value=hoje();
+    document.getElementById('escala-fim').value=hoje();
     carregarEscalaPublicada();
     carregarConfirmacoes();
   }else{
@@ -416,6 +425,68 @@ async function publicarEscala(){
 
 let _itensPublicados=[];
 
+async function buscarEscalaPeriodo(){
+  const inicio=document.getElementById('escala-inicio').value;
+  const fim=document.getElementById('escala-fim').value;
+  if(!inicio||!fim){alert('Selecione data início e fim.');return}
+  if(inicio>fim){alert('Data início deve ser menor que data fim.');return}
+  if(!window._fbReady){alert('Aguarde a conexão.');return}
+  showLoad();
+  try{
+    // Gera array de datas entre inicio e fim
+    const datas=[];
+    let d=new Date(inicio+'T12:00:00');
+    const fimD=new Date(fim+'T12:00:00');
+    while(d<=fimD){datas.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}
+    // Busca escalas de cada data
+    const snap=await window._gds(window._q(
+      window._col(window._db,'escalas'),
+      window._w('data','>=',inicio),
+      window._w('data','<=',fim)
+    ));
+    _itensPublicados=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
+      if(a.data!==b.data)return a.data.localeCompare(b.data);
+      return a.horario.localeCompare(b.horario);
+    });
+    document.getElementById('f-pub-guia').value='';
+    document.getElementById('f-pub-mot').value='';
+    document.getElementById('escala-filtros').style.display=_itensPublicados.length?'block':'none';
+    renderPublicadaPeriodo(_itensPublicados);
+    hideLoad();
+  }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
+}
+
+function filtrarPublicadaPeriodo(){
+  const fg=document.getElementById('f-pub-guia').value.toUpperCase();
+  const fm=document.getElementById('f-pub-mot').value.toUpperCase();
+  const filtrados=_itensPublicados.filter(it=>{
+    if(fg&&!it.guia.toUpperCase().includes(fg))return false;
+    if(fm&&!(it.motorista||'').toUpperCase().includes(fm))return false;
+    return true;
+  });
+  renderPublicadaPeriodo(filtrados);
+}
+
+function renderPublicadaPeriodo(itens){
+  const wrap=document.getElementById('escala-publicada');
+  if(!itens.length){wrap.innerHTML='<p class="empty">Nenhum resultado encontrado.</p>';return}
+  // Agrupa por data
+  const porData={};
+  itens.forEach(it=>{if(!porData[it.data])porData[it.data]=[];porData[it.data].push(it)});
+  const html=Object.keys(porData).sort().map(data=>{
+    const d=new Date(data+'T12:00:00');
+    const dataFmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+    const rows=porData[data].map(it=>{
+      const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
+      const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
+      const motTxt=isCS&&it.motorista?it.motorista:'—';
+      return`<div class="pub-row"><span class="pub-hor">⏰ ${it.horario}</span><div><strong>${it.guia}</strong><br><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
+    }).join('');
+    return`<div class="pub-box" style="margin-bottom:10px"><div class="pub-header"><span>📅 ${dataFmt}</span><span>${porData[data].length} serviço(s)</span></div><div>${rows}</div></div>`;
+  }).join('');
+  wrap.innerHTML=html;
+}
+
 function filtrarPublicada(){
   const fg=document.getElementById('f-pub-guia').value.toUpperCase();
   const fm=document.getElementById('f-pub-mot').value.toUpperCase();
@@ -424,7 +495,10 @@ function filtrarPublicada(){
     if(fm&&!(it.motorista||'').toUpperCase().includes(fm))return false;
     return true;
   });
-  renderPublicada(filtrados);
+  // Se tem itens de datas diferentes, usa render por período
+  const datas=new Set(filtrados.map(i=>i.data));
+  if(datas.size>1)renderPublicadaPeriodo(filtrados);
+  else renderPublicada(filtrados);
 }
 
 function renderPublicada(itens){
