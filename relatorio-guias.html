@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatório Diário — Guias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --border: rgba(0,0,0,0.1);
+      --border-mid: rgba(0,0,0,0.18);
+      --text: #1a1a18;
+      --text-muted: #6b6b67;
+      --text-hint: #9a9a96;
+      --accent: #1a1a18;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 1rem 1rem 4rem;
+    }
+
+    .app {
+      max-width: 460px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      padding: 2rem 0 1.5rem;
+    }
+    .header .logo {
+      font-size: 28px;
+      margin-bottom: 6px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+    .header p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      margin-bottom: 12px;
+    }
+
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .tab {
+      flex: 1;
+      padding: 11px;
+      text-align: center;
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      transition: all 0.15s;
+    }
+    .tab.active {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      margin-top: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    label:first-child { margin-top: 0; }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 15px;
+      font-family: 'DM Sans', sans-serif;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--border-mid);
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .hidden { display: none !important; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.25rem 0;
+    }
+
+    .servico-card {
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      padding: 1rem;
+      margin-bottom: 10px;
+    }
+    .servico-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .servico-num {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .btn-remover {
+      background: none;
+      border: none;
+      color: var(--text-hint);
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      padding: 2px;
+    }
+    .btn-remover:hover { color: #c0392b; }
+
+    .btn-add {
+      width: 100%;
+      padding: 11px;
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px dashed var(--border-mid);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      margin-bottom: 1rem;
+      transition: all 0.15s;
+    }
+    .btn-add:hover { background: var(--surface); color: var(--text); }
+
+    .resumo-envio {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .resumo-envio p { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+    .btn-submit {
+      width: 100%;
+      padding: 13px;
+      font-size: 15px;
+      font-weight: 500;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: opacity 0.15s;
+      letter-spacing: -0.2px;
+    }
+    .btn-submit:hover { opacity: 0.85; }
+    .btn-submit:active { transform: scale(0.99); }
+    .btn-submit:disabled { opacity: 0.3; cursor: default; }
+
+    .success-box {
+      display: none;
+      text-align: center;
+      padding: 2rem 1rem;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-top: 1rem;
+    }
+    .success-box .icon { font-size: 36px; margin-bottom: 10px; }
+    .success-box h2 { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
+    .success-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 1.25rem; }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 99px;
+    }
+    .badge-chegada { background: #e1f5ee; color: #0f6e56; }
+    .badge-saida   { background: #e6f1fb; color: #185fa5; }
+    .badge-apoio   { background: #faeeda; color: #854f0b; }
+    .badge-trf     { background: #eeedfe; color: #534ab7; }
+
+    .resumo-hist {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+    .resumo-card {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      padding: 0.75rem 0.5rem;
+      text-align: center;
+    }
+    .resumo-card .num { font-size: 16px; font-weight: 500; }
+    .resumo-card .lbl { font-size: 10px; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    .rel-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 1rem 1.1rem;
+      margin-bottom: 10px;
+    }
+    .rel-dia {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sub-card {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .sub-card:last-child { border-bottom: none; padding-bottom: 0; }
+    .sub-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .sub-body { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; }
+    .sub-item label { font-size: 10px; color: var(--text-muted); margin: 0; text-transform: uppercase; letter-spacing: 0.3px; }
+    .sub-item p { color: var(--text); margin: 0; font-size: 13px; }
+    .obs-text { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+    .empty { text-align: center; padding: 2.5rem 0; color: var(--text-hint); font-size: 14px; }
+
+    .guia-select-wrap { margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">🗺️</div>
+    <h1>Relatório diário</h1>
+    <p id="guia-nome-header">Bem-vindo! Selecione seu nome para começar.</p>
+  </div>
+
+  <div class="guia-select-wrap card">
+    <label>Seu nome</label>
+    <select id="guia-select" onchange="selecionarGuia()">
+      <option value="">— selecione o guia —</option>
+      <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option>
+      <option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option>
+      <option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option>
+      <option>EDSON</option><option>TATIANA</option><option>TOM JONES</option><option>ADRIANE</option>
+      <option>GUILHERME</option><option>FÁBIO GOMES</option><option>DANIEL</option><option>NEIDE</option>
+      <option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option>
+      <option>ANTÔNIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option>
+      <option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option>
+      <option>WIRON</option><option>IANNE</option><option>ADIANÊS</option><option>MADSON</option>
+      <option>CAMILLA</option><option>ANDRÉ</option><option>ANA FLÁVIA</option><option>RENATA</option>
+      <option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option>
+      <option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option>
+      <option>SIDNEI</option><option>DRIELLY</option><option>RAÍSSA</option><option>ISADORA</option>
+      <option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option>
+      <option>FÁBIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option>
+      <option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO M</option><option>TALES</option>
+      <option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option>
+      <option>FRANÇA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option>
+      <option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option>
+      <option>CAMILA</option><option>GLÓRIA</option><option>ELISIO</option><option>REBECA</option>
+      <option>ENEZIANE</option><option>BRUNO S</option><option>ALVARO</option><option>ZENA</option>
+      <option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option>
+      <option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+    </select>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="trocarAba('form')">+ Novo relatório</button>
+    <button class="tab" onclick="trocarAba('hist')">↩ Meu histórico</button>
+  </div>
+
+  <!-- FORMULÁRIO -->
+  <div id="sec-form" class="section active">
+    <div class="card">
+      <label>Data do serviço</label>
+      <input type="date" id="data-geral" />
+      <label>Motorista</label>
+      <input type="text" id="motorista-geral" placeholder="Nome do motorista" />
+    </div>
+
+    <hr class="divider" />
+
+    <div id="lista-servicos"></div>
+
+    <button class="btn-add" onclick="adicionarServico()">+ Adicionar serviço</button>
+
+    <div class="resumo-envio hidden" id="resumo-envio">
+      <p>Serviços a enviar</p>
+      <div class="tags" id="tags-resumo"></div>
+    </div>
+
+    <button class="btn-submit" id="btn-enviar" onclick="enviarRelatorio()" disabled>Enviar relatório do dia</button>
+
+    <div class="success-box" id="success-box">
+      <div class="icon">✅</div>
+      <h2>Relatório enviado!</h2>
+      <p>Registrado com sucesso. Você pode consultar no histórico.</p>
+      <button class="btn-submit" onclick="novoRelatorio()">Enviar outro dia</button>
+    </div>
+  </div>
+
+  <!-- HISTÓRICO -->
+  <div id="sec-hist" class="section">
+    <div class="resumo-hist" id="resumo-hist"></div>
+    <div style="margin-bottom:1rem;">
+      <input type="month" id="filtro-mes" onchange="renderHistorico()" />
+    </div>
+    <div id="lista-relatorios"></div>
+  </div>
+</div>
+
+<script>
+const GUIAS_KEY = 'relatorios_guias_v4';
+let guiaAtual = '';
+let contador = 0;
+let servicosAtivos = [];
+
+const LABELS = {
+  'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo',
+  'chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife',
+  'saida-porto':'Saída Porto','saida-cabo':'Saída Cabo',
+  'saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife',
+  'apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'
+};
+const BADGE = {
+  'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada',
+  'chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada',
+  'saida-porto':'badge-saida','saida-cabo':'badge-saida',
+  'saida-maragogi':'badge-saida','saida-recife':'badge-saida',
+  'apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf'
+};
+
+function isChegada(s) { return s && s.startsWith('chegada'); }
+function isSaida(s) { return s && s.startsWith('saida'); }
+function getData() { try { return JSON.parse(localStorage.getItem(GUIAS_KEY)||'{}'); } catch(e) { return {}; } }
+function salvaData(d) { localStorage.setItem(GUIAS_KEY, JSON.stringify(d)); }
+function hoje() { return new Date().toISOString().slice(0,10); }
+function mesAtual() { return new Date().toISOString().slice(0,7); }
+
+function adicionarServico() {
+  const id = ++contador;
+  servicosAtivos.push(id);
+  const div = document.createElement('div');
+  div.className = 'servico-card';
+  div.id = 'card-' + id;
+  div.innerHTML = `
+    <div class="servico-card-header">
+      <span class="servico-num">Serviço ${servicosAtivos.length}</span>
+      <button class="btn-remover" onclick="removerServico(${id})">×</button>
+    </div>
+    <label style="margin-top:0;">Tipo de serviço</label>
+    <select id="srv-${id}" onchange="onTipoChange(${id})">
+      <option value="">— selecionar —</option>
+      <optgroup label="Chegada">
+        <option value="chegada-porto">Chegada Porto</option>
+        <option value="chegada-cabo">Chegada Cabo</option>
+        <option value="chegada-maragogi">Chegada Maragogi</option>
+        <option value="chegada-recife">Chegada Recife</option>
+      </optgroup>
+      <optgroup label="Saída">
+        <option value="saida-porto">Saída Porto</option>
+        <option value="saida-cabo">Saída Cabo</option>
+        <option value="saida-maragogi">Saída Maragogi</option>
+        <option value="saida-recife">Saída Recife</option>
+      </optgroup>
+      <optgroup label="Apoio">
+        <option value="apoio-porto">Apoio Porto</option>
+        <option value="apoio-recife">Apoio Recife</option>
+      </optgroup>
+      <option value="trf">TRF</option>
+    </select>
+
+    <div id="f-chegada-${id}" class="hidden" style="margin-top:14px;">
+      <div class="row2">
+        <div><label style="margin-top:0;">Voo</label><input type="text" id="voo-${id}" placeholder="ex: LA3456" style="text-transform:uppercase;" /></div>
+        <div><label style="margin-top:0;">Pax</label><input type="number" id="pax-${id}" placeholder="0" min="0" step="1" /></div>
+      </div>
+      <div class="row2" style="margin-top:10px;">
+        <div><label style="margin-top:0;">Vendas (R$)</label><input type="number" id="vendas-${id}" placeholder="0,00" min="0" step="0.01" /></div>
+        <div><label style="margin-top:0;">No-show</label><input type="number" id="noshow-${id}" placeholder="0" min="0" step="1" /></div>
+      </div>
+    </div>
+
+    <div id="f-saida-${id}" class="hidden" style="margin-top:14px;">
+      <label style="margin-top:0;">No-show (pax)</label>
+      <input type="number" id="noshow-s-${id}" placeholder="0" min="0" step="1" />
+    </div>
+
+    <div id="f-outro-${id}" class="hidden" style="margin-top:14px;">
+      <div class="row2">
+        <div><label style="margin-top:0;">Vendas (R$)</label><input type="number" id="vendas-o-${id}" placeholder="0,00" min="0" step="0.01" /></div>
+        <div><label style="margin-top:0;">No-show</label><input type="number" id="noshow-o-${id}" placeholder="0" min="0" step="1" /></div>
+      </div>
+    </div>
+
+    <div id="f-obs-wrap-${id}" class="hidden" style="margin-top:10px;">
+      <label style="margin-top:0;">Observações</label>
+      <input type="text" id="obs-${id}" placeholder="opcional" />
+    </div>
+  `;
+  document.getElementById('lista-servicos').appendChild(div);
+  atualizarResumo();
+}
+
+function onTipoChange(id) {
+  const s = document.getElementById('srv-' + id).value;
+  const chegada = isChegada(s);
+  const saida = isSaida(s);
+  document.getElementById('f-chegada-' + id).classList.toggle('hidden', !chegada);
+  document.getElementById('f-saida-' + id).classList.toggle('hidden', !saida);
+  document.getElementById('f-outro-' + id).classList.toggle('hidden', chegada || saida || !s);
+  document.getElementById('f-obs-wrap-' + id).classList.toggle('hidden', !s);
+  atualizarResumo();
+}
+
+function removerServico(id) {
+  servicosAtivos = servicosAtivos.filter(s => s !== id);
+  document.getElementById('card-' + id).remove();
+  servicosAtivos.forEach((sid, i) => {
+    const el = document.querySelector('#card-' + sid + ' .servico-num');
+    if (el) el.textContent = 'Serviço ' + (i + 1);
+  });
+  atualizarResumo();
+}
+
+function atualizarResumo() {
+  const tags = servicosAtivos.map(id => {
+    const s = document.getElementById('srv-' + id);
+    return s && s.value ? `<span class="badge ${BADGE[s.value]||''}">${LABELS[s.value]}</span>` : null;
+  }).filter(Boolean);
+  const resumo = document.getElementById('resumo-envio');
+  document.getElementById('tags-resumo').innerHTML = tags.join('');
+  resumo.classList.toggle('hidden', tags.length === 0);
+  document.getElementById('btn-enviar').disabled = tags.length === 0;
+}
+
+function selecionarGuia() {
+  guiaAtual = document.getElementById('guia-select').value;
+  document.getElementById('guia-nome-header').textContent = guiaAtual
+    ? 'Olá, ' + guiaAtual + '! 👋'
+    : 'Bem-vindo! Selecione seu nome para começar.';
+  if (document.getElementById('sec-hist').classList.contains('active')) renderHistorico();
+}
+
+function trocarAba(aba) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active',(aba==='form'&&i===0)||(aba==='hist'&&i===1)));
+  document.getElementById('sec-form').classList.toggle('active', aba==='form');
+  document.getElementById('sec-hist').classList.toggle('active', aba==='hist');
+  if (aba==='hist') renderHistorico();
+}
+
+function enviarRelatorio() {
+  if (!guiaAtual) { alert('Selecione seu nome antes de enviar.'); return; }
+  const data = document.getElementById('data-geral').value;
+  const motorista = document.getElementById('motorista-geral').value.trim();
+  if (!data) { alert('Informe a data do serviço.'); return; }
+  if (!motorista) { alert('Informe o nome do motorista.'); return; }
+
+  const itens = [];
+  for (const id of servicosAtivos) {
+    const s = document.getElementById('srv-' + id).value;
+    if (!s) { alert('Selecione o tipo em todos os serviços.'); return; }
+    const chegada = isChegada(s);
+    const saida = isSaida(s);
+    let item = { servico: s };
+    if (chegada) {
+      item.voo = document.getElementById('voo-' + id).value.trim().toUpperCase();
+      item.pax = parseInt(document.getElementById('pax-' + id).value)||0;
+      item.vendas = parseFloat(document.getElementById('vendas-' + id).value)||0;
+      item.noshow = parseInt(document.getElementById('noshow-' + id).value)||0;
+    } else if (saida) {
+      item.noshow = parseInt(document.getElementById('noshow-s-' + id).value)||0;
+    } else {
+      item.vendas = parseFloat(document.getElementById('vendas-o-' + id).value)||0;
+      item.noshow = parseInt(document.getElementById('noshow-o-' + id).value)||0;
+    }
+    item.obs = document.getElementById('obs-' + id).value.trim();
+    itens.push(item);
+  }
+
+  const d = getData();
+  if (!d[guiaAtual]) d[guiaAtual] = [];
+  d[guiaAtual].push({ id: Date.now(), data, motorista, itens });
+  salvaData(d);
+
+  document.getElementById('lista-servicos').innerHTML = '';
+  document.getElementById('motorista-geral').value = '';
+  document.getElementById('data-geral').value = hoje();
+  servicosAtivos = []; contador = 0;
+  atualizarResumo();
+  document.getElementById('btn-enviar').style.display = 'none';
+  document.getElementById('success-box').style.display = 'block';
+}
+
+function novoRelatorio() {
+  document.getElementById('success-box').style.display = 'none';
+  document.getElementById('btn-enviar').style.display = 'block';
+  document.getElementById('btn-enviar').disabled = true;
+  adicionarServico();
+}
+
+function renderHistorico() {
+  if (!guiaAtual) {
+    document.getElementById('lista-relatorios').innerHTML = '<p class="empty">Selecione seu nome acima para ver o histórico.</p>';
+    document.getElementById('resumo-hist').innerHTML = '';
+    return;
+  }
+  const mes = document.getElementById('filtro-mes').value || mesAtual();
+  const d = getData();
+  const lista = (d[guiaAtual]||[]).filter(r => r.data.startsWith(mes)).sort((a,b) => b.data.localeCompare(a.data));
+
+  let totalServicos=0, totalPax=0, totalVendas=0, totalNoshow=0;
+  lista.forEach(r => r.itens.forEach(it => {
+    totalServicos++;
+    if (isChegada(it.servico)) totalPax += (it.pax||0);
+    if (it.vendas) totalVendas += it.vendas;
+    if (it.noshow) totalNoshow += it.noshow;
+  }));
+
+  document.getElementById('resumo-hist').innerHTML = `
+    <div class="resumo-card"><div class="num">${totalServicos}</div><div class="lbl">serviços</div></div>
+    <div class="resumo-card"><div class="num">${totalPax}</div><div class="lbl">pax chegada</div></div>
+    <div class="resumo-card"><div class="num">R$${totalVendas.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div><div class="lbl">vendas</div></div>
+    <div class="resumo-card"><div class="num">${totalNoshow}</div><div class="lbl">no-show</div></div>
+  `;
+
+  if (!lista.length) {
+    document.getElementById('lista-relatorios').innerHTML = '<p class="empty">Nenhum relatório neste mês.</p>';
+    return;
+  }
+
+  document.getElementById('lista-relatorios').innerHTML = lista.map(r => {
+    const dataFmt = new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'short'});
+    const itensHtml = r.itens.map(it => {
+      const chegada = isChegada(it.servico);
+      const saida = isSaida(it.servico);
+      let campos = '';
+      if (chegada) {
+        campos = `
+          <div class="sub-item"><label>Voo</label><p>${it.voo||'—'}</p></div>
+          <div class="sub-item"><label>Pax</label><p>${it.pax??0}</p></div>
+          <div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div>
+          <div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
+      } else if (saida) {
+        campos = `<div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
+      } else {
+        campos = `
+          <div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div>
+          <div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
+      }
+      return `<div class="sub-card">
+        <div class="sub-header"><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span></div>
+        <div class="sub-body">${campos}</div>
+        ${it.obs ? `<p class="obs-text">📝 ${it.obs}</p>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<div class="rel-card">
+      <div class="rel-dia">
+        <span>${dataFmt} · ${r.motorista}</span>
+        <span>${r.itens.length} serviço${r.itens.length>1?'s':''}</span>
+      </div>
+      ${itensHtml}
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('data-geral').value = hoje();
+document.getElementById('filtro-mes').value = mesAtual();
+adicionarServico();
+</script>
+</body>
+</html>
