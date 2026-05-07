@@ -166,6 +166,7 @@
         <button class="btn-sm" onclick="adicionarLinha()">+ Serviço</button>
         <button class="btn-green" onclick="publicarEscala()">✅ Publicar</button>
         <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
+        <button class="btn-red" onclick="apagarEscalaDia()" style="padding:8px 14px;font-size:13px">🗑️ Apagar dia</button>
       </div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -451,14 +452,13 @@ async function publicarEscala(){
     const pax=srv.startsWith('chegada')?parseInt(document.getElementById('epax-'+id).value)||0:0;
     itens.push({guia,servico:srv,horario,hsrv,motorista,pax,obs:document.getElementById('eo-'+id).value.trim()});
   }
-  if(!confirm(`Publicar escala de ${data} com ${itens.length} serviço(s)?`))return;
+  if(!confirm(`Publicar ${itens.length} serviço(s) para ${data}? Eles serão adicionados à escala já existente.`))return;
   showLoad();
   try{
-    const snap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
-    for(const d of snap.docs)await window._dd(window._doc(window._db,'escalas',d.id));
+    // Apenas ADICIONA, sem apagar o que já existe
     for(const item of itens)await window._ad(window._col(window._db,'escalas'),{...item,data,publicadoEm:new Date().toISOString()});
     hideLoad();
-    alert(`✅ Escala publicada com ${itens.length} serviço(s)!`);
+    alert(`✅ ${itens.length} serviço(s) adicionados à escala de ${data}!`);
     document.getElementById('escala-linhas').innerHTML='';
     linhas=[];contL=0;
     carregarEscalaPublicada();
@@ -717,6 +717,22 @@ function abrirReset(nome){
   setTimeout(()=>document.getElementById('modal-nova-senha').focus(),100);
 }
 function fecharModal(){document.getElementById('modal-reset').style.display='none';guiaReset=''}
+
+async function apagarEscalaDia(){
+  const data=document.getElementById('escala-data').value||hoje();
+  if(!confirm(`Apagar TODA a escala de ${data}? Esta ação não pode ser desfeita.`))return;
+  showLoad();
+  try{
+    const snap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
+    for(const d of snap.docs)await window._dd(window._doc(window._db,'escalas',d.id));
+    hideLoad();
+    alert(`Escala de ${data} apagada.`);
+    _itensPublicados=[];
+    document.getElementById('escala-publicada').innerHTML='<p class="empty">Nenhuma escala publicada para esta data.</p>';
+    document.getElementById('escala-filtros').style.display='none';
+    document.getElementById('confirmacoes-wrap').innerHTML='';
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
 
 // ===== AVULSO =====
 let _dataAvulso='';
