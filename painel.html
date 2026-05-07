@@ -26,14 +26,13 @@
     .login-box input:focus { border-color: var(--border-mid); background: #fff; }
     .login-err { font-size: 13px; color: #c0392b; margin-bottom: 10px; display: none; }
 
-    .painel { display: none; max-width: 900px; margin: 0 auto; }
+    .painel { display: none; max-width: 960px; margin: 0 auto; }
     .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 0 1.25rem; flex-wrap: wrap; gap: 10px; }
     .top-bar h1 { font-size: 20px; font-weight: 600; }
-    .top-bar-right { display: flex; gap: 8px; align-items: center; }
 
     .btn-submit { width: 100%; padding: 12px; font-size: 15px; font-weight: 500; font-family: 'DM Sans', sans-serif; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; }
     .btn-submit:hover { opacity: 0.85; }
-    .btn-sm { padding: 7px 14px; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; }
+    .btn-sm { padding: 9px 20px; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; }
     .btn-sm:hover { opacity: 0.85; }
     .btn-outline { padding: 7px 14px; font-size: 13px; font-family: 'DM Sans', sans-serif; background: none; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; }
     .btn-outline:hover { background: var(--surface); }
@@ -46,10 +45,13 @@
     .section { display: none; }
     .section.active { display: block; }
 
-    .filtros { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
-    .filtros label { display: block; font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
-    .filtros input { width: 100%; padding: 9px 12px; font-size: 14px; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); outline: none; }
-    .filtros input:focus { border-color: var(--border-mid); background: #fff; }
+    /* FILTROS */
+    .filtros-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }
+    .filtros-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .filtros-grid2 { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
+    .filtros-box label { display: block; font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+    .filtros-box input, .filtros-box select { width: 100%; padding: 9px 12px; font-size: 14px; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); outline: none; }
+    .filtros-box input:focus, .filtros-box select:focus { border-color: var(--border-mid); background: #fff; }
 
     .resumo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem; }
     .resumo-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem 0.75rem; text-align: center; }
@@ -70,9 +72,8 @@
     tr:hover td { background: #fafaf8; }
     .guia-nome { font-weight: 500; }
     .motorista-nome { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-    .obs-txt { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-style: italic; }
+    .obs-txt { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-style: italic; white-space: pre-line; }
 
-    /* SENHAS */
     .search-bar { margin-bottom: 1rem; }
     .search-bar input { width: 100%; padding: 10px 14px; font-size: 14px; font-family: 'DM Sans', sans-serif; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; }
     .search-bar input:focus { border-color: var(--border-mid); }
@@ -98,8 +99,9 @@
     .loading-spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    @media (max-width: 600px) {
-      .filtros { grid-template-columns: 1fr; }
+    @media (max-width: 640px) {
+      .filtros-grid { grid-template-columns: 1fr 1fr; }
+      .filtros-grid2 { grid-template-columns: 1fr 1fr; }
       .resumo-grid { grid-template-columns: repeat(2, 1fr); }
       table { font-size: 12px; }
       th, td { padding: 8px 10px; }
@@ -127,9 +129,7 @@
       <h1>🗺️ Painel admin</h1>
       <span style="font-size:12px;color:var(--text-muted)" id="fb-status">Conectando...</span>
     </div>
-    <div class="top-bar-right">
-      <button class="btn-outline" onclick="sair()">Sair</button>
-    </div>
+    <button class="btn-outline" onclick="sair()">Sair</button>
   </div>
 
   <div class="tabs">
@@ -139,10 +139,79 @@
 
   <!-- ABA RELATÓRIOS -->
   <div id="sec-relatorios" class="section active">
-    <div class="filtros">
-      <div><label>Data início</label><input type="date" id="f-inicio" /></div>
-      <div><label>Data fim</label><input type="date" id="f-fim" /></div>
-      <button class="btn-sm" onclick="buscar()">Buscar</button>
+    <div class="filtros-box">
+      <div class="filtros-grid">
+        <div>
+          <label>Data início</label>
+          <input type="date" id="f-inicio" />
+        </div>
+        <div>
+          <label>Data fim</label>
+          <input type="date" id="f-fim" />
+        </div>
+        <div>
+          <label>Guia</label>
+          <select id="f-guia">
+            <option value="">Todos</option>
+            <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option>
+            <option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option>
+            <option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option>
+            <option>EDSON</option><option>TATIANA</option><option>TOM JONES</option><option>ADRIANE</option>
+            <option>GUILHERME</option><option>FÁBIO GOMES</option><option>DANIEL</option><option>NEIDE</option>
+            <option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option>
+            <option>ANTÔNIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option>
+            <option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option>
+            <option>WIRON</option><option>IANNE</option><option>ADIANÊS</option><option>MADSON</option>
+            <option>CAMILLA</option><option>ANDRÉ</option><option>ANA FLÁVIA</option><option>RENATA</option>
+            <option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option>
+            <option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option>
+            <option>SIDNEI</option><option>DRIELLY</option><option>RAÍSSA</option><option>ISADORA</option>
+            <option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option>
+            <option>FÁBIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option>
+            <option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO M</option><option>TALES</option>
+            <option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option>
+            <option>FRANÇA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option>
+            <option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option>
+            <option>CAMILA</option><option>GLÓRIA</option><option>ELISIO</option><option>REBECA</option>
+            <option>ENEZIANE</option><option>BRUNO S</option><option>ALVARO</option><option>ZENA</option>
+            <option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option>
+            <option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+          </select>
+        </div>
+      </div>
+      <div class="filtros-grid2">
+        <div>
+          <label>Serviço</label>
+          <select id="f-servico">
+            <option value="">Todos</option>
+            <optgroup label="Chegada">
+              <option value="chegada-porto">Chegada Porto</option>
+              <option value="chegada-cabo">Chegada Cabo</option>
+              <option value="chegada-maragogi">Chegada Maragogi</option>
+              <option value="chegada-recife">Chegada Recife</option>
+            </optgroup>
+            <optgroup label="Saída">
+              <option value="saida-porto">Saída Porto</option>
+              <option value="saida-cabo">Saída Cabo</option>
+              <option value="saida-maragogi">Saída Maragogi</option>
+              <option value="saida-recife">Saída Recife</option>
+            </optgroup>
+            <optgroup label="Apoio">
+              <option value="apoio-porto">Apoio Porto</option>
+              <option value="apoio-recife">Apoio Recife</option>
+            </optgroup>
+            <option value="trf">TRF</option>
+          </select>
+        </div>
+        <div>
+          <label>Voo</label>
+          <input type="text" id="f-voo" placeholder="ex: LA3456" style="text-transform:uppercase;" />
+        </div>
+        <div></div>
+        <div style="display:flex;align-items:flex-end;">
+          <button class="btn-sm" style="width:100%;" onclick="buscar()">Buscar</button>
+        </div>
+      </div>
     </div>
     <div class="resumo-grid" id="resumo-grid"></div>
     <div id="tabela-wrap"></div>
@@ -172,7 +241,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore, collection, query, where, orderBy, getDocs, doc, getDoc, setDoc, getDocs as _getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, collection, query, where, orderBy, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const app = initializeApp({
     apiKey: "AIzaSyCFom_SD6rklJ3hTJHC5_VF34TiDYKn-ak",
@@ -208,7 +277,6 @@ const BADGE = {
   'saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida',
   'apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf'
 };
-
 const TODOS_GUIAS = [
   'JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON',
   'HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM JONES','ADRIANE','GUILHERME','FÁBIO GOMES','DANIEL','NEIDE',
@@ -223,9 +291,9 @@ const TODOS_GUIAS = [
 
 let guiasSenhas = {};
 let guiaReset = '';
+let todosRelatorios = [];
 
 function isChegada(s) { return s && s.startsWith('chegada'); }
-
 function hoje() { return new Date().toISOString().slice(0,10); }
 function inicioMes() { const d = new Date(); d.setDate(1); return d.toISOString().slice(0,10); }
 
@@ -272,39 +340,82 @@ async function buscar() {
   const fimExclusivo = fimDate.toISOString().slice(0,10);
   showLoading();
   try {
-    const q = window._query(window._collection(window._db, 'relatorios'), window._where('data', '>=', inicio), window._where('data', '<', fimExclusivo), window._orderBy('data', 'desc'));
+    const q = window._query(
+      window._collection(window._db, 'relatorios'),
+      window._where('data', '>=', inicio),
+      window._where('data', '<', fimExclusivo),
+      window._orderBy('data', 'desc')
+    );
     const snap = await window._getDocs(q);
-    renderPainel(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    todosRelatorios = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    aplicarFiltros();
   } catch(e) {
     document.getElementById('tabela-wrap').innerHTML = '<p class="empty">Erro: ' + e.message + '</p>';
   } finally { hideLoading(); }
 }
 
-function renderPainel(lista) {
-  let tr=lista.length, ts=0, tp=0, tv=0;
-  lista.forEach(r => r.itens.forEach(it => { ts++; if (isChegada(it.servico)) tp += (it.pax||0); if (it.vendas) tv += it.vendas; }));
-  document.getElementById('resumo-grid').innerHTML = `
-    <div class="resumo-card"><div class="num">${tr}</div><div class="lbl">relatórios</div></div>
-    <div class="resumo-card"><div class="num">${ts}</div><div class="lbl">serviços</div></div>
-    <div class="resumo-card"><div class="num">${tp}</div><div class="lbl">pax chegada</div></div>
-    <div class="resumo-card"><div class="num">R$${tv.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="lbl">vendas</div></div>`;
-  if (!lista.length) { document.getElementById('tabela-wrap').innerHTML = '<p class="empty">Nenhum relatório neste período.</p>'; return; }
-  let rows = '';
-  lista.forEach(r => {
-    const dataFmt = new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+function aplicarFiltros() {
+  const fGuia = document.getElementById('f-guia').value;
+  const fServico = document.getElementById('f-servico').value;
+  const fVoo = document.getElementById('f-voo').value.trim().toUpperCase();
+
+  // Filtrar relatórios e itens
+  let linhas = [];
+  todosRelatorios.forEach(r => {
+    if (fGuia && r.guia !== fGuia) return;
     r.itens.forEach(it => {
-      let det = '';
-      if (isChegada(it.servico)) {
-        det = `Voo: <strong>${it.voo||'—'}</strong> · Pax: <strong>${it.pax??0}</strong> · Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
-      } else if (it.servico && it.servico.startsWith('saida')) {
-        det = `No-show: <strong>${it.noshow??0} pax</strong>`;
-      } else {
-        det = `Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
-      }
-      rows += `<tr><td>${dataFmt}</td><td><div class="guia-nome">${r.guia}</div><div class="motorista-nome">🚐 ${r.motorista}</div></td><td><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span></td><td>${det}${it.obs?`<div class="obs-txt">📝 ${it.obs}</div>`:''}</td></tr>`;
+      if (fServico && it.servico !== fServico) return;
+      if (fVoo && (!it.voo || !it.voo.toUpperCase().includes(fVoo))) return;
+      linhas.push({ r, it });
     });
   });
-  document.getElementById('tabela-wrap').innerHTML = `<table><thead><tr><th>Data</th><th>Guia / Motorista</th><th>Serviço</th><th>Detalhes</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  renderPainel(linhas);
+}
+
+function renderPainel(linhas) {
+  let ts = linhas.length, tp = 0, tv = 0, tn = 0;
+  linhas.forEach(({ it }) => {
+    if (isChegada(it.servico)) tp += (it.pax||0);
+    if (it.vendas) tv += it.vendas;
+    if (it.noshow) tn += it.noshow;
+  });
+
+  document.getElementById('resumo-grid').innerHTML = `
+    <div class="resumo-card"><div class="num">${ts}</div><div class="lbl">serviços</div></div>
+    <div class="resumo-card"><div class="num">${tp}</div><div class="lbl">pax chegada</div></div>
+    <div class="resumo-card"><div class="num">R$${tv.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="lbl">vendas</div></div>
+    <div class="resumo-card"><div class="num">${tn}</div><div class="lbl">no-show</div></div>`;
+
+  if (!linhas.length) {
+    document.getElementById('tabela-wrap').innerHTML = '<p class="empty">Nenhum resultado encontrado.</p>';
+    return;
+  }
+
+  let rows = '';
+  linhas.forEach(({ r, it }) => {
+    const dataFmt = new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    let det = '';
+    if (isChegada(it.servico)) {
+      det = `Voo: <strong>${it.voo||'—'}</strong> · Pax: <strong>${it.pax??0}</strong> · Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
+    } else if (it.servico && it.servico.startsWith('saida')) {
+      det = `No-show: <strong>${it.noshow??0} pax</strong>`;
+    } else {
+      det = `Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
+    }
+    rows += `<tr>
+      <td>${dataFmt}</td>
+      <td><div class="guia-nome">${r.guia}</div><div class="motorista-nome">🚐 ${r.motorista}</div></td>
+      <td><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span></td>
+      <td>${det}${it.obs ? `<div class="obs-txt">📝 ${it.obs}</div>` : ''}</td>
+    </tr>`;
+  });
+
+  document.getElementById('tabela-wrap').innerHTML = `
+    <table>
+      <thead><tr><th>Data</th><th>Guia / Motorista</th><th>Serviço</th><th>Detalhes</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 // ---- SENHAS ----
@@ -323,8 +434,7 @@ async function carregarSenhas() {
 
 function filtrarGuias() {
   const busca = document.getElementById('busca-guia').value.toUpperCase();
-  const filtrados = TODOS_GUIAS.filter(g => g.includes(busca));
-  renderGuias(filtrados);
+  renderGuias(TODOS_GUIAS.filter(g => g.includes(busca)));
 }
 
 function renderGuias(lista) {
@@ -343,7 +453,7 @@ function renderGuias(lista) {
 
 function abrirReset(nome) {
   guiaReset = nome;
-  document.getElementById('modal-desc').textContent = `Defina uma nova senha para ${nome}. O guia poderá alterá-la no próximo acesso.`;
+  document.getElementById('modal-desc').textContent = `Defina uma nova senha para ${nome}.`;
   document.getElementById('modal-nova-senha').value = '';
   document.getElementById('modal-reset').style.display = 'flex';
   setTimeout(() => document.getElementById('modal-nova-senha').focus(), 100);
