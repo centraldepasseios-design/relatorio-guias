@@ -90,6 +90,21 @@
     .btn-ciente{width:100%;padding:14px;font-size:15px;font-weight:500;font-family:'DM Sans',sans-serif;background:#0f6e56;color:#fff;border:none;border-radius:var(--rsm);cursor:pointer;transition:opacity .15s}
     .btn-ciente:hover{opacity:.85}
     .ciente-confirmado{width:100%;padding:14px;font-size:15px;font-weight:500;text-align:center;background:#e1f5ee;color:#0f6e56;border-radius:var(--rsm);border:1px solid #b2dfdb}
+    .disp-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.25rem;margin-bottom:12px}
+    .disp-card h3{font-size:15px;font-weight:600;margin-bottom:1rem}
+    .disp-date-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+    .disp-date-row:last-child{border-bottom:none}
+    .disp-date{font-size:14px;font-weight:500}
+    .disp-date small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+    .disp-btns{display:flex;gap:6px}
+    .btn-disp{padding:6px 14px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;border-radius:99px;cursor:pointer;border:1.5px solid transparent;transition:all .15s}
+    .btn-disp.sim{background:#e1f5ee;color:#0f6e56;border-color:#b2dfdb}
+    .btn-disp.sim.ativo{background:#0f6e56;color:#fff}
+    .btn-disp.nao{background:#fde8e8;color:#c0392b;border-color:#f5c6c6}
+    .btn-disp.nao.ativo{background:#c0392b;color:#fff}
+    .idioma-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .idioma-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;cursor:pointer;transition:all .15s}
+    .idioma-chip.ativo{background:#e6f1fb;border-color:#185fa5;color:#185fa5;font-weight:500}
     .loading-overlay{position:fixed;inset:0;background:rgba(245,244,240,.8);display:flex;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(2px)}
     .loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
@@ -145,6 +160,7 @@
   </div>
   <div class="tabs">
     <button class="tab active" onclick="trocarAba('escala')">📅 Escala</button>
+    <button class="tab" onclick="trocarAba('disp')">📆 Disponibilidade</button>
     <button class="tab" onclick="trocarAba('form')">📋 Relatório</button>
     <button class="tab" onclick="trocarAba('hist')">↩ Histórico</button>
   </div>
@@ -152,6 +168,11 @@
   <!-- ESCALA DO DIA -->
   <div id="sec-escala" class="section active">
     <div id="escala-conteudo"></div>
+  </div>
+
+  <!-- DISPONIBILIDADE -->
+  <div id="sec-disp" class="section">
+    <div id="disp-conteudo"></div>
   </div>
 
   <!-- FORMULÁRIO RELATÓRIO -->
@@ -363,6 +384,94 @@ async function carregarEscalaHoje(){
   }catch(e){hideLoading();el.innerHTML='<p class="empty">Erro ao carregar escala.</p>';console.error(e)}
 }
 
+// ---- DISPONIBILIDADE ----
+const IDIOMAS=['Português','Inglês','Espanhol','Francês','Italiano','Alemão'];
+
+async function carregarDisponibilidade(){
+  const el=document.getElementById('disp-conteudo');
+  if(!window._fbReady||!guiaAtual)return;
+  showLoading();
+  try{
+    // Carrega idiomas salvos
+    const guiaDoc=await window._getDoc(window._doc(window._db,'guias',guiaAtual));
+    const idiomasSalvos=guiaDoc.exists()&&guiaDoc.data().idiomas?guiaDoc.data().idiomas:[];
+    // Gera próximos 7 dias
+    const dias=[];
+    for(let i=0;i<7;i++){
+      const d=new Date();d.setDate(d.getDate()+i);
+      dias.push(d.toISOString().slice(0,10));
+    }
+    // Carrega disponibilidades já salvas
+    const dispSnap=await window._getDocs(window._query(
+      window._collection(window._db,'disponibilidades'),
+      window._where('guia','==',guiaAtual),
+      window._where('data','>=',dias[0]),
+      window._where('data','<=',dias[6])
+    ));
+    const dispMap={};
+    dispSnap.docs.forEach(d=>{dispMap[d.data().data]=d.data().status});
+    hideLoading();
+
+    const idiomaChips=IDIOMAS.map(id=>`<div class="idioma-chip${idiomasSalvos.includes(id)?' ativo':''}" onclick="toggleIdioma(this,'${id}')">${_flagIdioma(id)} ${id}</div>`).join('');
+    const diasRows=dias.map(data=>{
+      const d=new Date(data+'T12:00:00');
+      const label=i=>['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
+      const fmt=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+      const diaSem=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'][d.getDay()];
+      const status=dispMap[data]||'';
+      return`<div class="disp-date-row">
+        <div class="disp-date">${diaSem}<small>${fmt}</small></div>
+        <div class="disp-btns">
+          <button class="btn-disp sim${status==='sim'?' ativo':''}" onclick="marcarDisp('${data}','sim',this)">✅ Disponível</button>
+          <button class="btn-disp nao${status==='nao'?' ativo':''}" onclick="marcarDisp('${data}','nao',this)">❌ Indisponível</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.innerHTML=`
+      <div class="disp-card">
+        <h3>🌍 Idiomas que falo</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Selecione todos os idiomas que você atende:</p>
+        <div class="idioma-wrap" id="idioma-chips">${idiomaChips}</div>
+        <button class="btn-ciente" style="margin-top:14px" onclick="salvarIdiomas()">💾 Salvar idiomas</button>
+      </div>
+      <div class="disp-card">
+        <h3>📆 Minha disponibilidade — próximos 7 dias</h3>
+        ${diasRows}
+      </div>`;
+  }catch(e){hideLoading();el.innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}
+}
+
+function _flagIdioma(id){return{'Português':'🇧🇷','Inglês':'🇺🇸','Espanhol':'🇪🇸','Francês':'🇫🇷','Italiano':'🇮🇹','Alemão':'🇩🇪'}[id]||'🌍'}
+
+function toggleIdioma(el,idioma){el.classList.toggle('ativo')}
+
+async function salvarIdiomas(){
+  const selecionados=Array.from(document.querySelectorAll('#idioma-chips .idioma-chip.ativo')).map(el=>el.textContent.trim().replace(/^.\s/,''));
+  showLoading();
+  try{
+    const snap=await window._getDoc(window._doc(window._db,'guias',guiaAtual));
+    const dados=snap.exists()?snap.data():{};
+    await window._setDoc(window._doc(window._db,'guias',guiaAtual),{...dados,idiomas:selecionados});
+    hideLoading();
+    alert('✅ Idiomas salvos: '+selecionados.join(', '));
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
+async function marcarDisp(data,status,btn){
+  showLoading();
+  try{
+    await window._setDoc(window._doc(window._db,'disponibilidades',data+'_'+guiaAtual),{
+      guia:guiaAtual,data,status,atualizadoEm:new Date().toISOString()
+    });
+    hideLoading();
+    // Atualiza visual
+    const row=btn.closest('.disp-date-row');
+    row.querySelectorAll('.btn-disp').forEach(b=>b.classList.remove('ativo'));
+    btn.classList.add('ativo');
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
 async function confirmarEscala(){
   showLoading();
   try{
@@ -374,11 +483,12 @@ async function confirmarEscala(){
 }
 
 function trocarAba(aba){
-  const abas=['escala','form','hist'];
+  const abas=['escala','disp','form','hist'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',aba===abas[i]));
   abas.forEach(a=>document.getElementById('sec-'+a).classList.toggle('active',aba===a));
   if(aba==='hist')renderHistorico();
   if(aba==='escala')carregarEscalaHoje();
+  if(aba==='disp')carregarDisponibilidade();
 }
 
 // ---- RELATÓRIO ----
