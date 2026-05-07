@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Admin — Relatórios</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --border: rgba(0,0,0,0.1);
+      --border-mid: rgba(0,0,0,0.18);
+      --text: #1a1a18;
+      --text-muted: #6b6b67;
+      --text-hint: #9a9a96;
+      --accent: #1a1a18;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 1rem 1rem 4rem;
+    }
+
+    /* LOGIN */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    .login-box .logo { font-size: 32px; margin-bottom: 12px; }
+    .login-box h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+    .login-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 1.5rem; }
+    .login-box input {
+      width: 100%; padding: 11px 14px; font-size: 15px;
+      font-family: 'DM Sans', sans-serif; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--bg);
+      color: var(--text); outline: none; margin-bottom: 12px;
+      text-align: center; letter-spacing: 2px;
+    }
+    .login-box input:focus { border-color: var(--border-mid); background: #fff; }
+    .login-err { font-size: 13px; color: #c0392b; margin-bottom: 10px; display: none; }
+
+    /* PAINEL */
+    .painel { display: none; max-width: 860px; margin: 0 auto; }
+
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.5rem 0 1.25rem;
+    }
+    .top-bar h1 { font-size: 20px; font-weight: 600; }
+    .top-bar span { font-size: 13px; color: var(--text-muted); }
+    .btn-sair {
+      background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 7px 14px; font-size: 13px; font-family: 'DM Sans', sans-serif;
+      color: var(--text-muted); cursor: pointer;
+    }
+    .btn-sair:hover { background: var(--surface); }
+
+    .filtros {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+      display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;
+    }
+    .filtros label {
+      display: block; font-size: 11px; font-weight: 500; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px;
+    }
+    .filtros input, .filtros select {
+      width: 100%; padding: 9px 12px; font-size: 14px;
+      font-family: 'DM Sans', sans-serif; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--bg); color: var(--text); outline: none;
+    }
+    .filtros input:focus, .filtros select:focus { border-color: var(--border-mid); background: #fff; }
+
+    .btn-buscar {
+      padding: 9px 20px; font-size: 14px; font-weight: 500;
+      font-family: 'DM Sans', sans-serif; background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap;
+    }
+    .btn-buscar:hover { opacity: 0.85; }
+
+    .resumo-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem;
+    }
+    .resumo-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 1rem 0.75rem; text-align: center;
+    }
+    .resumo-card .num { font-size: 22px; font-weight: 600; }
+    .resumo-card .lbl { font-size: 11px; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    .badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; }
+    .badge-chegada { background: #e1f5ee; color: #0f6e56; }
+    .badge-saida   { background: #e6f1fb; color: #185fa5; }
+    .badge-apoio   { background: #faeeda; color: #854f0b; }
+    .badge-trf     { background: #eeedfe; color: #534ab7; }
+
+    table {
+      width: 100%; border-collapse: collapse;
+      background: var(--surface); border-radius: var(--radius);
+      overflow: hidden; border: 1px solid var(--border);
+      font-size: 13px;
+    }
+    thead { background: var(--bg); }
+    th {
+      padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 500;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 11px 14px; border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafaf8; }
+
+    .guia-nome { font-weight: 500; font-size: 13px; }
+    .motorista-nome { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .obs-txt { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-style: italic; }
+
+    .empty { text-align: center; padding: 3rem; color: var(--text-hint); font-size: 14px; }
+
+    .loading-overlay {
+      position: fixed; inset: 0; background: rgba(245,244,240,0.8);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; backdrop-filter: blur(2px);
+    }
+    .loading-spinner {
+      width: 32px; height: 32px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-submit {
+      width: 100%; padding: 12px; font-size: 15px; font-weight: 500;
+      font-family: 'DM Sans', sans-serif; background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius-sm); cursor: pointer;
+    }
+    .btn-submit:hover { opacity: 0.85; }
+
+    @media (max-width: 600px) {
+      .filtros { grid-template-columns: 1fr; }
+      .resumo-grid { grid-template-columns: repeat(2, 1fr); }
+      table { font-size: 12px; }
+      th, td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-box">
+    <div class="logo">🗺️</div>
+    <h1>Painel Admin</h1>
+    <p>Relatórios dos guias</p>
+    <p class="login-err" id="login-err">Senha incorreta.</p>
+    <input type="password" id="senha-input" placeholder="••••••••" onkeydown="if(event.key==='Enter') entrar()" />
+    <button class="btn-submit" onclick="entrar()">Entrar</button>
+  </div>
+</div>
+
+<!-- PAINEL -->
+<div class="painel" id="painel">
+  <div class="top-bar">
+    <div>
+      <h1>🗺️ Painel de relatórios</h1>
+      <span id="status-firebase">Conectando...</span>
+    </div>
+    <button class="btn-sair" onclick="sair()">Sair</button>
+  </div>
+
+  <div class="filtros">
+    <div>
+      <label>Data início</label>
+      <input type="date" id="f-inicio" />
+    </div>
+    <div>
+      <label>Data fim</label>
+      <input type="date" id="f-fim" />
+    </div>
+    <div>
+      <button class="btn-buscar" onclick="buscar()">Buscar</button>
+    </div>
+  </div>
+
+  <div class="resumo-grid" id="resumo-grid"></div>
+
+  <div id="tabela-wrap"></div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getFirestore, collection, query, where, orderBy, getDocs
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCFom_SD6rklJ3hTJHC5_VF34TiDYKn-ak",
+    authDomain: "relatorio-guias.firebaseapp.com",
+    projectId: "relatorio-guias",
+    storageBucket: "relatorio-guias.firebasestorage.app",
+    messagingSenderId: "1078535122546",
+    appId: "1:1078535122546:web:fb1669ddaa66a4e5a1dceb"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  window._db = db;
+  window._fbReady = true;
+  window._collection = collection;
+  window._query = query;
+  window._where = where;
+  window._orderBy = orderBy;
+  window._getDocs = getDocs;
+
+  document.getElementById('status-firebase').textContent = '✅ Conectado ao Firebase';
+</script>
+
+<script>
+const SENHA = 'luck1960';
+const LABELS = {
+  'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo',
+  'chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife',
+  'saida-porto':'Saída Porto','saida-cabo':'Saída Cabo',
+  'saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife',
+  'apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'
+};
+const BADGE = {
+  'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada',
+  'chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada',
+  'saida-porto':'badge-saida','saida-cabo':'badge-saida',
+  'saida-maragogi':'badge-saida','saida-recife':'badge-saida',
+  'apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf'
+};
+
+function isChegada(s) { return s && s.startsWith('chegada'); }
+
+function hoje() { return new Date().toISOString().slice(0,10); }
+function inicioMes() {
+  const d = new Date(); d.setDate(1);
+  return d.toISOString().slice(0,10);
+}
+
+function entrar() {
+  const val = document.getElementById('senha-input').value;
+  if (val === SENHA) {
+    document.getElementById('login-wrap').style.display = 'none';
+    document.getElementById('painel').style.display = 'block';
+    document.getElementById('f-inicio').value = inicioMes();
+    document.getElementById('f-fim').value = hoje();
+    buscar();
+  } else {
+    document.getElementById('login-err').style.display = 'block';
+    document.getElementById('senha-input').value = '';
+  }
+}
+
+function sair() {
+  document.getElementById('login-wrap').style.display = 'flex';
+  document.getElementById('painel').style.display = 'none';
+  document.getElementById('senha-input').value = '';
+}
+
+function showLoading() {
+  if (document.getElementById('loading-overlay')) return;
+  const el = document.createElement('div');
+  el.id = 'loading-overlay';
+  el.className = 'loading-overlay';
+  el.innerHTML = '<div class="loading-spinner"></div>';
+  document.body.appendChild(el);
+}
+function hideLoading() {
+  const el = document.getElementById('loading-overlay');
+  if (el) el.remove();
+}
+
+async function buscar() {
+  if (!window._fbReady) { alert('Aguarde a conexão com o Firebase.'); return; }
+  const inicio = document.getElementById('f-inicio').value;
+  const fim = document.getElementById('f-fim').value;
+  if (!inicio || !fim) { alert('Selecione o período.'); return; }
+
+  // fim inclusivo: adiciona 1 dia
+  const fimDate = new Date(fim + 'T12:00:00');
+  fimDate.setDate(fimDate.getDate() + 1);
+  const fimExclusivo = fimDate.toISOString().slice(0,10);
+
+  showLoading();
+  try {
+    const q = window._query(
+      window._collection(window._db, 'relatorios'),
+      window._where('data', '>=', inicio),
+      window._where('data', '<', fimExclusivo),
+      window._orderBy('data', 'desc')
+    );
+    const snap = await window._getDocs(q);
+    const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderPainel(lista);
+  } catch(e) {
+    console.error(e);
+    document.getElementById('tabela-wrap').innerHTML = '<p class="empty">Erro ao carregar dados: ' + e.message + '</p>';
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderPainel(lista) {
+  // Totais
+  let totalRel = lista.length;
+  let totalServicos = 0, totalPax = 0, totalVendas = 0, totalNoshow = 0;
+  lista.forEach(r => r.itens.forEach(it => {
+    totalServicos++;
+    if (isChegada(it.servico)) totalPax += (it.pax || 0);
+    if (it.vendas) totalVendas += it.vendas;
+    if (it.noshow) totalNoshow += it.noshow;
+  }));
+
+  document.getElementById('resumo-grid').innerHTML = `
+    <div class="resumo-card"><div class="num">${totalRel}</div><div class="lbl">relatórios</div></div>
+    <div class="resumo-card"><div class="num">${totalServicos}</div><div class="lbl">serviços</div></div>
+    <div class="resumo-card"><div class="num">${totalPax}</div><div class="lbl">pax chegada</div></div>
+    <div class="resumo-card"><div class="num">R$${totalVendas.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="lbl">vendas</div></div>
+  `;
+
+  if (!lista.length) {
+    document.getElementById('tabela-wrap').innerHTML = '<p class="empty">Nenhum relatório neste período.</p>';
+    return;
+  }
+
+  // Linhas da tabela — uma por serviço
+  let rows = '';
+  lista.forEach(r => {
+    const dataFmt = new Date(r.data + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric'});
+    r.itens.forEach(it => {
+      const chegada = isChegada(it.servico);
+      const saida = it.servico && it.servico.startsWith('saida');
+      let detalhes = '';
+      if (chegada) {
+        detalhes = `Voo: <strong>${it.voo||'—'}</strong> · Pax: <strong>${it.pax??0}</strong> · Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
+      } else if (saida) {
+        detalhes = `No-show: <strong>${it.noshow??0} pax</strong>`;
+      } else {
+        detalhes = `Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
+      }
+      rows += `<tr>
+        <td>${dataFmt}</td>
+        <td><div class="guia-nome">${r.guia}</div><div class="motorista-nome">🚐 ${r.motorista}</div></td>
+        <td><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span></td>
+        <td>${detalhes}${it.obs ? `<div class="obs-txt">📝 ${it.obs}</div>` : ''}</td>
+      </tr>`;
+    });
+  });
+
+  document.getElementById('tabela-wrap').innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Guia / Motorista</th>
+          <th>Serviço</th>
+          <th>Detalhes</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+</script>
+</body>
+</html>
