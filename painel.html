@@ -177,6 +177,7 @@
       <div style="flex:1"></div>
       </div>
     </div>
+    <div id="alerta-confirmacao" style="display:none;margin-bottom:1rem"></div>
     <div id="escala-linhas"></div>
     <div id="escala-publicada"></div>
     <div id="escala-filtros" style="display:none;margin-bottom:10px">
@@ -353,6 +354,7 @@ function entrar(){
     document.getElementById('disp-data').value=hoje();
     carregarEscalaPublicada();
     carregarConfirmacoes();
+    verificarPendentes();
   }else{
     document.getElementById('login-err').style.display='block';
     document.getElementById('senha-input').value='';
@@ -366,7 +368,7 @@ function trocarAba(aba){
     document.getElementById('sec-'+a).classList.toggle('active',aba===a);
   });
   if(aba==='senhas')carregarSenhas();
-  if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();}
+  if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();verificarPendentes();}
   if(aba==='disp')carregarDisp();
 }
 
@@ -720,6 +722,90 @@ function aplicarFiltros(){
   document.getElementById('tabela-wrap').innerHTML=`<table><thead><tr><th>Data</th><th>Guia/Motorista</th><th>Serviço</th><th>Detalhes</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+
+
+// ===== PENDENTES / REDISTRIBUIÇÃO =====
+const HORA_LIMITE=20; // 20h do dia anterior
+const GUIAS_FILA=['JUNIOR', 'POLLY', 'NATALIA', 'GEORGE', 'KATARINA', 'EDMILTON', 'EVILAZIO', 'LUCIENE', 'VITOR', 'ERLON', 'HENRIQUE JR', 'FELIPE', 'EDSON', 'TATIANA', 'TOM JONES', 'ADRIANE', 'GUILHERME', 'FÁBIO GOMES', 'DANIEL', 'NEIDE', 'JUAN', 'EUGENIO', 'VALTER', 'GONÇALVES', 'ANTÔNIO', 'GERARDO', 'ELANE', 'HUGO', 'JOEL', 'HENRIQUE FARIAS', 'CHICO DINIZ', 'MARILANDE', 'WIRON', 'IANNE', 'ADIANÊS', 'MADSON', 'CAMILLA', 'ANDRÉ', 'ANA FLÁVIA', 'RENATA', 'GESSYCA', 'TAVARES', 'MATHEUS', 'ALICE', 'LIDIANE', 'CARLA', 'ALBERTO', 'XIMENES', 'SIDNEI', 'DRIELLY', 'RAÍSSA', 'ISADORA', 'SANTIAGO', 'ARTHUR', 'GIL', 'HUMBERTO', 'FÁBIO COZZI', 'BRENO', 'LUIZ CARLOS', 'RODRIGO', 'JOELMA', 'OLIVEIRA', 'BRUNO M', 'TALES', 'FRANCINALDO', 'AMAURY', 'ARLENE', 'JACIANE', 'FRANÇA', 'FREITAS', 'LUIZ FELIPE', 'RAFAEL', 'JULIANA', 'DEYVISON', 'ALEX', 'RUTH', 'CAMILA', 'GLÓRIA', 'ELISIO', 'REBECA', 'ENEZIANE', 'BRUNO S', 'ALVARO', 'ZENA', 'CARLOS M', 'CHICO LIMA', 'SERGIO', 'LUCIA V', 'MARCOS F', 'MADALENA', 'ARLINDO'];
+
+async function verificarPendentes(){
+  const agora=new Date();
+  // Verifica escala de amanhã
+  const amanha=new Date();amanha.setDate(amanha.getDate()+1);
+  const dataAmanha=amanha.toISOString().slice(0,10);
+  // Só alerta após 20h
+  if(agora.getHours()<HORA_LIMITE){
+    document.getElementById('alerta-confirmacao').style.display='none';
+    return;
+  }
+  try{
+    // Busca escalas de amanhã
+    const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',dataAmanha)));
+    const escalasAmanha=escSnap.docs.map(d=>d.data());
+    if(!escalasAmanha.length){document.getElementById('alerta-confirmacao').style.display='none';return;}
+    // Busca confirmações de amanhã
+    const confSnap=await window._gds(window._q(window._col(window._db,'confirmacoes'),window._w('data','==',dataAmanha)));
+    const confirmados=new Set(confSnap.docs.map(d=>d.data().guia));
+    // Filtra quem não confirmou
+    const pendentes=escalasAmanha.filter(e=>!confirmados.has(e.guia));
+    if(!pendentes.length){document.getElementById('alerta-confirmacao').style.display='none';return;}
+    // Busca última escala de cada guia para montar fila
+    const escTodasSnap=await window._gds(window._col(window._db,'escalas'));
+    const ultimaEscala={};
+    escTodasSnap.docs.forEach(d=>{
+      const it=d.data();
+      if(!ultimaEscala[it.guia]||it.data>ultimaEscala[it.guia])ultimaEscala[it.guia]=it.data;
+    });
+    // Monta fila ordenada por quem está há mais tempo sem ser escalado
+    const fila=GUIAS_FILA
+      .filter(g=>!confirmados.has(g))
+      .map(g=>{return{guia:g,ultima:ultimaEscala[g]||'0000-00-00'}})
+      .sort((a,b)=>a.ultima.localeCompare(b.ultima));
+    // Renderiza alerta
+    const amanhaFmt=amanha.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+    const pendRows=pendentes.map((e,idx)=>{
+      const sugerido=fila.find(f=>f.guia!==e.guia);
+      const guiaOpts=GUIAS_FILA.map(g=>`<option value="${g}"${g===sugerido?.guia?' selected':''}>${g}</option>`).join('');
+      return`<div style="background:#fff;border:1px solid #f5c6c6;border-radius:8px;padding:1rem;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#c0392b">⚠️ ${e.guia} não confirmou</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${(LBLS[e.servico]||e.servico)} · ⏰ ${e.horario}</div>
+            ${sugerido?`<div style="font-size:12px;color:#0f6e56;margin-top:4px">💡 Sugerido: <strong>${sugerido.guia}</strong> (último serviço: ${sugerido.ultima==='0000-00-00'?'Nunca':new Date(sugerido.ultima+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})})</div>`:''}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select id="sub-select-${idx}" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">${guiaOpts}</select>
+            <button class="btn-green" style="padding:7px 14px;font-size:13px" onclick="redistribuir('${dataAmanha}','${e.guia}','${e.servico}','${e.horario}','${e.motorista||''}','${e.hsrv||''}','${e.pax||0}','sub-select-${idx}',${idx},this.closest('div[style]'))">Redirecionar</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('alerta-confirmacao').style.display='block';
+    document.getElementById('alerta-confirmacao').innerHTML=`
+      <div style="background:#fde8e8;border:1px solid #f5c6c6;border-radius:var(--radius);padding:1rem">
+        <div style="font-size:14px;font-weight:600;color:#c0392b;margin-bottom:10px">⚠️ ${pendentes.length} serviço(s) sem confirmação para ${amanhaFmt} (prazo: 20h)</div>
+        ${pendRows}
+      </div>`;
+  }catch(e){console.error('verificarPendentes:',e)}
+}
+
+async function redistribuir(data,guiaAntigo,servico,horario,motorista,hsrv,pax,selectId,idx,cardEl){
+  const novoGuia=document.getElementById(selectId).value;
+  if(!novoGuia){alert('Selecione um guia.');return}
+  if(!confirm(`Redirecionar ${LBLS[servico]||servico} de ${guiaAntigo} para ${novoGuia}?`))return;
+  showLoad();
+  try{
+    // Remove escala do guia antigo
+    const snap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data),window._w('guia','==',guiaAntigo),window._w('servico','==',servico)));
+    for(const d of snap.docs)await window._dd(window._doc(window._db,'escalas',d.id));
+    // Cria nova escala para o novo guia
+    await window._ad(window._col(window._db,'escalas'),{guia:novoGuia,data,servico,horario,motorista,hsrv,pax:parseInt(pax)||0,obs:'Redirecionado de '+guiaAntigo,publicadoEm:new Date().toISOString()});
+    hideLoad();
+    alert(`✅ Serviço redirecionado para ${novoGuia}!`);
+    cardEl.remove();
+    carregarEscalaPublicada();
+  }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
+}
 
 // ===== DISPONIBILIDADE ADMIN =====
 const TODOS_GUIAS_DISP=['JUNIOR', 'POLLY', 'NATALIA', 'GEORGE', 'KATARINA', 'EDMILTON', 'EVILAZIO', 'LUCIENE', 'VITOR', 'ERLON', 'HENRIQUE JR', 'FELIPE', 'EDSON', 'TATIANA', 'TOM JONES', 'ADRIANE', 'GUILHERME', 'FÁBIO GOMES', 'DANIEL', 'NEIDE', 'JUAN', 'EUGENIO', 'VALTER', 'GONÇALVES', 'ANTÔNIO', 'GERARDO', 'ELANE', 'HUGO', 'JOEL', 'HENRIQUE FARIAS', 'CHICO DINIZ', 'MARILANDE', 'WIRON', 'IANNE', 'ADIANÊS', 'MADSON', 'CAMILLA', 'ANDRÉ', 'ANA FLÁVIA', 'RENATA', 'GESSYCA', 'TAVARES', 'MATHEUS', 'ALICE', 'LIDIANE', 'CARLA', 'ALBERTO', 'XIMENES', 'SIDNEI', 'DRIELLY', 'RAÍSSA', 'ISADORA', 'SANTIAGO', 'ARTHUR', 'GIL', 'HUMBERTO', 'FÁBIO COZZI', 'BRENO', 'LUIZ CARLOS', 'RODRIGO', 'JOELMA', 'OLIVEIRA', 'BRUNO M', 'TALES', 'FRANCINALDO', 'AMAURY', 'ARLENE', 'JACIANE', 'FRANÇA', 'FREITAS', 'LUIZ FELIPE', 'RAFAEL', 'JULIANA', 'DEYVISON', 'ALEX', 'RUTH', 'CAMILA', 'GLÓRIA', 'ELISIO', 'REBECA', 'ENEZIANE', 'BRUNO S', 'ALVARO', 'ZENA', 'CARLOS M', 'CHICO LIMA', 'SERGIO', 'LUCIA V', 'MARCOS F', 'MADALENA', 'ARLINDO'];
