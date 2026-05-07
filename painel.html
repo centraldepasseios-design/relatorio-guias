@@ -170,6 +170,12 @@
     </div>
     <div id="escala-linhas"></div>
     <div id="escala-publicada"></div>
+    <div id="escala-filtros" style="display:none;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>Filtrar por guia</label><input type="text" id="f-pub-guia" placeholder="Nome do guia..." oninput="filtrarPublicada()" style="background:#fff"/></div>
+        <div><label>Filtrar por motorista</label><input type="text" id="f-pub-mot" placeholder="Nome do motorista..." oninput="filtrarPublicada()" style="background:#fff"/></div>
+      </div>
+    </div>
     <div id="confirmacoes-wrap"></div>
   </div>
 
@@ -408,22 +414,50 @@ async function publicarEscala(){
   }catch(e){hideLoad();alert('Erro: '+e.message)}
 }
 
+let _itensPublicados=[];
+
+function filtrarPublicada(){
+  const fg=document.getElementById('f-pub-guia').value.toUpperCase();
+  const fm=document.getElementById('f-pub-mot').value.toUpperCase();
+  const filtrados=_itensPublicados.filter(it=>{
+    if(fg&&!it.guia.toUpperCase().includes(fg))return false;
+    if(fm&&!(it.motorista||'').toUpperCase().includes(fm))return false;
+    return true;
+  });
+  renderPublicada(filtrados);
+}
+
+function renderPublicada(itens){
+  const wrap=document.getElementById('escala-publicada');
+  const data=document.getElementById('escala-data').value||hoje();
+  if(!itens.length){wrap.innerHTML='<p class="empty">Nenhum resultado.</p>';return}
+  const d=new Date(data+'T12:00:00');
+  const dataFmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+  const rows=itens.map(it=>{
+    const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
+    const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
+    const motTxt=isCS&&it.motorista?it.motorista:'—';
+    return`<div class="pub-row"><span class="pub-hor">⏰ ${it.horario}</span><div><strong>${it.guia}</strong><br><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
+  }).join('');
+  wrap.innerHTML=`<div class="pub-box"><div class="pub-header"><span>📋 Escala — ${dataFmt}</span><span>${itens.length} serviço(s)</span></div><div>${rows}</div></div>`;
+}
+
 async function carregarEscalaPublicada(){
   const data=document.getElementById('escala-data').value||hoje();
   const wrap=document.getElementById('escala-publicada');
   try{
     const snap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
-    const itens=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.horario.localeCompare(b.horario));
-    if(!itens.length){wrap.innerHTML='<p class="empty">Nenhuma escala publicada para esta data.</p>';return}
-    const d=new Date(data+'T12:00:00');
-    const dataFmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
-    const rows=itens.map(it=>{
-      const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
-      const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
-      const motTxt=isCS&&it.motorista?it.motorista:'—';
-      return`<div class="pub-row"><span class="pub-hor">⏰ ${it.horario}</span><div><strong>${it.guia}</strong><br><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
-    }).join('');
-    wrap.innerHTML=`<div class="pub-box"><div class="pub-header"><span>📋 Escala — ${dataFmt}</span><span>${itens.length} serviço(s)</span></div><div>${rows}</div></div>`;
+    _itensPublicados=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.horario.localeCompare(b.horario));
+    // limpa filtros
+    document.getElementById('f-pub-guia').value='';
+    document.getElementById('f-pub-mot').value='';
+    if(!_itensPublicados.length){
+      wrap.innerHTML='<p class="empty">Nenhuma escala publicada para esta data.</p>';
+      document.getElementById('escala-filtros').style.display='none';
+      return;
+    }
+    document.getElementById('escala-filtros').style.display='block';
+    renderPublicada(_itensPublicados);
   }catch(e){wrap.innerHTML=''}
 }
 
