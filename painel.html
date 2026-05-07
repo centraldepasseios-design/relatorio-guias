@@ -510,21 +510,43 @@ function filtrarPublicadaPeriodo(){
   renderPublicadaPeriodo(filtrados);
 }
 
+function _renderLinhasAgrupadas(itens){
+  // Agrupa por guia mantendo ordem do primeiro horário
+  const porGuia={};
+  const ordemGuia=[];
+  itens.forEach(it=>{
+    if(!porGuia[it.guia]){porGuia[it.guia]=[];ordemGuia.push(it.guia)}
+    porGuia[it.guia].push(it);
+  });
+  return ordemGuia.map(guia=>{
+    const servicos=porGuia[guia];
+    const rows=servicos.map((it,idx)=>{
+      const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
+      const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
+      const motTxt=isCS&&it.motorista?it.motorista:'—';
+      const borderTop=idx===0?'':'border-top:1px dashed var(--border);';
+      return`<div class="pub-row" style="${borderTop}"><span class="pub-hor">⏰ ${it.horario}</span><div><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
+    }).join('');
+    const totalSrv=servicos.length;
+    return`<div style="border-bottom:2px solid var(--border)">
+      <div style="padding:.5rem 1rem;background:#f8f8f6;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center">
+        <span>👤 ${guia}</span>
+        <span style="font-size:11px;color:var(--muted);font-weight:400">${totalSrv} serviço${totalSrv>1?'s':''}</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
 function renderPublicadaPeriodo(itens){
   const wrap=document.getElementById('escala-publicada');
   if(!itens.length){wrap.innerHTML='<p class="empty">Nenhum resultado encontrado.</p>';return}
-  // Agrupa por data
   const porData={};
   itens.forEach(it=>{if(!porData[it.data])porData[it.data]=[];porData[it.data].push(it)});
   const html=Object.keys(porData).sort().map(data=>{
     const d=new Date(data+'T12:00:00');
     const dataFmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
-    const rows=porData[data].map(it=>{
-      const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
-      const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
-      const motTxt=isCS&&it.motorista?it.motorista:'—';
-      return`<div class="pub-row"><span class="pub-hor">⏰ ${it.horario}</span><div><strong>${it.guia}</strong><br><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
-    }).join('');
+    const rows=_renderLinhasAgrupadas(porData[data]);
     return`<div class="pub-box" style="margin-bottom:10px"><div class="pub-header"><span>📅 ${dataFmt}</span><div style="display:flex;gap:8px;align-items:center"><span>${porData[data].length} serviço(s)</span><button onclick="abrirAvulso('${data}')" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer">+ Avulso</button></div></div><div>${rows}</div></div>`;
   }).join('');
   wrap.innerHTML=html;
@@ -550,14 +572,8 @@ function renderPublicada(itens){
   if(!itens.length){wrap.innerHTML='<p class="empty">Nenhum resultado.</p>';return}
   const d=new Date(data+'T12:00:00');
   const dataFmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
-  const rows=itens.map(it=>{
-    const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
-    const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
-    const motTxt=isCS&&it.motorista?it.motorista:'—';
-    return`<div class="pub-row"><span class="pub-hor">⏰ ${it.horario}</span><div><strong>${it.guia}</strong><br><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
-  }).join('');
-  const dataAtual=document.getElementById('escala-data').value||hoje();
-  wrap.innerHTML=`<div class="pub-box"><div class="pub-header"><span>📋 Escala — ${dataFmt}</span><div style="display:flex;gap:8px;align-items:center"><span>${itens.length} serviço(s)</span><button onclick="abrirAvulso('${dataAtual}')" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer">+ Avulso</button></div></div><div>${rows}</div></div>`;
+  const rows=_renderLinhasAgrupadas(itens);
+  wrap.innerHTML=`<div class="pub-box"><div class="pub-header"><span>📋 Escala — ${dataFmt}</span><div style="display:flex;gap:8px;align-items:center"><span>${itens.length} serviço(s)</span><button onclick="abrirAvulso('${data}')" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer">+ Avulso</button></div></div><div>${rows}</div></div>`;
 }
 
 async function carregarEscalaPublicada(){
@@ -608,11 +624,18 @@ async function gerarPDF(){
     const dias=['domingo','segunda','terca','quarta','quinta','sexta','sabado'];
     const dia=dias[d.getDay()];
     const dataFmt=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(-2);
-    const rows=itens.map(it=>{
-      const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
-      const srv=(LBLS[it.servico]||it.servico)+(isCS&&it.hsrv?'<br><small>'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'');
-      const mot=isCS?it.motorista||'—':'—';
-      return`<tr><td class="col-srv">${srv}</td><td>${it.guia}</td><td class="col-hor">${it.horario}</td><td class="col-mot">${mot}</td></tr>`;
+    // Agrupa por guia para o PDF
+    const porGuiaPDF={};const ordemPDF=[];
+    itens.forEach(it=>{if(!porGuiaPDF[it.guia]){porGuiaPDF[it.guia]=[];ordemPDF.push(it.guia)}porGuiaPDF[it.guia].push(it)});
+    const rows=ordemPDF.map(guia=>{
+      return porGuiaPDF[guia].map((it,idx)=>{
+        const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
+        const srv=(LBLS[it.servico]||it.servico)+(isCS&&it.hsrv?'<br><small>'+it.hsrv+(it.pax?' ('+it.pax+' pax)':'')+'</small>':'');
+        const mot=isCS?it.motorista||'—':'—';
+        const guiaTd=idx===0?`<td rowspan="${porGuiaPDF[guia].length}" style="font-weight:600;vertical-align:middle">${guia}</td>`:'';
+        const borderStyle=idx===0?'':'border-top:1px dashed #ccc;';
+        return`<tr style="${borderStyle}"><td class="col-srv">${srv}</td>${guiaTd}<td class="col-hor">${it.horario}</td><td class="col-mot">${mot}</td></tr>`;
+      }).join('');
     }).join('');
     document.getElementById('print-content').innerHTML=
       '<div class="print-title"><h1>SERVICOS DE GUIAS</h1><h2>'+dataFmt+'</h2><h3>'+dia+'</h3></div>'+
