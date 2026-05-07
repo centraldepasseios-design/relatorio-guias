@@ -154,6 +154,7 @@
   <div class="tabs">
     <button class="tab active" onclick="trocarAba('escala')">📅 Escala</button>
     <button class="tab" onclick="trocarAba('relatorios')">📋 Relatórios</button>
+    <button class="tab" onclick="trocarAba('disp')">👥 Disponibilidade</button>
     <button class="tab" onclick="trocarAba('senhas')">🔑 Senhas</button>
   </div>
 
@@ -217,6 +218,32 @@
     </div>
     <div class="resumo-grid" id="resumo-grid"></div>
     <div id="tabela-wrap"></div>
+  </div>
+
+  <!-- DISPONIBILIDADE -->
+  <div id="sec-disp" class="section">
+    <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
+      <div><label>Data</label><input type="date" id="disp-data" style="padding:7px 10px;font-size:13px;width:auto"/></div>
+      <div><label>Idioma</label>
+        <select id="disp-idioma" style="padding:7px 10px;font-size:13px;width:auto">
+          <option value="">Todos idiomas</option>
+          <option>Português</option><option>Inglês</option><option>Espanhol</option>
+          <option>Francês</option><option>Italiano</option><option>Alemão</option>
+        </select>
+      </div>
+      <div><label>Status</label>
+        <select id="disp-status" style="padding:7px 10px;font-size:13px;width:auto">
+          <option value="">Todos</option>
+          <option value="sim">✅ Disponíveis</option>
+          <option value="nao">❌ Indisponíveis</option>
+          <option value="sem">⬜ Sem resposta</option>
+        </select>
+      </div>
+      <button class="btn-sm" onclick="carregarDisp()">🔍 Buscar</button>
+    </div>
+    <div id="disp-resumo" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem"></div>
+    <div id="disp-lista"></div>
+    <div id="disp-sem-convite" style="margin-top:1rem"></div>
   </div>
 
   <!-- SENHAS -->
@@ -323,6 +350,7 @@ function entrar(){
     document.getElementById('escala-data').value=hoje();
     document.getElementById('escala-inicio').value=hoje();
     document.getElementById('escala-fim').value=hoje();
+    document.getElementById('disp-data').value=hoje();
     carregarEscalaPublicada();
     carregarConfirmacoes();
   }else{
@@ -333,12 +361,13 @@ function entrar(){
 function sair(){document.getElementById('login-wrap').style.display='flex';document.getElementById('painel').style.display='none';document.getElementById('senha-input').value=''}
 
 function trocarAba(aba){
-  ['escala','relatorios','senhas'].forEach((a,i)=>{
+  ['escala','relatorios','disp','senhas'].forEach((a,i)=>{
     document.querySelectorAll('.tab')[i].classList.toggle('active',aba===a);
     document.getElementById('sec-'+a).classList.toggle('active',aba===a);
   });
   if(aba==='senhas')carregarSenhas();
   if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();}
+  if(aba==='disp')carregarDisp();
 }
 
 // ===== ESCALA =====
@@ -689,6 +718,107 @@ function aplicarFiltros(){
     return`<tr><td>${dt}</td><td><strong>${r.guia}</strong><br><small style="color:var(--muted)">🚐 ${r.motorista}</small></td><td><span class="badge ${BADGE[it.servico]||''}">${LBLS[it.servico]||it.servico}</span></td><td>${det}${it.obs?`<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;white-space:pre-line">📝 ${it.obs}</div>`:''}</td></tr>`;
   }).join('');
   document.getElementById('tabela-wrap').innerHTML=`<table><thead><tr><th>Data</th><th>Guia/Motorista</th><th>Serviço</th><th>Detalhes</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+
+// ===== DISPONIBILIDADE ADMIN =====
+const TODOS_GUIAS_DISP=['JUNIOR', 'POLLY', 'NATALIA', 'GEORGE', 'KATARINA', 'EDMILTON', 'EVILAZIO', 'LUCIENE', 'VITOR', 'ERLON', 'HENRIQUE JR', 'FELIPE', 'EDSON', 'TATIANA', 'TOM JONES', 'ADRIANE', 'GUILHERME', 'FÁBIO GOMES', 'DANIEL', 'NEIDE', 'JUAN', 'EUGENIO', 'VALTER', 'GONÇALVES', 'ANTÔNIO', 'GERARDO', 'ELANE', 'HUGO', 'JOEL', 'HENRIQUE FARIAS', 'CHICO DINIZ', 'MARILANDE', 'WIRON', 'IANNE', 'ADIANÊS', 'MADSON', 'CAMILLA', 'ANDRÉ', 'ANA FLÁVIA', 'RENATA', 'GESSYCA', 'TAVARES', 'MATHEUS', 'ALICE', 'LIDIANE', 'CARLA', 'ALBERTO', 'XIMENES', 'SIDNEI', 'DRIELLY', 'RAÍSSA', 'ISADORA', 'SANTIAGO', 'ARTHUR', 'GIL', 'HUMBERTO', 'FÁBIO COZZI', 'BRENO', 'LUIZ CARLOS', 'RODRIGO', 'JOELMA', 'OLIVEIRA', 'BRUNO M', 'TALES', 'FRANCINALDO', 'AMAURY', 'ARLENE', 'JACIANE', 'FRANÇA', 'FREITAS', 'LUIZ FELIPE', 'RAFAEL', 'JULIANA', 'DEYVISON', 'ALEX', 'RUTH', 'CAMILA', 'GLÓRIA', 'ELISIO', 'REBECA', 'ENEZIANE', 'BRUNO S', 'ALVARO', 'ZENA', 'CARLOS M', 'CHICO LIMA', 'SERGIO', 'LUCIA V', 'MARCOS F', 'MADALENA', 'ARLINDO'];
+const FLAG_IDIOMA={'Português':'🇧🇷','Inglês':'🇺🇸','Espanhol':'🇪🇸','Francês':'🇫🇷','Italiano':'🇮🇹','Alemão':'🇩🇪'};
+
+async function carregarDisp(){
+  const data=document.getElementById('disp-data').value||hoje();
+  const filtIdioma=document.getElementById('disp-idioma').value;
+  const filtStatus=document.getElementById('disp-status').value;
+  showLoad();
+  try{
+    // Carrega disponibilidades do dia
+    const dispSnap=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('data','==',data)));
+    const dispMap={};
+    dispSnap.docs.forEach(d=>{dispMap[d.data().guia]=d.data().status});
+
+    // Carrega dados dos guias (idiomas, obs)
+    const guiasSnap=await window._gds(window._col(window._db,'guias'));
+    const guiasData={};
+    guiasSnap.docs.forEach(d=>{guiasData[d.id]=d.data()});
+
+    // Carrega última escala de cada guia
+    const escSnap=await window._gds(window._col(window._db,'escalas'));
+    const ultimaEscala={};
+    escSnap.docs.forEach(d=>{
+      const it=d.data();
+      if(!ultimaEscala[it.guia]||it.data>ultimaEscala[it.guia])ultimaEscala[it.guia]=it.data;
+    });
+
+    hideLoad();
+
+    // Filtra guias
+    let guiasFiltrados=TODOS_GUIAS_DISP.filter(g=>{
+      const status=dispMap[g]||'sem';
+      if(filtStatus&&filtStatus!==status)return false;
+      if(filtIdioma){
+        const idiomas=(guiasData[g]&&guiasData[g].idiomas)||[];
+        if(!idiomas.includes(filtIdioma))return false;
+      }
+      return true;
+    });
+
+    // Resumo
+    const total=TODOS_GUIAS_DISP.length;
+    const dispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='sim').length;
+    const indispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='nao').length;
+    const semResp=total-dispCount-indispCount;
+    document.getElementById('disp-resumo').innerHTML=`
+      <div class="resumo-card" style="border-left:3px solid #0f6e56"><div class="num" style="color:#0f6e56">${dispCount}</div><div class="lbl">Disponíveis</div></div>
+      <div class="resumo-card" style="border-left:3px solid #c0392b"><div class="num" style="color:#c0392b">${indispCount}</div><div class="lbl">Indisponíveis</div></div>
+      <div class="resumo-card" style="border-left:3px solid #9a9a96"><div class="num">${semResp}</div><div class="lbl">Sem resposta</div></div>`;
+
+    // Lista
+    if(!guiasFiltrados.length){document.getElementById('disp-lista').innerHTML='<p class="empty">Nenhum guia encontrado.</p>';}
+    else{
+      const rows=guiasFiltrados.map(g=>{
+        const status=dispMap[g]||'sem';
+        const gData=guiasData[g]||{};
+        const idiomas=(gData.idiomas||[]).map(id=>FLAG_IDIOMA[id]||id).join(' ');
+        const obs=gData['obs_'+data]||'';
+        const ultima=ultimaEscala[g]?new Date(ultimaEscala[g]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'Nunca';
+        const statusBadge=status==='sim'?'<span style="background:#e1f5ee;color:#0f6e56;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">✅ Disponível</span>':status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">❌ Indisponível</span>':'<span style="background:#f0f0f0;color:#9a9a96;padding:3px 10px;border-radius:99px;font-size:12px">⬜ Sem resposta</span>';
+        return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:14px;font-weight:600">${g} <span style="font-size:14px">${idiomas}</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Último serviço: ${ultima}</div>
+            <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+              <input type="text" placeholder="Observação..." value="${obs}" onchange="salvarObsGuia('${g}','${data}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);width:220px"/>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+            ${statusBadge}
+          </div>
+        </div>`;
+      }).join('');
+      document.getElementById('disp-lista').innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">${rows}</div>`;
+    }
+
+    // Guias há mais tempo sem ser escalados
+    const rankSemEscala=TODOS_GUIAS_DISP
+      .map(g=>{return{guia:g,ultima:ultimaEscala[g]||'0000-00-00'}})
+      .sort((a,b)=>a.ultima.localeCompare(b.ultima))
+      .slice(0,10);
+    const rankRows=rankSemEscala.map((r,i)=>{
+      const dt=r.ultima==='0000-00-00'?'Nunca':new Date(r.ultima+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+      return`<div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span><strong>${i+1}. ${r.guia}</strong></span><span style="color:var(--muted)">Último: ${dt}</span></div>`;
+    }).join('');
+    document.getElementById('disp-sem-convite').innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden"><div style="background:#faeeda;padding:.75rem 1rem;font-size:13px;font-weight:500;color:#854f0b">⏳ Guias há mais tempo sem ser escalados</div>${rankRows}</div>`;
+
+  }catch(e){hideLoad();console.error(e);document.getElementById('disp-lista').innerHTML='<p class="empty">Erro: '+e.message+'</p>';}
+}
+
+async function salvarObsGuia(guia,data,obs){
+  try{
+    const snap=await window._gd(window._doc(window._db,'guias',guia));
+    const dados=snap.exists()?snap.data():{};
+    dados['obs_'+data]=obs;
+    await window._sd(window._doc(window._db,'guias',guia),dados);
+  }catch(e){console.error('Erro obs:',e)}
 }
 
 // ===== SENHAS =====
