@@ -455,6 +455,46 @@ async function confirmarReset(){
 
 document.getElementById('escala-data').addEventListener('change',()=>{carregarEscalaPublicada();carregarConfirmacoes();});
 
+async function gerarPDF(){
+  const data=document.getElementById('escala-data').value||hoje();
+  showLoading();
+  try{
+    const snap=await window._getDocs(window._query(
+      window._collection(window._db,'escalas'),
+      window._where('data','==',data),
+      window._orderBy('horario','asc')
+    ));
+    hideLoading();
+    const itens=snap.docs.map(d=>d.data());
+    if(!itens.length){alert('Nenhuma escala publicada para esta data.');return}
+    const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saida Porto','saida-cabo':'Saida Cabo','saida-maragogi':'Saida Maragogi','saida-recife':'Saida Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
+    const d=new Date(data+'T12:00:00');
+    const diasSemana=['domingo','segunda','terca','quarta','quinta','sexta','sabado'];
+    const diaSemana=diasSemana[d.getDay()];
+    const dataFmt=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(-2);
+    const rows=itens.map(it=>{
+      const srv=LBLS[it.servico]||it.servico;
+      const vooInfo=it.voo?'<br><small>'+it.voo+(it.pax?' ('+it.pax+' pax)':'')+'</small>':it.pax?'<br><small>'+it.pax+' pax</small>':'';
+      return '<tr><td class="col-srv">'+srv+vooInfo+'</td><td class="col-guia">'+it.guia+'</td><td class="col-hor">'+it.horario+'</td><td class="col-mot">'+(it.motorista||'—')+'</td></tr>';
+    }).join('');
+    document.getElementById('print-content').innerHTML=
+      '<div class="print-title">'+
+        '<h1>Servicos de Guias</h1>'+
+        '<h2>'+dataFmt+'</h2>'+
+        '<h3>'+diaSemana+'</h3>'+
+      '</div>'+
+      '<table class="print-table">'+
+        '<thead><tr><th>Servico</th><th>Guia</th><th>Horario</th><th>Motorista</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody>'+
+      '</table>';
+    document.getElementById('print-area').style.display='block';
+  }catch(e){hideLoading();alert('Erro ao gerar PDF: '+e.message);console.error(e)}
+}
+
+function fecharPrint(){
+  document.getElementById('print-area').style.display='none';
+}
+
 async function carregarConfirmacoes(){
   const data=document.getElementById('escala-data').value||hoje();
   const wrap=document.getElementById('confirmacoes-wrap');
