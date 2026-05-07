@@ -382,7 +382,7 @@ function adicionarServico() {
     <div id="f-outro-${id}" class="hidden" style="margin-top:14px;">
       <div class="row2"><div><label style="margin-top:0;">Vendas (R$)</label><input type="number" id="vendas-o-${id}" placeholder="0,00" min="0" step="0.01" /></div><div><label style="margin-top:0;">No-show</label><input type="number" id="noshow-o-${id}" placeholder="0" min="0" /></div></div>
     </div>
-    <div id="f-obs-wrap-${id}" class="hidden" style="margin-top:10px;"><label style="margin-top:0;">Observações</label><input type="text" id="obs-${id}" placeholder="opcional" /></div>
+    <div id="f-obs-wrap-${id}" class="hidden" style="margin-top:10px;"><label style="margin-top:0;">Observações</label><textarea id="obs-${id}" placeholder="opcional — use Enter para várias linhas" rows="3" style="resize:vertical;min-height:80px;"></textarea></div>
   `;
   document.getElementById('lista-servicos').appendChild(div); atualizarResumo();
 }
