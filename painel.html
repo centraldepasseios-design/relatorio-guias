@@ -250,7 +250,7 @@ function entrar(){
     document.getElementById('f-fim').value=hoje();
     document.getElementById('escala-data').value=hoje();
     carregarEscalaPublicada();
-    carregarConfirmacoes();
+    setTimeout(carregarConfirmacoes,500);
   }else{
     document.getElementById('login-err').style.display='block';
     document.getElementById('senha-input').value='';
@@ -264,7 +264,7 @@ function trocarAba(aba){
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',aba===abas[i]));
   abas.forEach(a=>document.getElementById('sec-'+a).classList.toggle('active',aba===a));
   if(aba==='senhas')carregarSenhas();
-  if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();}
+  if(aba==='escala'){carregarEscalaPublicada();setTimeout(carregarConfirmacoes,300);}
 }
 
 // ======= ESCALA =======
@@ -341,7 +341,7 @@ async function publicarEscala(){
     document.getElementById('escala-linhas').innerHTML='';
     linhasEscala=[];contEscala=0;
     carregarEscalaPublicada();
-    carregarConfirmacoes();
+    setTimeout(carregarConfirmacoes,500);
   }catch(e){hideLoading();alert('Erro: '+e.message)}
 }
 
@@ -453,7 +453,26 @@ async function confirmarReset(){
   }catch(e){alert('Erro: '+e.message)}finally{hideLoading()}
 }
 
-document.getElementById('escala-data').addEventListener('change',carregarEscalaPublicada);
+document.getElementById('escala-data').addEventListener('change',()=>{carregarEscalaPublicada();carregarConfirmacoes();});
+
+async function carregarConfirmacoes(){
+  const data=document.getElementById('escala-data').value||hoje();
+  const wrap=document.getElementById('confirmacoes-wrap');
+  if(!window._fbReady){return}
+  try{
+    const snap=await window._getDocs(window._query(
+      window._collection(window._db,'confirmacoes'),
+      window._where('data','==',data)
+    ));
+    if(!snap.docs.length){wrap.innerHTML='';return}
+    const hora=snap.docs.map(d=>({
+      guia:d.data().guia,
+      hora:d.data().confirmadoEm?new Date(d.data().confirmadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'
+    })).sort((a,b)=>a.guia.localeCompare(b.guia));
+    const rows=hora.map(h=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border)"><span style="font-size:14px;font-weight:500">✅ ${h.guia}</span><span style="font-size:12px;color:var(--muted)">${h.hora}</span></div>`).join('');
+    wrap.innerHTML=`<div style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden"><div style="background:#e1f5ee;padding:.75rem 1rem;font-size:13px;font-weight:500;color:#0f6e56">✅ Confirmações recebidas (${hora.length})</div>${rows}</div>`;
+  }catch(e){console.error(e);wrap.innerHTML=''}
+}
 </script>
 <div id="print-area">
   <button class="print-close" onclick="fecharPrint()">✕ Fechar</button>
