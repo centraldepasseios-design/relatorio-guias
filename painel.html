@@ -238,6 +238,49 @@
   </div>
 </div>
 
+<!-- MODAL AVULSO -->
+<div class="modal-overlay" id="modal-avulso" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <h3>+ Serviço avulso</h3>
+    <p id="avulso-desc"></p>
+    <div class="g2" style="margin-bottom:10px">
+      <div><label>Guia</label>
+        <select id="av-guia">
+          <option value="">— selecionar —</option>
+          <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM JONES</option><option>ADRIANE</option><option>GUILHERME</option><option>FÁBIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option><option>ANTÔNIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANÊS</option><option>MADSON</option><option>CAMILLA</option><option>ANDRÉ</option><option>ANA FLÁVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAÍSSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FÁBIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO M</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANÇA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLÓRIA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO S</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+        </select>
+      </div>
+      <div><label>Tipo de serviço</label>
+        <select id="av-srv" onchange="onTipoAvulso()">
+          <option value="">— selecionar —</option>
+          <optgroup label="Chegada"><option value="chegada-porto">Chegada Porto</option><option value="chegada-cabo">Chegada Cabo</option><option value="chegada-maragogi">Chegada Maragogi</option><option value="chegada-recife">Chegada Recife</option></optgroup>
+          <optgroup label="Saída"><option value="saida-porto">Saída Porto</option><option value="saida-cabo">Saída Cabo</option><option value="saida-maragogi">Saída Maragogi</option><option value="saida-recife">Saída Recife</option></optgroup>
+          <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option></optgroup>
+          <option value="trf">TRF</option>
+        </select>
+      </div>
+    </div>
+    <div id="av-cs-fields" style="display:none">
+      <div class="g2" style="margin-bottom:10px">
+        <div><label>Horário apresentação</label><input type="text" id="av-hor" placeholder="ex: 6:00 no aero"/></div>
+        <div><label>Horário do serviço</label><input type="text" id="av-hsrv" placeholder="ex: arr 0955" style="text-transform:uppercase"/></div>
+      </div>
+      <div class="g2" style="margin-bottom:10px">
+        <div><label>Pax</label><input type="number" id="av-pax" placeholder="0" min="0"/></div>
+        <div><label>Motorista</label><input type="text" id="av-mot" placeholder="Nome do motorista"/></div>
+      </div>
+    </div>
+    <div id="av-at-fields" style="display:none;margin-bottom:10px">
+      <label>Horário apresentação</label><input type="text" id="av-hor-at" placeholder="ex: 6:00 no aero"/>
+    </div>
+    <div style="margin-bottom:12px"><label>Observação</label><input type="text" id="av-obs" placeholder="opcional"/></div>
+    <div class="modal-btns">
+      <button class="btn-outline" onclick="fecharAvulso()">Cancelar</button>
+      <button class="btn-green" onclick="publicarAvulso()">✅ Publicar avulso</button>
+    </div>
+  </div>
+</div>
+
 <!-- PDF -->
 <div id="print-area">
   <button class="print-close" onclick="document.getElementById('print-area').style.display='none'">✕ Fechar</button>
@@ -482,7 +525,7 @@ function renderPublicadaPeriodo(itens){
       const motTxt=isCS&&it.motorista?it.motorista:'—';
       return`<div class="pub-row"><span class="pub-hor">⏰ ${it.horario}</span><div><strong>${it.guia}</strong><br><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
     }).join('');
-    return`<div class="pub-box" style="margin-bottom:10px"><div class="pub-header"><span>📅 ${dataFmt}</span><span>${porData[data].length} serviço(s)</span></div><div>${rows}</div></div>`;
+    return`<div class="pub-box" style="margin-bottom:10px"><div class="pub-header"><span>📅 ${dataFmt}</span><div style="display:flex;gap:8px;align-items:center"><span>${porData[data].length} serviço(s)</span><button onclick="abrirAvulso('${data}')" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer">+ Avulso</button></div></div><div>${rows}</div></div>`;
   }).join('');
   wrap.innerHTML=html;
 }
@@ -513,7 +556,8 @@ function renderPublicada(itens){
     const motTxt=isCS&&it.motorista?it.motorista:'—';
     return`<div class="pub-row"><span class="pub-hor">⏰ ${it.horario}</span><div><strong>${it.guia}</strong><br><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
   }).join('');
-  wrap.innerHTML=`<div class="pub-box"><div class="pub-header"><span>📋 Escala — ${dataFmt}</span><span>${itens.length} serviço(s)</span></div><div>${rows}</div></div>`;
+  const dataAtual=document.getElementById('escala-data').value||hoje();
+  wrap.innerHTML=`<div class="pub-box"><div class="pub-header"><span>📋 Escala — ${dataFmt}</span><div style="display:flex;gap:8px;align-items:center"><span>${itens.length} serviço(s)</span><button onclick="abrirAvulso('${dataAtual}')" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer">+ Avulso</button></div></div><div>${rows}</div></div>`;
 }
 
 async function carregarEscalaPublicada(){
@@ -650,6 +694,71 @@ function abrirReset(nome){
   setTimeout(()=>document.getElementById('modal-nova-senha').focus(),100);
 }
 function fecharModal(){document.getElementById('modal-reset').style.display='none';guiaReset=''}
+
+// ===== AVULSO =====
+let _dataAvulso='';
+
+function abrirAvulso(data){
+  _dataAvulso=data;
+  const d=new Date(data+'T12:00:00');
+  const fmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+  document.getElementById('avulso-desc').textContent='Adicionar serviço avulso em '+fmt;
+  document.getElementById('av-guia').value='';
+  document.getElementById('av-srv').value='';
+  document.getElementById('av-hor').value='';
+  document.getElementById('av-hsrv').value='';
+  document.getElementById('av-pax').value='';
+  document.getElementById('av-mot').value='';
+  document.getElementById('av-hor-at').value='';
+  document.getElementById('av-obs').value='';
+  document.getElementById('av-cs-fields').style.display='none';
+  document.getElementById('av-at-fields').style.display='none';
+  document.getElementById('modal-avulso').style.display='flex';
+}
+
+function fecharAvulso(){document.getElementById('modal-avulso').style.display='none';_dataAvulso=''}
+
+function onTipoAvulso(){
+  const srv=document.getElementById('av-srv').value;
+  const isCS=srv.startsWith('chegada')||srv.startsWith('saida');
+  const isAT=srv.startsWith('apoio')||srv==='trf';
+  document.getElementById('av-cs-fields').style.display=isCS?'block':'none';
+  document.getElementById('av-at-fields').style.display=isAT?'block':'none';
+  // Pax só para chegada
+  if(isCS) document.getElementById('av-pax').closest('.g2').style.display=srv.startsWith('chegada')?'grid':'none';
+}
+
+async function publicarAvulso(){
+  const guia=document.getElementById('av-guia').value;
+  const srv=document.getElementById('av-srv').value;
+  if(!guia||!srv){alert('Selecione guia e tipo de serviço.');return}
+  const isCS=srv.startsWith('chegada')||srv.startsWith('saida');
+  const isAT=srv.startsWith('apoio')||srv==='trf';
+  let horario='',hsrv='',motorista='',pax=0;
+  if(isCS){
+    horario=document.getElementById('av-hor').value.trim();
+    hsrv=document.getElementById('av-hsrv').value.trim();
+    motorista=document.getElementById('av-mot').value.trim();
+    pax=srv.startsWith('chegada')?parseInt(document.getElementById('av-pax').value)||0:0;
+    if(!horario){alert('Informe o horário de apresentação.');return}
+  }
+  if(isAT){
+    horario=document.getElementById('av-hor-at').value.trim();
+    if(!horario){alert('Informe o horário de apresentação.');return}
+  }
+  const obs=document.getElementById('av-obs').value.trim();
+  showLoad();
+  try{
+    await window._ad(window._col(window._db,'escalas'),{
+      guia,servico:srv,horario,hsrv,motorista,pax,obs,
+      data:_dataAvulso,publicadoEm:new Date().toISOString()
+    });
+    hideLoad();
+    fecharAvulso();
+    alert('✅ Serviço avulso publicado para '+guia+'!');
+    carregarEscalaPublicada();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
 async function confirmarReset(){
   const nova=document.getElementById('modal-nova-senha').value;
   if(nova.length<4){alert('Mínimo 4 caracteres.');return}
