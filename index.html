@@ -365,7 +365,13 @@ document.addEventListener('click',e=>{
 async function verificarGuia(){
   const nome=document.getElementById('login-guia-select').value;
   if(!nome){alert('Digite e selecione seu nome da lista.');return}
-  if(!window._fbReady){alert('Aguarde.');return}
+  if(!window._fbReady){
+    showLoading();
+    let t=0;
+    while(!window._fbReady&&t<20){await new Promise(r=>setTimeout(r,300));t++;}
+    hideLoading();
+    if(!window._fbReady){alert('Erro de conexão. Tente novamente.');return}
+  }
   showLoading();
   try{
     const snap=await window._getDoc(window._doc(window._db,'guias',nome));
