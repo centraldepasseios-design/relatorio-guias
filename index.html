@@ -156,7 +156,10 @@
   </div>
   <div class="user-bar">
     <span id="user-bar-nome"></span>
-    <button class="btn-logout" onclick="logout()">Sair</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn-logout" onclick="abrirIdiomas()">🌍 Idiomas</button>
+      <button class="btn-logout" onclick="logout()">Sair</button>
+    </div>
   </div>
   <div class="tabs">
     <button class="tab active" onclick="trocarAba('escala')">📅 Escala</button>
@@ -413,7 +416,6 @@ async function carregarDisponibilidade(){
     });
     hideLoading();
 
-    const idiomaChips=IDIOMAS.map(id=>`<div class="idioma-chip${idiomasSalvos.includes(id)?' ativo':''}" onclick="toggleIdioma(this,'${id}')">${_flagIdioma(id)} ${id}</div>`).join('');
     const diasRows=dias.map(data=>{
       const d=new Date(data+'T12:00:00');
       const label=i=>['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
@@ -431,12 +433,6 @@ async function carregarDisponibilidade(){
 
     el.innerHTML=`
       <div class="disp-card">
-        <h3>🌍 Idiomas que falo</h3>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Selecione todos os idiomas que você atende:</p>
-        <div class="idioma-wrap" id="idioma-chips">${idiomaChips}</div>
-        <button class="btn-ciente" style="margin-top:14px" onclick="salvarIdiomas()">💾 Salvar idiomas</button>
-      </div>
-      <div class="disp-card">
         <h3>📆 Minha disponibilidade — próximos 7 dias</h3>
         ${diasRows}
       </div>`;
@@ -447,14 +443,30 @@ function _flagIdioma(id){return{'Português':'🇧🇷','Inglês':'🇺🇸','Es
 
 function toggleIdioma(el,idioma){el.classList.toggle('ativo')}
 
+async function abrirIdiomas(){
+  if(!window._fbReady||!guiaAtual)return;
+  showLoading();
+  try{
+    const snap=await window._getDoc(window._doc(window._db,'guias',guiaAtual));
+    const salvos=snap.exists()&&snap.data().idiomas?snap.data().idiomas:[];
+    hideLoading();
+    const chips=IDIOMAS.map(id=>`<div class="idioma-chip${salvos.includes(id)?' ativo':''}" onclick="toggleIdioma(this,'${id}')">${_flagIdioma(id)} ${id}</div>`).join('');
+    document.getElementById('modal-idioma-chips').innerHTML=chips;
+    document.getElementById('modal-idiomas').style.display='flex';
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
+function fecharIdiomas(){document.getElementById('modal-idiomas').style.display='none'}
+
 async function salvarIdiomas(){
-  const selecionados=Array.from(document.querySelectorAll('#idioma-chips .idioma-chip.ativo')).map(el=>el.textContent.trim().replace(/^.\s/,''));
+  const selecionados=Array.from(document.querySelectorAll('#modal-idioma-chips .idioma-chip.ativo')).map(el=>el.textContent.trim().slice(2).trim());
   showLoading();
   try{
     const snap=await window._getDoc(window._doc(window._db,'guias',guiaAtual));
     const dados=snap.exists()?snap.data():{};
     await window._setDoc(window._doc(window._db,'guias',guiaAtual),{...dados,idiomas:selecionados});
     hideLoading();
+    fecharIdiomas();
     alert('✅ Idiomas salvos: '+selecionados.join(', '));
   }catch(e){hideLoading();alert('Erro: '+e.message)}
 }
@@ -605,5 +617,17 @@ async function renderHistorico(){
   }catch(e){document.getElementById('lista-relatorios').innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}finally{hideLoading()}
 }
 </script>
+<!-- MODAL IDIOMAS -->
+<div class="loading-overlay" id="modal-idiomas" style="display:none;z-index:200">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:400px;margin:1rem">
+    <h3 style="font-size:16px;font-weight:600;margin-bottom:6px">🌍 Meus idiomas</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">Selecione os idiomas que você atende:</p>
+    <div class="idioma-wrap" id="modal-idioma-chips"></div>
+    <div style="display:flex;gap:8px;margin-top:1.25rem">
+      <button class="btn-ciente" style="background:var(--accent)" onclick="fecharIdiomas()">Cancelar</button>
+      <button class="btn-ciente" onclick="salvarIdiomas()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
