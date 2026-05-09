@@ -736,7 +736,7 @@ function aplicarFiltros(){
   const rows=linhasF.map(({r,it})=>{
     const dt=new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
     let det='';
-    if(it.servico&&it.servico.startsWith('chegada'))det=`Voo: <strong>${it.voo||'—'}</strong> · Pax: <strong>${it.pax??0}</strong> · Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
+    if(it.servico&&it.servico.startsWith('chegada'))det=`Voo: <strong>${it.voo||'—'}</strong> · Pax: <strong>${it.pax??0}</strong>${it.chd?` · Chd: <strong>${it.chd}</strong>`:''} · Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
     else if(it.servico&&it.servico.startsWith('saida'))det=`No-show: <strong>${it.noshow??0} pax</strong>`;
     else det=`Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
     return`<tr><td>${dt}</td><td><strong>${r.guia}</strong><br><small style="color:var(--muted)">🚐 ${r.motorista}</small></td><td><span class="badge ${BADGE[it.servico]||''}">${LBLS[it.servico]||it.servico}</span></td><td>${det}${it.obs?`<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;white-space:pre-line">📝 ${it.obs}</div>`:''}</td></tr>`;
@@ -907,7 +907,7 @@ async function resumoPorGuia(){
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">${tiposHtml}</div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px">
           <div style="text-align:center;background:var(--surface);border-radius:var(--rsm);padding:.6rem .4rem;border:1px solid var(--border)">
             <div style="font-size:18px;font-weight:600">${g.dias.size}</div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase">dias</div>
@@ -919,6 +919,10 @@ async function resumoPorGuia(){
           <div style="text-align:center;background:var(--surface);border-radius:var(--rsm);padding:.6rem .4rem;border:1px solid var(--border)">
             <div style="font-size:18px;font-weight:600">${g.pax}</div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase">pax chegada</div>
+          </div>
+          <div style="text-align:center;background:var(--surface);border-radius:var(--rsm);padding:.6rem .4rem;border:1px solid var(--border)">
+            <div style="font-size:18px;font-weight:600">${g.chd||0}</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase">chd chegada</div>
           </div>
           <div style="text-align:center;background:var(--surface);border-radius:var(--rsm);padding:.6rem .4rem;border:1px solid var(--border)">
             <div style="font-size:18px;font-weight:600">R$${g.vendas.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
