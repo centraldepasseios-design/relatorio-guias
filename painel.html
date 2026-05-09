@@ -347,6 +347,10 @@ window._col=collection;window._q=query;window._w=where;window._od=orderBy;
 window._gds=getDocs;window._doc=doc;window._gd=getDoc;window._sd=setDoc;
 window._ad=addDoc;window._dd=deleteDoc;
 document.getElementById('fb-status').textContent='✅ Conectado';
+// Dispara carregamento após Firebase pronto
+if(typeof carregarEscalaPublicada==='function') carregarEscalaPublicada();
+if(typeof carregarConfirmacoes==='function') setTimeout(carregarConfirmacoes,300);
+if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 </script>
 
 <script>
@@ -630,6 +634,7 @@ function renderPublicada(itens){
 }
 
 async function carregarEscalaPublicada(){
+  if(!window._fbReady){setTimeout(carregarEscalaPublicada,500);return;}
   const data=document.getElementById('escala-data').value||hoje();
   const wrap=document.getElementById('escala-publicada');
   try{
@@ -649,9 +654,9 @@ async function carregarEscalaPublicada(){
 }
 
 async function carregarConfirmacoes(){
+  if(!window._fbReady){setTimeout(carregarConfirmacoes,500);return;}
   const data=document.getElementById('escala-data').value||hoje();
   const wrap=document.getElementById('confirmacoes-wrap');
-  if(!window._fbReady)return;
   try{
     const snap=await window._gds(window._q(window._col(window._db,'confirmacoes'),window._w('data','==',data)));
     if(!snap.docs.length){wrap.innerHTML='';return}
@@ -1135,9 +1140,7 @@ ${semPush.join(', ')}`;
 Enviar notificação para os ${comPush.length} guia(s) com push ativado?`;
 
     if(!comPush.length){
-      alert('Nenhum desses guias ativou notificações no app:
-
-'+pendentes.join(', '));
+      alert('Nenhum desses guias ativou notificações no app:\n\n'+pendentes.join(', '));
       return;
     }
 
