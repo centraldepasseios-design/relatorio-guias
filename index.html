@@ -121,10 +121,12 @@
   </div>
   <div id="step-nome" class="card">
     <label>Seu nome</label>
-    <select id="login-guia-select">
-      <option value="">— selecione o guia —</option>
-      <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM JONES</option><option>ADRIANE</option><option>GUILHERME</option><option>FÁBIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option><option>ANTÔNIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANÊS</option><option>MADSON</option><option>CAMILLA</option><option>ANDRÉ</option><option>ANA FLÁVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAÍSSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FÁBIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO M</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANÇA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLÓRIA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO S</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
-    </select>
+    <div style="position:relative">
+      <input type="text" id="login-busca-nome" placeholder="Digite seu nome..." oninput="filtrarNomes()" onkeydown="if(event.key==='Enter')selecionarPrimeiro()" autocomplete="off" style="text-transform:uppercase"/>
+      <div id="login-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:var(--rsm);max-height:220px;overflow-y:auto;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+    </div>
+    <input type="hidden" id="login-guia-select" value=""/>
+    <div id="nome-selecionado" style="display:none;margin-top:8px;padding:8px 12px;background:#e1f5ee;border-radius:var(--rsm);font-size:13px;color:#0f6e56;font-weight:500"></div>
     <div style="margin-top:14px"><button class="btn" onclick="verificarGuia()">Continuar</button></div>
   </div>
   <div id="step-senha" class="card hidden">
@@ -263,9 +265,46 @@ function mesAtual(){return new Date().toISOString().slice(0,7)}
 function showLoading(){if(document.getElementById('lo'))return;const e=document.createElement('div');e.id='lo';e.className='loading-overlay';e.innerHTML='<div class="loading-spinner"></div>';document.body.appendChild(e)}
 function hideLoading(){const e=document.getElementById('lo');if(e)e.remove()}
 
+
+const TODOS_NOMES=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM JONES','ADRIANE','GUILHERME','FÁBIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONÇALVES','ANTÔNIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANÊS','MADSON','CAMILLA','ANDRÉ','ANA FLÁVIA','RENATA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAÍSSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FÁBIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO M','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANÇA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLÓRIA','ELISIO','REBECA','ENEZIANE','BRUNO S','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
+
+function filtrarNomes(){
+  const busca=document.getElementById('login-busca-nome').value.toUpperCase();
+  const dropdown=document.getElementById('login-dropdown');
+  // Limpa seleção ao digitar
+  document.getElementById('login-guia-select').value='';
+  document.getElementById('nome-selecionado').style.display='none';
+  if(!busca){dropdown.style.display='none';return}
+  const filtrados=TODOS_NOMES.filter(n=>n.includes(busca));
+  if(!filtrados.length){dropdown.style.display='none';return}
+  dropdown.innerHTML=filtrados.map(n=>`<div onclick="selecionarNome('${n}')" style="padding:10px 14px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">${n}</div>`).join('');
+  dropdown.style.display='block';
+}
+
+function selecionarNome(nome){
+  document.getElementById('login-busca-nome').value=nome;
+  document.getElementById('login-guia-select').value=nome;
+  document.getElementById('login-dropdown').style.display='none';
+  const el=document.getElementById('nome-selecionado');
+  el.textContent='✅ '+nome+' selecionado';
+  el.style.display='block';
+}
+
+function selecionarPrimeiro(){
+  const busca=document.getElementById('login-busca-nome').value.toUpperCase();
+  const filtrado=TODOS_NOMES.find(n=>n.includes(busca));
+  if(filtrado)selecionarNome(filtrado);
+}
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#step-nome'))
+    document.getElementById('login-dropdown').style.display='none';
+});
+
 async function verificarGuia(){
   const nome=document.getElementById('login-guia-select').value;
-  if(!nome){alert('Selecione seu nome.');return}
+  if(!nome){alert('Digite e selecione seu nome da lista.');return}
   if(!window._fbReady){alert('Aguarde.');return}
   showLoading();
   try{
@@ -319,6 +358,10 @@ function voltarStep(){
   document.getElementById('input-nova-senha').value='';
   document.getElementById('input-confirma-senha').value='';
   document.getElementById('step-nome').classList.remove('hidden');
+  document.getElementById('login-busca-nome').value='';
+  document.getElementById('login-guia-select').value='';
+  document.getElementById('nome-selecionado').style.display='none';
+  document.getElementById('login-dropdown').style.display='none';
 }
 
 function entrarNoApp(nome){
@@ -341,7 +384,6 @@ function logout(){
   document.getElementById('main-screen').style.display='none';
   document.getElementById('login-screen').style.display='block';
   voltarStep();
-  document.getElementById('login-guia-select').value='';
 }
 
 // ---- ESCALA ----
