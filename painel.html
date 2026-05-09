@@ -190,6 +190,24 @@
 
   <!-- RELATÓRIOS -->
   <div id="sec-relatorios" class="section">
+    <!-- RESUMO POR GUIA -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:1rem">📊 Resumo por guia no período</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
+        <div><label>Data início</label><input type="date" id="rg-inicio"/></div>
+        <div><label>Data fim</label><input type="date" id="rg-fim"/></div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div><label>Guia (opcional)</label>
+            <select id="rg-guia">
+              <option value="">Todos os guias</option>
+              <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM JONES</option><option>ADRIANE</option><option>GUILHERME</option><option>FÁBIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option><option>ANTÔNIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANÊS</option><option>MADSON</option><option>CAMILLA</option><option>ANDRÉ</option><option>ANA FLÁVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAÍSSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FÁBIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO M</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANÇA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLÓRIA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO S</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+            </select>
+          </div>
+          <button class="btn-sm" onclick="resumoPorGuia()">📊 Gerar</button>
+        </div>
+      </div>
+      <div id="rg-resultado"></div>
+    </div>
     <div class="filtros-box">
       <div class="fg1">
         <div><label>Data início</label><input type="date" id="f-inicio"/></div>
@@ -351,6 +369,8 @@ function entrar(){
     document.getElementById('escala-inicio').value=hoje();
     document.getElementById('escala-fim').value=hoje();
     document.getElementById('disp-data').value=hoje();
+    document.getElementById('rg-inicio').value=inicioMes();
+    document.getElementById('rg-fim').value=hoje();
     carregarEscalaPublicada();
     carregarConfirmacoes();
     verificarPendentes();
@@ -804,6 +824,106 @@ async function redistribuir(data,guiaAntigo,servico,horario,motorista,hsrv,pax,s
     cardEl.remove();
     carregarEscalaPublicada();
   }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
+}
+
+
+// ===== RESUMO POR GUIA =====
+async function resumoPorGuia(){
+  const inicio=document.getElementById('rg-inicio').value;
+  const fim=document.getElementById('rg-fim').value;
+  const guiaFiltro=document.getElementById('rg-guia').value;
+  if(!inicio||!fim){alert('Selecione o período.');return}
+  const fd=new Date(fim+'T12:00:00');fd.setDate(fd.getDate()+1);
+  const fimEx=fd.toISOString().slice(0,10);
+  showLoad();
+  try{
+    const snap=await window._gds(window._q(
+      window._col(window._db,'relatorios'),
+      window._w('data','>=',inicio),
+      window._w('data','<',fimEx),
+      window._od('data','asc')
+    ));
+    const relatorios=snap.docs.map(d=>({id:d.id,...d.data()}));
+
+    // Agrupa por guia
+    const porGuia={};
+    relatorios.forEach(r=>{
+      if(guiaFiltro&&r.guia!==guiaFiltro)return;
+      if(!porGuia[r.guia])porGuia[r.guia]={
+        guia:r.guia,dias:new Set(),servicos:0,pax:0,vendas:0,noshow:0,
+        chegadas:0,saidas:0,apoios:0,trfs:0,detalhesDias:[]
+      };
+      const g=porGuia[r.guia];
+      g.dias.add(r.data);
+      r.itens.forEach(it=>{
+        g.servicos++;
+        if(it.servico&&it.servico.startsWith('chegada')){g.chegadas++;g.pax+=(it.pax||0);g.vendas+=(it.vendas||0);g.noshow+=(it.noshow||0)}
+        else if(it.servico&&it.servico.startsWith('saida')){g.saidas++;g.noshow+=(it.noshow||0)}
+        else if(it.servico&&it.servico.startsWith('apoio')){g.apoios++;g.vendas+=(it.vendas||0)}
+        else if(it.servico==='trf'){g.trfs++;g.vendas+=(it.vendas||0)}
+      });
+      g.detalhesDias.push({data:r.data,motorista:r.motorista,itens:r.itens});
+    });
+
+    hideLoad();
+
+    if(!Object.keys(porGuia).length){
+      document.getElementById('rg-resultado').innerHTML='<p class="empty">Nenhum relatório encontrado para este período.</p>';
+      return;
+    }
+
+    const inicioFmt=new Date(inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const fimFmt=new Date(fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+    // Ordena por número de serviços (desc)
+    const lista=Object.values(porGuia).sort((a,b)=>b.servicos-a.servicos);
+
+    const cards=lista.map(g=>{
+      const diasList=[...g.dias].sort();
+      const diasFmt=diasList.map(d=>new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})).join(', ');
+      const tiposHtml=[
+        g.chegadas?`<span class="badge badge-chegada">${g.chegadas} chegada${g.chegadas>1?'s':''}</span>`:'',
+        g.saidas?`<span class="badge badge-saida">${g.saidas} saída${g.saidas>1?'s':''}</span>`:'',
+        g.apoios?`<span class="badge badge-apoio">${g.apoios} apoio${g.apoios>1?'s':''}</span>`:'',
+        g.trfs?`<span class="badge badge-trf">${g.trfs} TRF${g.trfs>1?'s':''}</span>`:''
+      ].filter(Boolean).join(' ');
+
+      return`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);padding:1rem;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div>
+            <div style="font-size:15px;font-weight:600">👤 ${g.guia}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${inicioFmt} → ${fimFmt}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">${tiposHtml}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
+          <div style="text-align:center;background:var(--surface);border-radius:var(--rsm);padding:.6rem .4rem;border:1px solid var(--border)">
+            <div style="font-size:18px;font-weight:600">${g.dias.size}</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase">dias</div>
+          </div>
+          <div style="text-align:center;background:var(--surface);border-radius:var(--rsm);padding:.6rem .4rem;border:1px solid var(--border)">
+            <div style="font-size:18px;font-weight:600">${g.servicos}</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase">serviços</div>
+          </div>
+          <div style="text-align:center;background:var(--surface);border-radius:var(--rsm);padding:.6rem .4rem;border:1px solid var(--border)">
+            <div style="font-size:18px;font-weight:600">${g.pax}</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase">pax chegada</div>
+          </div>
+          <div style="text-align:center;background:var(--surface);border-radius:var(--rsm);padding:.6rem .4rem;border:1px solid var(--border)">
+            <div style="font-size:18px;font-weight:600">R$${g.vendas.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase">vendas</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted)">📅 Dias trabalhados: ${diasFmt}</div>
+        ${g.noshow?`<div style="font-size:12px;color:var(--red);margin-top:4px">⚠️ No-show total: ${g.noshow} pax</div>`:''}
+      </div>`;
+    }).join('');
+
+    document.getElementById('rg-resultado').innerHTML=`
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px">${lista.length} guia${lista.length>1?'s':''} encontrado${lista.length>1?'s':''}</div>
+      ${cards}`;
+
+  }catch(e){hideLoad();document.getElementById('rg-resultado').innerHTML='<p class="empty">Erro: '+e.message+'</p>';console.error(e)}
 }
 
 // ===== DISPONIBILIDADE ADMIN =====
