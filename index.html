@@ -266,6 +266,51 @@ function showLoading(){if(document.getElementById('lo'))return;const e=document.
 function hideLoading(){const e=document.getElementById('lo');if(e)e.remove()}
 
 
+// ---- NOTIFICAÇÕES IN-APP ----
+async function verificarNotificacoes(guia){
+  try{
+    const snap=await window._getDocs(window._query(
+      window._collection(window._db,'notificacoes'),
+      window._where('guia','==',guia),
+      window._where('lida','==',false)
+    ));
+    if(!snap.docs.length)return;
+    const notifs=snap.docs;
+    // Mostra banner para cada notificação não lida
+    notifs.forEach(async d=>{
+      const n=d.data();
+      // Mostra alerta visual no topo
+      mostrarBannerNotif(n.titulo,n.mensagem);
+      // Marca como lida
+      await window._setDoc(window._doc(window._db,'notificacoes',d.id),{...n,lida:true});
+    });
+  }catch(e){console.log('Notif error:',e.message)}
+}
+
+function mostrarBannerNotif(titulo,mensagem){
+  const banner=document.createElement('div');
+  banner.style.cssText='position:fixed;top:0;left:0;right:0;background:#e67e22;color:#fff;padding:12px 16px;z-index:9999;font-family:DM Sans,sans-serif;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.2)';
+  banner.innerHTML=`<div><strong>${titulo}</strong><br><span style="font-size:12px">${mensagem}</span></div><button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,0.3);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>`;
+  document.body.prepend(banner);
+  // Auto remove after 10s
+  setTimeout(()=>{if(banner.parentElement)banner.remove()},10000);
+}
+
+// ---- PUSH NOTIFICATIONS ----
+async function registrarPush(guia){
+  try{
+    if(!('serviceWorker' in navigator)||!('PushManager' in window))return;
+    const reg=await navigator.serviceWorker.register('/relatorio-guias/sw.js');
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted')return;
+    // Salva que este guia aceitou push (sem VAPID por simplicidade)
+    await window._setDoc(window._doc(window._db,'push_tokens',guia),{
+      guia,aceitou:true,atualizadoEm:new Date().toISOString()
+    });
+    console.log('Push registrado para '+guia);
+  }catch(e){console.log('Push indisponível:',e.message)}
+}
+
 const TODOS_NOMES=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM JONES','ADRIANE','GUILHERME','FÁBIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONÇALVES','ANTÔNIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANÊS','MADSON','CAMILLA','ANDRÉ','ANA FLÁVIA','RENATA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAÍSSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FÁBIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO M','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANÇA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLÓRIA','ELISIO','REBECA','ENEZIANE','BRUNO S','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
 
 function filtrarNomes(){
@@ -376,7 +421,8 @@ function entrarNoApp(nome){
   document.getElementById('lista-servicos').innerHTML='';
   adicionarServico();
   carregarEscalaHoje();
-  if(window._registrarPush)window._registrarPush(nome);
+  registrarPush(nome);
+  verificarNotificacoes(nome);
 }
 
 function logout(){
