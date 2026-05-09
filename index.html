@@ -401,15 +401,16 @@ async function carregarDisponibilidade(){
       const d=new Date();d.setDate(d.getDate()+i);
       dias.push(d.toISOString().slice(0,10));
     }
-    // Carrega disponibilidades já salvas
+    // Carrega disponibilidades já salvas (busca por guia, filtra datas no cliente)
     const dispSnap=await window._getDocs(window._query(
       window._collection(window._db,'disponibilidades'),
-      window._where('guia','==',guiaAtual),
-      window._where('data','>=',dias[0]),
-      window._where('data','<=',dias[6])
+      window._where('guia','==',guiaAtual)
     ));
     const dispMap={};
-    dispSnap.docs.forEach(d=>{dispMap[d.data().data]=d.data().status});
+    dispSnap.docs.forEach(d=>{
+      const dd=d.data();
+      if(dd.data>=dias[0]&&dd.data<=dias[6])dispMap[dd.data]=dd.status;
+    });
     hideLoading();
 
     const idiomaChips=IDIOMAS.map(id=>`<div class="idioma-chip${idiomasSalvos.includes(id)?' ativo':''}" onclick="toggleIdioma(this,'${id}')">${_flagIdioma(id)} ${id}</div>`).join('');
