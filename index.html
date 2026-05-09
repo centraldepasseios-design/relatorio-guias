@@ -453,7 +453,7 @@ async function carregarDisponibilidade(){
           </div>
         </div>
         <input type="text" placeholder="Restrição de horário ou observação (opcional)" value="${obs}" onchange="salvarObsDisp('${data}',this.value)" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);width:100%"/>
-        ${status?`<button class="btn-ciente" style="background:#534ab7;font-size:13px;padding:9px" onclick="confirmarDia('${data}',this)">🔒 Confirmar e bloquear este dia</button>`:''}
+        <button class="btn-ciente btn-confirmar-dia" style="background:#534ab7;font-size:13px;padding:9px;display:${status?'block':'none'}" onclick="confirmarDia('${data}',this)">🔒 Confirmar e bloquear este dia</button>
       </div>`;
     }).join('');
 
@@ -534,15 +534,9 @@ async function marcarDisp(data,status,btn){
     const row=btn.closest('.disp-date-row');
     row.querySelectorAll('.btn-disp').forEach(b=>b.classList.remove('ativo'));
     btn.classList.add('ativo');
-    // Mostra botão confirmar se ainda não está visível
-    if(!row.querySelector('.btn-confirmar-dia')){
-      const btnConf=document.createElement('button');
-      btnConf.className='btn-ciente btn-confirmar-dia';
-      btnConf.style.cssText='background:#534ab7;font-size:13px;padding:9px';
-      btnConf.textContent='🔒 Confirmar e bloquear este dia';
-      btnConf.onclick=()=>confirmarDia(data,btnConf);
-      row.appendChild(btnConf);
-    }
+    // Mostra botão confirmar (já está no HTML, só garante visibilidade)
+    const btnConf=row.querySelector('.btn-confirmar-dia');
+    if(btnConf)btnConf.style.display='block';
   }catch(e){hideLoading();alert('Erro: '+e.message)}
 }
 
