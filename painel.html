@@ -191,8 +191,10 @@
   <!-- RELATÓRIOS -->
   <div id="sec-relatorios" class="section">
     <!-- RESUMO POR GUIA -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:1rem">📊 Resumo por guia no período</h3>
+    <div style="margin-bottom:1rem">
+      <button class="btn-outline" onclick="toggleResumoGuia()" id="btn-resumo-guia" style="width:100%;text-align:left;padding:10px 14px;font-size:13px">📊 Resumo por guia no período ▾</button>
+    </div>
+    <div id="resumo-guia-wrap" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem">
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
         <div><label>Data início</label><input type="date" id="rg-inicio"/></div>
         <div><label>Data fim</label><input type="date" id="rg-fim"/></div>
@@ -207,6 +209,7 @@
         </div>
       </div>
       <div id="rg-resultado"></div>
+    </div>
     </div>
     <div class="filtros-box">
       <div class="fg1">
@@ -826,6 +829,14 @@ async function redistribuir(data,guiaAntigo,servico,horario,motorista,hsrv,pax,s
   }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
 }
 
+
+function toggleResumoGuia(){
+  const wrap=document.getElementById('resumo-guia-wrap');
+  const btn=document.getElementById('btn-resumo-guia');
+  const visible=wrap.style.display!=='none';
+  wrap.style.display=visible?'none':'block';
+  btn.textContent='📊 Resumo por guia no período '+(visible?'▾':'▴');
+}
 
 // ===== RESUMO POR GUIA =====
 async function resumoPorGuia(){
