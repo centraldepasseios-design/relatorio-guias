@@ -819,7 +819,12 @@ async function carregarDisp(){
     // Carrega disponibilidades do dia
     const dispSnap=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('data','==',data)));
     const dispMap={};
-    dispSnap.docs.forEach(d=>{dispMap[d.data().guia]=d.data().status});
+    const dispObs={};
+    dispSnap.docs.forEach(d=>{
+      const dd=d.data();
+      dispMap[dd.guia]=dd.status;
+      if(dd.obs)dispObs[dd.guia]=dd.obs;
+    });
 
     // Carrega dados dos guias (idiomas, obs)
     const guiasSnap=await window._gds(window._col(window._db,'guias'));
@@ -864,15 +869,16 @@ async function carregarDisp(){
         const status=dispMap[g]||'sem';
         const gData=guiasData[g]||{};
         const idiomas=(gData.idiomas||[]).map(id=>FLAG_IDIOMA[id]||id).join(' ');
-        const obs=gData['obs_'+data]||'';
+        const obs=dispObs[g]||'';
         const ultima=ultimaEscala[g]?new Date(ultimaEscala[g]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'Nunca';
         const statusBadge=status==='sim'?'<span style="background:#e1f5ee;color:#0f6e56;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">✅ Disponível</span>':status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">❌ Indisponível</span>':'<span style="background:#f0f0f0;color:#9a9a96;padding:3px 10px;border-radius:99px;font-size:12px">⬜ Sem resposta</span>';
         return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:14px;font-weight:600">${g} <span style="font-size:14px">${idiomas}</span></div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px">Último serviço: ${ultima}</div>
-            <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
-              <input type="text" placeholder="Observação..." value="${obs}" onchange="salvarObsGuia('${g}','${data}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);width:220px"/>
+            <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+              ${obs?`<div style="font-size:12px;color:#854f0b;background:#faeeda;padding:4px 8px;border-radius:6px;display:inline-block">📝 Guia: ${obs}</div>`:''}
+              <input type="text" placeholder="Observação do admin..." value="${gData['obs_admin_'+data]||''}" onchange="salvarObsGuia('${g}','${data}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);width:220px"/>
             </div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
