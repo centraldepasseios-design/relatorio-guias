@@ -169,6 +169,7 @@
         <button class="btn-green" onclick="publicarEscala()">✅ Publicar</button>
         <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
         <button class="btn-red" onclick="apagarEscalaDia()" style="padding:8px 14px;font-size:13px">🗑️ Apagar dia</button>
+        <button style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);cursor:pointer" onclick="notificarPendentes()">🔔 Notificar sem relatório</button>
       </div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -1084,6 +1085,78 @@ async function apagarEscalaDia(){
     document.getElementById('escala-filtros').style.display='none';
     document.getElementById('confirmacoes-wrap').innerHTML='';
   }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
+// ===== NOTIFICAÇÕES =====
+async function notificarPendentes(){
+  const data=document.getElementById('escala-data').value||hoje();
+  if(!window._fbReady){alert('Aguarde a conexão.');return}
+  showLoad();
+  try{
+    // 1. Pega quem estava na escala do dia
+    const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
+    const guiasEscala=[...new Set(escSnap.docs.map(d=>d.data().guia))];
+    if(!guiasEscala.length){hideLoad();alert('Nenhuma escala publicada para esta data.');return}
+
+    // 2. Pega quem já enviou relatório
+    const relSnap=await window._gds(window._q(window._col(window._db,'relatorios'),window._w('data','==',data)));
+    const guiasComRelatorio=new Set(relSnap.docs.map(d=>d.data().guia));
+
+    // 3. Filtra quem NÃO enviou
+    const pendentes=guiasEscala.filter(g=>!guiasComRelatorio.has(g));
+    if(!pendentes.length){hideLoad();alert('✅ Todos os guias da escala já enviaram o relatório!');return}
+
+    // 4. Verifica quem tem push token
+    const tokenSnap=await window._gds(window._col(window._db,'push_tokens'));
+    const tokensMap={};
+    tokenSnap.docs.forEach(d=>{const dd=d.data();if(dd.aceitou)tokensMap[dd.guia]=true});
+
+    const comPush=pendentes.filter(g=>tokensMap[g]);
+    const semPush=pendentes.filter(g=>!tokensMap[g]);
+
+    hideLoad();
+
+    // 5. Mostra resumo e confirma
+    const dataFmt=new Date(data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    let msg=`Guias sem relatório em ${dataFmt}:
+
+`;
+    if(comPush.length)msg+=`📱 Receberão notificação (${comPush.length}):
+${comPush.join(', ')}
+
+`;
+    if(semPush.length)msg+=`⚠️ Sem push ativado (${semPush.length}):
+${semPush.join(', ')}`;
+    msg+=`
+
+Enviar notificação para os ${comPush.length} guia(s) com push ativado?`;
+
+    if(!comPush.length){
+      alert('Nenhum desses guias ativou notificações no app:
+
+'+pendentes.join(', '));
+      return;
+    }
+
+    if(!confirm(msg))return;
+
+    // 6. Salva notificação pendente no Firestore (guia lê ao abrir o app)
+    showLoad();
+    for(const guia of comPush){
+      await window._ad(window._col(window._db,'notificacoes'),{
+        guia,
+        titulo:'⚠️ Relatório pendente',
+        mensagem:'Você ainda não enviou o relatório do dia '+dataFmt+'. Acesse o app e registre agora!',
+        data,
+        lida:false,
+        criadoEm:new Date().toISOString()
+      });
+    }
+    hideLoad();
+    alert(`✅ Notificação enviada para ${comPush.length} guia(s)!
+
+${semPush.length?semPush.length+' guia(s) não têm push ativado: '+semPush.join(', '):'Todos notificados!'}`);
+  }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
 }
 
 // ===== AVULSO =====
