@@ -540,7 +540,7 @@ async function carregarDisponibilidade(){
             <button class="btn-disp nao${status==='nao'?' ativo':''}" onclick="marcarDisp('${data}','nao',this)">❌ Indisponível</button>
           </div>
         </div>
-        <input type="text" placeholder="Restrição de horário ou observação (opcional)" value="${obs}" onchange="salvarObsDisp('${data}',this.value)" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);width:100%"/>
+        <input type="text" placeholder="Restrição de horário ou observação (opcional)" value="${obs}" onblur="salvarObsDisp('${data}',this.value)" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);width:100%"/>
         <button class="btn-ciente btn-confirmar-dia" style="background:#534ab7;font-size:13px;padding:9px;display:${status?'block':'none'}" onclick="confirmarDia('${data}',this)">🔒 Confirmar e bloquear este dia</button>
       </div>`;
     }).join('');
