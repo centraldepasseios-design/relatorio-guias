@@ -410,24 +410,31 @@ async function carregarDisponibilidade(){
       window._where('guia','==',guiaAtual)
     ));
     const dispMap={};
+    const obsMap={};
     dispSnap.docs.forEach(d=>{
       const dd=d.data();
-      if(dd.data>=dias[0]&&dd.data<=dias[6])dispMap[dd.data]=dd.status;
+      if(dd.data>=dias[0]&&dd.data<=dias[6]){
+        dispMap[dd.data]=dd.status;
+        if(dd.obs)obsMap[dd.data]=dd.obs;
+      }
     });
     hideLoading();
 
     const diasRows=dias.map(data=>{
       const d=new Date(data+'T12:00:00');
-      const label=i=>['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
       const fmt=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
       const diaSem=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'][d.getDay()];
       const status=dispMap[data]||'';
-      return`<div class="disp-date-row">
-        <div class="disp-date">${diaSem}<small>${fmt}</small></div>
-        <div class="disp-btns">
-          <button class="btn-disp sim${status==='sim'?' ativo':''}" onclick="marcarDisp('${data}','sim',this)">✅ Disponível</button>
-          <button class="btn-disp nao${status==='nao'?' ativo':''}" onclick="marcarDisp('${data}','nao',this)">❌ Indisponível</button>
+      const obs=obsMap[data]||'';
+      return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="disp-date">${diaSem}<small>${fmt}</small></div>
+          <div class="disp-btns">
+            <button class="btn-disp sim${status==='sim'?' ativo':''}" onclick="marcarDisp('${data}','sim',this)">✅ Disponível</button>
+            <button class="btn-disp nao${status==='nao'?' ativo':''}" onclick="marcarDisp('${data}','nao',this)">❌ Indisponível</button>
+          </div>
         </div>
+        <input type="text" placeholder="Restrição de horário ou observação (opcional)" value="${obs}" onchange="salvarObsDisp('${data}',this.value)" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);width:100%"/>
       </div>`;
     }).join('');
 
@@ -469,6 +476,15 @@ async function salvarIdiomas(){
     fecharIdiomas();
     alert('✅ Idiomas salvos: '+selecionados.join(', '));
   }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
+async function salvarObsDisp(data,obs){
+  try{
+    const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
+    const snap=await window._getDoc(ref);
+    const atual=snap.exists()?snap.data():{};
+    await window._setDoc(ref,{...atual,guia:guiaAtual,data,obs,atualizadoEm:new Date().toISOString()});
+  }catch(e){console.error('Erro obs:',e)}
 }
 
 async function marcarDisp(data,status,btn){
