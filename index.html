@@ -217,6 +217,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore,collection,addDoc,query,where,orderBy,getDocs,doc,getDoc,setDoc,serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getMessaging,getToken,onMessage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
+import { getMessaging,getToken,onMessage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyCFom_SD6rklJ3hTJHC5_VF34TiDYKn-ak",
@@ -228,6 +229,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 window._db=db;window._fbReady=true;
+  window._getMessaging=getMessaging;
 window._addDoc=addDoc;window._collection=collection;
 window._query=query;window._where=where;window._orderBy=orderBy;
 window._getDocs=getDocs;window._doc=doc;window._getDoc=getDoc;
@@ -275,15 +277,15 @@ async function verificarNotificacoes(guia){
       window._where('lida','==',false)
     ));
     if(!snap.docs.length)return;
-    const notifs=snap.docs;
     // Mostra banner para cada notificação não lida
-    notifs.forEach(async d=>{
+    for(const d of snap.docs){
       const n=d.data();
-      // Mostra alerta visual no topo
       mostrarBannerNotif(n.titulo,n.mensagem);
       // Marca como lida
       await window._setDoc(window._doc(window._db,'notificacoes',d.id),{...n,lida:true});
-    });
+      // Pequeno delay entre banners
+      await new Promise(r=>setTimeout(r,500));
+    }
   }catch(e){console.log('Notif error:',e.message)}
 }
 
@@ -297,17 +299,30 @@ function mostrarBannerNotif(titulo,mensagem){
 }
 
 // ---- PUSH NOTIFICATIONS ----
+const VAPID_KEY='BASHD0Bslpyk2OUD0vENdMwClzBNCyhc49IPA7pkN_M8KgUkCfgBxC_8rubPMG88Mchg0m4YOzUXq5Wm8qJjHCo';
+
 async function registrarPush(guia){
   try{
-    if(!('serviceWorker' in navigator)||!('PushManager' in window))return;
+    if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+      console.log('Push não suportado neste dispositivo');return;
+    }
     const reg=await navigator.serviceWorker.register('/relatorio-guias/sw.js');
+    await navigator.serviceWorker.ready;
     const perm=await Notification.requestPermission();
-    if(perm!=='granted')return;
-    // Salva que este guia aceitou push (sem VAPID por simplicidade)
-    await window._setDoc(window._doc(window._db,'push_tokens',guia),{
-      guia,aceitou:true,atualizadoEm:new Date().toISOString()
+    if(perm!=='granted'){console.log('Push negado pelo usuário');return;}
+    const messaging=getMessaging();
+    const token=await getToken(messaging,{vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
+    if(token){
+      await window._setDoc(window._doc(window._db,'push_tokens',guia),{
+        guia,token,aceitou:true,atualizadoEm:new Date().toISOString()
+      });
+      console.log('Push registrado para '+guia);
+    }
+    // Recebe mensagens com app aberto
+    onMessage(messaging,payload=>{
+      const n=payload.notification;
+      if(n)mostrarBannerNotif(n.title,n.body);
     });
-    console.log('Push registrado para '+guia);
   }catch(e){console.log('Push indisponível:',e.message)}
 }
 

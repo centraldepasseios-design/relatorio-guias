@@ -520,6 +520,8 @@ async function publicarEscala(){
     linhas=[];contL=0;
     carregarEscalaPublicada();
     setTimeout(carregarConfirmacoes,300);
+    // Envia push para os guias escalados
+    await enviarPushEscala(itens,data);
   }catch(e){hideLoad();alert('Erro: '+e.message)}
 }
 
@@ -1093,6 +1095,52 @@ async function apagarEscalaDia(){
     document.getElementById('escala-filtros').style.display='none';
     document.getElementById('confirmacoes-wrap').innerHTML='';
   }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
+// ===== PUSH FCM =====
+async function enviarPushEscala(itens, data){
+  try{
+    const d=new Date(data+'T12:00:00');
+    const dias=['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+    const dataFmt=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+    const diaSem=dias[d.getDay()];
+    // Pega tokens dos guias escalados
+    const guiasEscalados=[...new Set(itens.map(i=>i.guia))];
+    const tokenSnap=await window._gds(window._col(window._db,'push_tokens'));
+    const tokensMap={};
+    tokenSnap.docs.forEach(d=>{const dd=d.data();if(dd.token)tokensMap[dd.guia]=dd.token});
+    // Salva notificação no Firestore para cada guia
+    for(const guia of guiasEscalados){
+      const servsDia=itens.filter(i=>i.guia===guia);
+      const resumo=servsDia.map(s=>{
+        const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
+        return`⏰ ${s.horario} — ${LBLS[s.servico]||s.servico}`;
+      }).join('\n');
+      // Salva no Firestore (app lê ao abrir)
+      await window._ad(window._col(window._db,'notificacoes'),{
+        guia,
+        titulo:`📅 Escala ${dataFmt} (${diaSem})`,
+        mensagem:`Você tem ${servsDia.length} serviço(s) escalado(s):\n${resumo}\n\nAbra o app para confirmar.`,
+        data,lida:false,
+        criadoEm:new Date().toISOString()
+      });
+      // Envia FCM se tiver token
+      if(tokensMap[guia]){
+        await enviarFCM(tokensMap[guia],`📅 Escala ${dataFmt} (${diaSem})`,`Você tem ${servsDia.length} serviço(s). Abra o app para ver e confirmar!`);
+      }
+    }
+    console.log(`Push enviado para ${guiasEscalados.length} guia(s)`);
+  }catch(e){console.error('Erro push:',e)}
+}
+
+async function enviarFCM(token,title,body){
+  // Usa Firebase Cloud Messaging REST API via Firestore trigger
+  // Como não temos backend, salvamos numa coleção especial que o SW lê
+  try{
+    await window._ad(window._col(window._db,'fcm_queue'),{
+      token,title,body,enviado:false,criadoEm:new Date().toISOString()
+    });
+  }catch(e){console.error('FCM queue error:',e)}
 }
 
 // ===== NOTIFICAÇÕES =====
