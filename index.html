@@ -234,6 +234,8 @@ const app = initializeApp({
 const db = getFirestore(app);
 window._db=db;window._fbReady=true;
   window._getMessaging=getMessaging;
+  window._getToken=getToken;
+  window._onMessage=onMessage;
 window._addDoc=addDoc;window._collection=collection;
 window._query=query;window._where=where;window._orderBy=orderBy;
 window._getDocs=getDocs;window._doc=doc;window._getDoc=getDoc;
@@ -314,8 +316,10 @@ async function registrarPush(guia){
     await navigator.serviceWorker.ready;
     const perm=await Notification.requestPermission();
     if(perm!=='granted'){console.log('Push negado pelo usuário');return;}
-    const messaging=getMessaging();
-    const token=await getToken(messaging,{vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
+    const messaging=window._getMessaging?window._getMessaging():null;
+    if(!messaging){console.log('Messaging não disponível');return;}
+    const getTokenFn=window._getToken||getToken;
+    const token=await getTokenFn(messaging,{vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
     if(token){
       await window._setDoc(window._doc(window._db,'push_tokens',guia),{
         guia,token,aceitou:true,atualizadoEm:new Date().toISOString()
@@ -323,10 +327,12 @@ async function registrarPush(guia){
       console.log('Push registrado para '+guia);
     }
     // Recebe mensagens com app aberto
-    onMessage(messaging,payload=>{
-      const n=payload.notification;
-      if(n)mostrarBannerNotif(n.title,n.body);
-    });
+    if(typeof onMessage==='function'){
+      onMessage(messaging,payload=>{
+        const n=payload.notification;
+        if(n)mostrarBannerNotif(n.title,n.body);
+      });
+    }
   }catch(e){console.log('Push indisponível:',e.message)}
 }
 
