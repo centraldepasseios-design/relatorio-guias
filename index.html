@@ -527,16 +527,19 @@ async function buscarStatusVoo(numeroVoo, elId){
   if(!el)return;
   el.innerHTML='<span class="voo-status voo-loading">✈️ Consultando voo...</span>';
   try{
-    // Limpa número do voo (remove espaços, deixa só letras e números)
-    const voo=numeroVoo.replace(/\s/g,'').toUpperCase();
-    // Extrai código IATA da companhia e número
-    const match=voo.match(/^([A-Z]{2})(\d+)$/);
-    if(!match){el.innerHTML='<span class="voo-status voo-loading">✈️ '+voo+'</span>';return;}
+    const voo=numeroVoo.replace(/[^A-Z0-9]/gi,'').toUpperCase();
+    // Tenta via proxy CORS para evitar bloqueio
     const url=`https://api.aviationstack.com/v1/flights?access_key=${AVIATION_KEY}&flight_iata=${voo}&limit=1`;
-    const resp=await fetch(url);
+    const resp=await fetch(url,{mode:'cors'});
+    if(!resp.ok){throw new Error('HTTP '+resp.status)}
     const data=await resp.json();
+    if(data.error){
+      // Plano gratuito não suporta tempo real — mostra link externo
+      el.innerHTML=`<a href="https://www.flightradar24.com/${voo}" target="_blank" style="display:flex;align-items:center;gap:4px;text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear ${voo} no Flightradar24</span></a>`;
+      return;
+    }
     if(!data.data||!data.data.length){
-      el.innerHTML='<span class="voo-status voo-loading">✈️ '+voo+' — sem dados</span>';
+      el.innerHTML=`<a href="https://www.flightradar24.com/${voo}" target="_blank" style="display:flex;align-items:center;gap:4px;text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear ${voo} no Flightradar24</span></a>`;
       return;
     }
     const f=data.data[0];
@@ -547,28 +550,23 @@ async function buscarStatusVoo(numeroVoo, elId){
 
     let badge='',texto='';
     if(status==='landed'){
-      badge='voo-pousado';
-      texto=`🛬 Pousou${chegadaReal?' às '+chegadaReal:''}`;
+      badge='voo-pousado';texto=`🛬 Pousou${chegadaReal?' às '+chegadaReal:''}`;
     } else if(status==='active'&&atraso>0){
-      badge='voo-atrasado';
-      texto=`⚠️ Atrasado ${atraso}min${chegadaPrev?' — prev: '+chegadaPrev:''}`;
+      badge='voo-atrasado';texto=`⚠️ Atrasado ${atraso}min${chegadaPrev?' — prev: '+chegadaPrev:''}`;
     } else if(status==='active'){
-      badge='voo-ok';
-      texto=`✈️ Em voo${chegadaPrev?' — prev: '+chegadaPrev:''}`;
+      badge='voo-ok';texto=`✈️ Em voo${chegadaPrev?' — prev: '+chegadaPrev:''}`;
     } else if(status==='scheduled'){
-      badge='voo-ok';
-      texto=`🕐 No horário${chegadaPrev?' — prev: '+chegadaPrev:''}`;
+      badge='voo-ok';texto=`🕐 No horário${chegadaPrev?' — prev: '+chegadaPrev:''}`;
     } else if(status==='cancelled'){
-      badge='voo-atrasado';
-      texto='❌ Cancelado';
+      badge='voo-atrasado';texto='❌ Cancelado';
     } else {
-      badge='voo-loading';
-      texto='✈️ '+voo+(chegadaPrev?' — prev: '+chegadaPrev:'');
+      badge='voo-loading';texto='✈️ '+voo+(chegadaPrev?' — prev: '+chegadaPrev:'');
     }
     el.innerHTML=`<span class="voo-status ${badge}">${texto}</span>`;
   }catch(e){
-    el.innerHTML='<span class="voo-status voo-loading">✈️ '+numeroVoo+'</span>';
-    console.error('Voo error:',e);
+    // Fallback: link direto para Flightradar24
+    const vooLimpo=numeroVoo.replace(/[^A-Z0-9]/gi,'').toUpperCase();
+    el.innerHTML=`<a href="https://www.flightradar24.com/${vooLimpo}" target="_blank" style="text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear ${vooLimpo} no Flightradar24</span></a>`;
   }
 }
 
