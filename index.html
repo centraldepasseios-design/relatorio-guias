@@ -105,6 +105,11 @@
     .idioma-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
     .idioma-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;cursor:pointer;transition:all .15s}
     .idioma-chip.ativo{background:#e6f1fb;border-color:#185fa5;color:#185fa5;font-weight:500}
+    .voo-status{margin-top:6px;padding:6px 10px;border-radius:var(--rsm);font-size:12px;font-weight:500;display:flex;align-items:center;gap:6px}
+    .voo-ok{background:#e1f5ee;color:#0f6e56}
+    .voo-atrasado{background:#fde8e8;color:#c0392b}
+    .voo-pousado{background:#e6f1fb;color:#185fa5}
+    .voo-loading{background:#f0f0f0;color:#9a9a96}
     .loading-overlay{position:fixed;inset:0;background:rgba(245,244,240,.8);display:flex;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(2px)}
     .loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
@@ -477,22 +482,88 @@ async function carregarEscalaHoje(){
     }catch(e){}
     const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
     const dataFmt=new Date(hoje()+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
-    let rows=itens.map(it=>`
-      <div class="escala-row">
+    let vooIdx=0;
+    let rows=itens.map(it=>{
+      const isCheg=it.servico&&it.servico.startsWith('chegada');
+      const vooId=it.voo?'voo-status-'+(vooIdx++):'';
+      return`<div class="escala-row">
         <div><span class="escala-horario">⏰ ${it.horario}</span></div>
         <div class="escala-info">
           <div class="escala-servico">${LBLS[it.servico]||it.servico}</div>
           ${it.voo?`<div style="font-size:12px;color:var(--muted);margin-top:2px">✈️ ${it.voo}</div>`:''}
-          ${it.pax?`<div class="escala-pax">👥 ${it.pax} pax</div>`:''}
+          ${isCheg&&it.voo?`<div id="${vooId}"><span class="voo-status voo-loading">✈️ Carregando status...</span></div>`:''}
+          ${it.pax?`<div class="escala-pax">👥 ${it.pax} pax${it.chd?' + '+it.chd+' chd':''}</div>`:''}
           <div class="escala-motorista">🚐 ${it.motorista||'—'}</div>
           ${it.obs?`<div style="font-size:12px;color:var(--muted);margin-top:4px">📝 ${it.obs}</div>`:''}
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     const btnCiente=jaConfirmou
       ?`<div class="ciente-confirmado">✅ Você confirmou o recebimento desta escala</div>`
       :`<button class="btn-ciente" onclick="confirmarEscala()">👍 Estou ciente da escala</button>`;
     el.innerHTML=`<div class="escala-card"><div class="escala-header"><span>📅 ${dataFmt}</span><span>${itens.length} serviço${itens.length>1?'s':''}</span></div><div class="escala-body">${rows}</div></div><div style="margin-top:8px">${btnCiente}</div>`;
+    // Busca status dos voos após renderizar
+    let vooIdxPost=0;
+    itens.forEach(it=>{
+      if(it.servico&&it.servico.startsWith('chegada')&&it.voo){
+        const id='voo-status-'+vooIdxPost++;
+        buscarStatusVoo(it.voo,id);
+      }
+    });
   }catch(e){hideLoading();el.innerHTML='<p class="empty">Erro ao carregar escala.</p>';console.error(e)}
+}
+
+// ---- MONITORAMENTO DE VOO ----
+const AVIATION_KEY='c6d00a87ec3a442b4236b0c653b22a4d';
+
+async function buscarStatusVoo(numeroVoo, elId){
+  const el=document.getElementById(elId);
+  if(!el)return;
+  el.innerHTML='<span class="voo-status voo-loading">✈️ Consultando voo...</span>';
+  try{
+    // Limpa número do voo (remove espaços, deixa só letras e números)
+    const voo=numeroVoo.replace(/\s/g,'').toUpperCase();
+    // Extrai código IATA da companhia e número
+    const match=voo.match(/^([A-Z]{2})(\d+)$/);
+    if(!match){el.innerHTML='<span class="voo-status voo-loading">✈️ '+voo+'</span>';return;}
+    const url=`https://api.aviationstack.com/v1/flights?access_key=${AVIATION_KEY}&flight_iata=${voo}&limit=1`;
+    const resp=await fetch(url);
+    const data=await resp.json();
+    if(!data.data||!data.data.length){
+      el.innerHTML='<span class="voo-status voo-loading">✈️ '+voo+' — sem dados</span>';
+      return;
+    }
+    const f=data.data[0];
+    const status=f.flight_status;
+    const chegadaPrev=f.arrival&&f.arrival.estimated?new Date(f.arrival.estimated).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):null;
+    const chegadaReal=f.arrival&&f.arrival.actual?new Date(f.arrival.actual).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):null;
+    const atraso=f.arrival&&f.arrival.delay?f.arrival.delay:0;
+
+    let badge='',texto='';
+    if(status==='landed'){
+      badge='voo-pousado';
+      texto=`🛬 Pousou${chegadaReal?' às '+chegadaReal:''}`;
+    } else if(status==='active'&&atraso>0){
+      badge='voo-atrasado';
+      texto=`⚠️ Atrasado ${atraso}min${chegadaPrev?' — prev: '+chegadaPrev:''}`;
+    } else if(status==='active'){
+      badge='voo-ok';
+      texto=`✈️ Em voo${chegadaPrev?' — prev: '+chegadaPrev:''}`;
+    } else if(status==='scheduled'){
+      badge='voo-ok';
+      texto=`🕐 No horário${chegadaPrev?' — prev: '+chegadaPrev:''}`;
+    } else if(status==='cancelled'){
+      badge='voo-atrasado';
+      texto='❌ Cancelado';
+    } else {
+      badge='voo-loading';
+      texto='✈️ '+voo+(chegadaPrev?' — prev: '+chegadaPrev:'');
+    }
+    el.innerHTML=`<span class="voo-status ${badge}">${texto}</span>`;
+  }catch(e){
+    el.innerHTML='<span class="voo-status voo-loading">✈️ '+numeroVoo+'</span>';
+    console.error('Voo error:',e);
+  }
 }
 
 // ---- DISPONIBILIDADE ----
