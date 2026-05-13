@@ -266,6 +266,18 @@ window._registrarPush = registrarPush;
 const LABELS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
 const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf'};
 let guiaAtual='',contador=0,servicosAtivos=[];
+function formatMoeda(val){
+  let v=val.replace(/\D/g,'');
+  v=(parseInt(v)||0).toString().padStart(3,'0');
+  return 'R$ '+v.slice(0,-2).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+','+v.slice(-2);
+}
+function parseMoeda(str){
+  return parseFloat((str||'0').replace(/[R$\s.]/g,'').replace(',','.'))||0;
+}
+function onMoeda(el){
+  const pos=el.selectionStart;
+  el.value=formatMoeda(el.value);
+}
 function isChegada(s){return s&&s.startsWith('chegada')}
 function isSaida(s){return s&&s.startsWith('saida')}
 function hoje(){return new Date().toISOString().slice(0,10)}
@@ -723,11 +735,11 @@ function adicionarServico(){
     <div id="f-chegada-${id}" class="hidden" style="margin-top:14px">
       <div class="row2"><div><label style="margin-top:0">Voo</label><input type="text" id="voo-${id}" placeholder="ex: LA3456" style="text-transform:uppercase" /></div><div><label style="margin-top:0">Pax</label><input type="number" id="pax-${id}" placeholder="0" min="0" /></div></div>
       <div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Chd (crianças)</label><input type="number" id="chd-${id}" placeholder="0" min="0" /></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-${id}" placeholder="0" min="0" /></div></div>
-      <div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Vendas (R$)</label><input type="number" id="vendas-${id}" placeholder="0,00" min="0" step="0.01" /></div><div></div></div>
+      <div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric" /></div><div></div></div>
     </div>
     <div id="f-saida-${id}" class="hidden" style="margin-top:14px"><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-${id}" placeholder="0" min="0" /></div>
     <div id="f-outro-${id}" class="hidden" style="margin-top:14px">
-      <div class="row2"><div><label style="margin-top:0">Vendas (R$)</label><input type="number" id="vendas-o-${id}" placeholder="0,00" min="0" step="0.01" /></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-o-${id}" placeholder="0" min="0" /></div></div>
+      <div class="row2"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-o-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric" /></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-o-${id}" placeholder="0" min="0" /></div></div>
     </div>
     <div id="f-obs-wrap-${id}" class="hidden" style="margin-top:10px"><label style="margin-top:0">Observações</label><textarea id="obs-${id}" placeholder="opcional" rows="3" style="resize:vertical;min-height:80px"></textarea></div>`;
   document.getElementById('lista-servicos').appendChild(div);atualizarResumo();
@@ -767,9 +779,9 @@ async function enviarRelatorio(){
     const s=document.getElementById('srv-'+id).value;
     if(!s){alert('Selecione o tipo em todos os serviços.');return}
     let item={servico:s};
-    if(isChegada(s)){item.voo=document.getElementById('voo-'+id).value.trim().toUpperCase();item.pax=parseInt(document.getElementById('pax-'+id).value)||0;item.chd=parseInt(document.getElementById('chd-'+id).value)||0;item.vendas=parseFloat(document.getElementById('vendas-'+id).value)||0;item.noshow=parseInt(document.getElementById('noshow-'+id).value)||0}
+    if(isChegada(s)){item.voo=document.getElementById('voo-'+id).value.trim().toUpperCase();item.pax=parseInt(document.getElementById('pax-'+id).value)||0;item.chd=parseInt(document.getElementById('chd-'+id).value)||0;item.vendas=parseMoeda(document.getElementById('vendas-'+id).value);item.noshow=parseInt(document.getElementById('noshow-'+id).value)||0}
     else if(isSaida(s)){item.noshow=parseInt(document.getElementById('noshow-s-'+id).value)||0}
-    else{item.vendas=parseFloat(document.getElementById('vendas-o-'+id).value)||0;item.noshow=parseInt(document.getElementById('noshow-o-'+id).value)||0}
+    else{item.vendas=parseMoeda(document.getElementById('vendas-o-'+id).value);item.noshow=parseInt(document.getElementById('noshow-o-'+id).value)||0}
     item.obs=document.getElementById('obs-'+id).value.trim();
     itens.push(item);
   }
