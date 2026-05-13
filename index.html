@@ -540,11 +540,48 @@ async function carregarEscalaHoje(){
 // ---- MONITORAMENTO DE VOO ----
 const AVIATION_KEY='c6d00a87ec3a442b4236b0c653b22a4d';
 
-function buscarStatusVoo(numeroVoo, elId){
+async function buscarStatusVoo(numeroVoo, elId){
   const el=document.getElementById(elId);
   if(!el)return;
   const voo=numeroVoo.replace(/[^A-Za-z0-9]/g,'').toUpperCase();
-  el.innerHTML='<a href="https://www.flightradar24.com/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear voo '+voo+'</span></a>';
+  el.innerHTML='<span class="voo-status voo-loading">✈️ Consultando '+voo+'...</span>';
+  try{
+    // OpenSky Network - gratuita, sem autenticação
+    const callsign=voo.padEnd(8,' '); // OpenSky usa callsign com 8 chars
+    const url='https://opensky-network.org/api/states/all?callsign='+encodeURIComponent(voo);
+    const resp=await fetch(url);
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    if(!data.states||!data.states.length){
+      // Voo não encontrado em voo — pode ter pousado ou ainda não decolou
+      el.innerHTML='<a href="https://www.flightradar24.com/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-loading">🔍 '+voo+' — ver no Flightradar24</span></a>';
+      return;
+    }
+    const s=data.states[0];
+    // s[5]=longitude, s[6]=latitude, s[7]=altitude_baro, s[8]=on_ground, s[9]=velocity
+    const onGround=s[8];
+    const altitude=s[7]; // metros
+    const velocity=s[9]; // m/s
+    const lat=s[6];
+    const lon=s[5];
+    let badge,texto;
+    if(onGround){
+      badge='voo-pousado';
+      texto='🛬 '+voo+' — Em solo';
+    } else if(altitude&&altitude>100){
+      const atraso='';
+      badge='voo-ok';
+      texto='✈️ '+voo+' — Em voo · Alt: '+Math.round(altitude)+'m';
+    } else {
+      badge='voo-loading';
+      texto='✈️ '+voo+' — Dados parciais';
+    }
+    el.innerHTML='<a href="https://www.flightradar24.com/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status '+badge+'">'+texto+'</span></a>';
+  }catch(e){
+    // Fallback para Flightradar24
+    el.innerHTML='<a href="https://www.flightradar24.com/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear '+voo+' no Flightradar24</span></a>';
+    console.log('OpenSky error:',e.message);
+  }
 }
 
 // ---- DISPONIBILIDADE ----
