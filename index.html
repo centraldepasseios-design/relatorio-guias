@@ -836,47 +836,30 @@ function adicionarServicoEscala(escala){
   const div=document.createElement('div');div.className='servico-card';div.id='card-'+id;
   const s=escala.servico||'';
   const isCh=isChegada(s),isSa=isSaida(s);
-  // Monta campos pré-preenchidos da escala
   const vooVal=escala.hsrv||escala.voo||'';
   const paxVal=escala.pax||0;
-  div.innerHTML=`<div class="servico-card-header">
-    <span class="servico-num">Serviço ${servicosAtivos.length} · <span style="font-size:11px;color:var(--muted)">${LABELS[s]||s} ⏰ ${escala.horario||''}</span></span>
-    <div style="display:flex;gap:6px;align-items:center">
-      <button id="btn-noshow-esc-${id}" onclick="toggleNoshowEscala(${id})" style="padding:4px 10px;font-size:11px;font-family:'DM Sans',sans-serif;background:#faeeda;color:#854f0b;border:1px solid #f0c070;border-radius:99px;cursor:pointer;white-space:nowrap">🚫 No-show escala</button>
-      <button class="btn-remover" onclick="removerServico(${id})">×</button>
-    </div>
-  </div>
-  <input type="hidden" id="srv-${id}" value="${s}"/>
-  <input type="hidden" id="noshow-esc-${id}" value="0"/>
-  <div style="background:var(--bg);border-radius:var(--rsm);padding:8px 10px;font-size:12px;color:var(--muted);margin-bottom:10px">
-    📅 Escala: <strong>${LABELS[s]||s}</strong>${escala.horario?' · ⏰ '+escala.horario:''}${escala.motorista?' · 🚐 '+escala.motorista:''}${vooVal?' · ✈️ '+vooVal:''}${paxVal?' · 👥 '+paxVal+' pax':''}
-  </div>
-  <div id="noshow-esc-banner-${id}" style="display:none;background:#fde8e8;color:#c0392b;border-radius:var(--rsm);padding:8px 12px;font-size:13px;font-weight:500;margin-bottom:8px;border:1px solid #f5c6c6">
-    🚫 No-show de escala — serviço não realizado (voo cancelado / juntou carros)
-    <div style="margin-top:6px"><label style="margin-top:0;color:#c0392b">Motivo (opcional)</label><input type="text" id="motivo-esc-${id}" placeholder="ex: Voo cancelado, juntou com outro carro..." style="font-size:12px;margin-top:4px"/></div>
-  </div>
-  ${isCh?`
-  <div class="row2">
-    <div><label style="margin-top:0">Voo</label><input type="text" id="voo-${id}" value="${vooVal}" placeholder="ex: AD4310" style="text-transform:uppercase"/></div>
-    <div><label style="margin-top:0">Pax</label><input type="number" id="pax-${id}" value="${paxVal}" min="0"/></div>
-  </div>
-  <div class="row2" style="margin-top:10px">
-    <div><label style="margin-top:0">Chd</label><input type="number" id="chd-${id}" placeholder="0" min="0"/></div>
-    <div><label style="margin-top:0">No-show</label><input type="number" id="noshow-${id}" placeholder="0" min="0"/></div>
-  </div>
-  <div class="row2" style="margin-top:10px">
-    <div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div>
-    <div></div>
-  </div>`:''}
-  ${isSa?`<div style="margin-top:10px"><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-${id}" placeholder="0" min="0"/></div>`:''}
-  ${!isCh&&!isSa?`
-  <div class="row2" style="margin-top:10px">
-    <div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-o-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div>
-    <div><label style="margin-top:0">No-show</label><input type="number" id="noshow-o-${id}" placeholder="0" min="0"/></div>
-  </div>`:''}
-  <div style="margin-top:10px"><label style="margin-top:0">Observações</label><textarea id="obs-${id}" placeholder="opcional" rows="2" style="resize:vertical;min-height:60px"></textarea></div>`;
+  const resumoEsc='📅 Escala: '+(LABELS[s]||s)+(escala.horario?' · ⏰ '+escala.horario:'')+(escala.motorista?' · 🚐 '+escala.motorista:'')+(vooVal?' · ✈️ '+vooVal:'')+(paxVal?' · 👥 '+paxVal+' pax':'');
+  const camposCh=isCh?('<div class="row2"><div><label style="margin-top:0">Voo</label><input type="text" id="voo-'+id+'" value="'+vooVal+'" placeholder="ex: AD4310" style="text-transform:uppercase"/></div><div><label style="margin-top:0">Pax</label><input type="number" id="pax-'+id+'" value="'+paxVal+'" min="0"/></div></div><div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Chd</label><input type="number" id="chd-'+id+'" placeholder="0" min="0"/></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-'+id+'" placeholder="0" min="0"/></div></div><div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-'+id+'" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div><div></div></div>'):'';
+  const camposSa=isSa?('<div style="margin-top:10px"><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-'+id+'" placeholder="0" min="0"/></div>'):'';
+  const camposOutro=(!isCh&&!isSa)?('<div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-o-'+id+'" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-o-'+id+'" placeholder="0" min="0"/></div></div>'):'';
+  div.innerHTML=
+    '<div class="servico-card-header">'+
+    '<span class="servico-num">Serviço '+servicosAtivos.length+' · <span style="font-size:11px;color:var(--muted)">'+(LABELS[s]||s)+' ⏰ '+(escala.horario||'')+'</span></span>'+
+    '<div style="display:flex;gap:6px;align-items:center">'+
+    '<button id="btn-noshow-esc-'+id+'" onclick="toggleNoshowEscala('+id+')" style="padding:4px 10px;font-size:11px;font-family:DM Sans,sans-serif;background:#faeeda;color:#854f0b;border:1px solid #f0c070;border-radius:99px;cursor:pointer;white-space:nowrap">🚫 No-show escala</button>'+
+    '<button class="btn-remover" onclick="removerServico('+id+')">×</button>'+
+    '</div></div>'+
+    '<input type="hidden" id="srv-'+id+'" value="'+s+'"/>'+
+    '<input type="hidden" id="noshow-esc-'+id+'" value="0"/>'+
+    '<div style="background:var(--bg);border-radius:var(--rsm);padding:8px 10px;font-size:12px;color:var(--muted);margin-bottom:10px">'+resumoEsc+'</div>'+
+    '<div id="noshow-esc-banner-'+id+'" style="display:none;background:#fde8e8;color:#c0392b;border-radius:var(--rsm);padding:8px 12px;font-size:13px;font-weight:500;margin-bottom:8px;border:1px solid #f5c6c6">'+
+    '🚫 No-show — serviço não realizado'+
+    '<div style="margin-top:6px"><label style="margin-top:0;color:#c0392b">Motivo</label><input type="text" id="motivo-esc-'+id+'" placeholder="ex: Voo cancelado..." style="font-size:12px;margin-top:4px"/></div></div>'+
+    camposCh+camposSa+camposOutro+
+    '<div style="margin-top:10px"><label style="margin-top:0">Observações</label><textarea id="obs-'+id+'" placeholder="opcional" rows="2" style="resize:vertical;min-height:60px"></textarea></div>';
   document.getElementById('lista-servicos').appendChild(div);
 }
+
 
 function toggleNoshowEscala(id){
   const ativo=document.getElementById('noshow-esc-'+id).value==='1';
