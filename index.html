@@ -177,6 +177,14 @@
 
   <!-- ESCALA DO DIA -->
   <div id="sec-escala" class="section active">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px">
+      <button onclick="navegarData(-1)" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);padding:6px 14px;font-size:18px;cursor:pointer;color:var(--text);line-height:1">‹</button>
+      <div style="text-align:center">
+        <div id="escala-data-label" style="font-size:14px;font-weight:600"></div>
+        <div id="escala-data-sub" style="font-size:11px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <button onclick="navegarData(1)" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);padding:6px 14px;font-size:18px;cursor:pointer;color:var(--text);line-height:1">›</button>
+    </div>
     <div id="escala-conteudo"></div>
   </div>
 
@@ -189,10 +197,11 @@
   <div id="sec-form" class="section">
     <div class="card">
       <label>Data do serviço</label>
-      <input type="date" id="data-geral" />
+      <input type="date" id="data-geral" onchange="servicosAtivos=[];contador=0;document.getElementById('lista-servicos').innerHTML='';carregarEscalaNoRelatorio()"/>
       <label>Motorista</label>
       <input type="text" id="motorista-geral" placeholder="Nome do motorista" />
     </div>
+    <div id="banner-escala" style="display:none;background:#e1f5ee;color:#0f6e56;border-radius:var(--rsm);padding:10px 14px;font-size:13px;margin-bottom:10px;border:1px solid #b2dfdb"></div>
     <hr class="divider" />
     <div id="lista-servicos"></div>
     <button class="btn-add" onclick="adicionarServico()">+ Adicionar serviço</button>
@@ -462,7 +471,6 @@ function entrarNoApp(nome){
   document.getElementById('filtro-mes').value=mesAtual();
   servicosAtivos=[];contador=0;
   document.getElementById('lista-servicos').innerHTML='';
-  adicionarServico();
   carregarEscalaHoje();
   registrarPush(nome);
   verificarNotificacoes(nome);
@@ -476,14 +484,40 @@ function logout(){
 }
 
 // ---- ESCALA ----
+let dataEscalaAtual=hoje();
+
+function navegarData(dir){
+  const d=new Date(dataEscalaAtual+'T12:00:00');
+  d.setDate(d.getDate()+dir);
+  dataEscalaAtual=d.toISOString().slice(0,10);
+  carregarEscalaHoje();
+}
+
+function atualizarLabelData(){
+  const d=new Date(dataEscalaAtual+'T12:00:00');
+  const hj=hoje();
+  const am=new Date();am.setDate(am.getDate()+1);
+  const amStr=am.toISOString().slice(0,10);
+  const ontem=new Date();ontem.setDate(ontem.getDate()-1);
+  const ontemStr=ontem.toISOString().slice(0,10);
+  let sub='';
+  if(dataEscalaAtual===hj)sub='Hoje';
+  else if(dataEscalaAtual===amStr)sub='Amanhã';
+  else if(dataEscalaAtual===ontemStr)sub='Ontem';
+  const label=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+  document.getElementById('escala-data-label').textContent=label.charAt(0).toUpperCase()+label.slice(1);
+  document.getElementById('escala-data-sub').textContent=sub;
+}
+
 async function carregarEscalaHoje(){
   const el=document.getElementById('escala-conteudo');
   el.innerHTML='<p class="empty">Carregando escala...</p>';
+  atualizarLabelData();
   showLoading();
   try{
     const snap=await window._getDocs(window._query(
       window._collection(window._db,'escalas'),
-      window._where('data','==',hoje()),
+      window._where('data','==',dataEscalaAtual),
       window._where('guia','==',guiaAtual)
     ));
     const itens=snap.docs.map(d=>d.data());
@@ -495,7 +529,7 @@ async function carregarEscalaHoje(){
     // Verifica confirmação
     let jaConfirmou=false;
     try{
-      const confSnap=await window._getDoc(window._doc(window._db,'confirmacoes',hoje()+'_'+guiaAtual));
+      const confSnap=await window._getDoc(window._doc(window._db,'confirmacoes',dataEscalaAtual+'_'+guiaAtual));
       jaConfirmou=confSnap.exists();
     }catch(e){}
     const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
@@ -742,8 +776,8 @@ async function marcarDisp(data,status,btn){
 async function confirmarEscala(){
   showLoading();
   try{
-    await window._setDoc(window._doc(window._db,'confirmacoes',hoje()+'_'+guiaAtual),{
-      guia:guiaAtual,data:hoje(),confirmadoEm:new Date().toISOString()
+    await window._setDoc(window._doc(window._db,'confirmacoes',dataEscalaAtual+'_'+guiaAtual),{
+      guia:guiaAtual,data:dataEscalaAtual,confirmadoEm:new Date().toISOString()
     });
     hideLoading();carregarEscalaHoje();
   }catch(e){hideLoading();alert('Erro: '+e.message)}
@@ -756,9 +790,113 @@ function trocarAba(aba){
   if(aba==='hist')renderHistorico();
   if(aba==='escala')carregarEscalaHoje();
   if(aba==='disp')carregarDisponibilidade();
+  if(aba==='form')carregarEscalaNoRelatorio();
 }
 
 // ---- RELATÓRIO ----
+async function carregarEscalaNoRelatorio(){
+  if(!guiaAtual||!window._fbReady)return;
+  const data=document.getElementById('data-geral').value||hoje();
+  try{
+    const snap=await window._getDocs(window._query(
+      window._collection(window._db,'escalas'),
+      window._where('data','==',data),
+      window._where('guia','==',guiaAtual)
+    ));
+    const itens=snap.docs.map(d=>d.data()).sort((a,b)=>a.horario.localeCompare(b.horario));
+    if(!itens.length){
+      // Sem escala — deixa o guia adicionar manualmente
+      if(servicosAtivos.length===0)adicionarServico();
+      return;
+    }
+    // Limpa e recria os serviços baseado na escala
+    document.getElementById('lista-servicos').innerHTML='';
+    servicosAtivos=[];contador=0;
+    // Define motorista da escala automaticamente
+    const mot=itens.find(i=>i.motorista)?.motorista||'';
+    if(mot&&!document.getElementById('motorista-geral').value)
+      document.getElementById('motorista-geral').value=mot;
+    // Cria um card por serviço da escala
+    itens.forEach(it=>adicionarServicoEscala(it));
+    atualizarResumo();
+    // Banner informativo
+    const banner=document.getElementById('banner-escala');
+    if(banner){
+      banner.textContent='📋 Escala do dia carregada ('+itens.length+' serviço'+( itens.length>1?'s':'')+') — confirme ou corrija os valores';
+      banner.style.display='block';
+    }
+  }catch(e){
+    if(servicosAtivos.length===0)adicionarServico();
+    console.error(e);
+  }
+}
+
+function adicionarServicoEscala(escala){
+  const id=++contador;servicosAtivos.push(id);
+  const div=document.createElement('div');div.className='servico-card';div.id='card-'+id;
+  const s=escala.servico||'';
+  const isCh=isChegada(s),isSa=isSaida(s);
+  // Monta campos pré-preenchidos da escala
+  const vooVal=escala.hsrv||escala.voo||'';
+  const paxVal=escala.pax||0;
+  div.innerHTML=`<div class="servico-card-header">
+    <span class="servico-num">Serviço ${servicosAtivos.length} · <span style="font-size:11px;color:var(--muted)">${LABELS[s]||s} ⏰ ${escala.horario||''}</span></span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button id="btn-noshow-esc-${id}" onclick="toggleNoshowEscala(${id})" style="padding:4px 10px;font-size:11px;font-family:'DM Sans',sans-serif;background:#faeeda;color:#854f0b;border:1px solid #f0c070;border-radius:99px;cursor:pointer;white-space:nowrap">🚫 No-show escala</button>
+      <button class="btn-remover" onclick="removerServico(${id})">×</button>
+    </div>
+  </div>
+  <input type="hidden" id="srv-${id}" value="${s}"/>
+  <input type="hidden" id="noshow-esc-${id}" value="0"/>
+  <div style="background:var(--bg);border-radius:var(--rsm);padding:8px 10px;font-size:12px;color:var(--muted);margin-bottom:10px">
+    📅 Escala: <strong>${LABELS[s]||s}</strong>${escala.horario?' · ⏰ '+escala.horario:''}${escala.motorista?' · 🚐 '+escala.motorista:''}${vooVal?' · ✈️ '+vooVal:''}${paxVal?' · 👥 '+paxVal+' pax':''}
+  </div>
+  <div id="noshow-esc-banner-${id}" style="display:none;background:#fde8e8;color:#c0392b;border-radius:var(--rsm);padding:8px 12px;font-size:13px;font-weight:500;margin-bottom:8px;border:1px solid #f5c6c6">
+    🚫 No-show de escala — serviço não realizado (voo cancelado / juntou carros)
+    <div style="margin-top:6px"><label style="margin-top:0;color:#c0392b">Motivo (opcional)</label><input type="text" id="motivo-esc-${id}" placeholder="ex: Voo cancelado, juntou com outro carro..." style="font-size:12px;margin-top:4px"/></div>
+  </div>
+  ${isCh?`
+  <div class="row2">
+    <div><label style="margin-top:0">Voo</label><input type="text" id="voo-${id}" value="${vooVal}" placeholder="ex: AD4310" style="text-transform:uppercase"/></div>
+    <div><label style="margin-top:0">Pax</label><input type="number" id="pax-${id}" value="${paxVal}" min="0"/></div>
+  </div>
+  <div class="row2" style="margin-top:10px">
+    <div><label style="margin-top:0">Chd</label><input type="number" id="chd-${id}" placeholder="0" min="0"/></div>
+    <div><label style="margin-top:0">No-show</label><input type="number" id="noshow-${id}" placeholder="0" min="0"/></div>
+  </div>
+  <div class="row2" style="margin-top:10px">
+    <div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div>
+    <div></div>
+  </div>`:''}
+  ${isSa?`<div style="margin-top:10px"><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-${id}" placeholder="0" min="0"/></div>`:''}
+  ${!isCh&&!isSa?`
+  <div class="row2" style="margin-top:10px">
+    <div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-o-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div>
+    <div><label style="margin-top:0">No-show</label><input type="number" id="noshow-o-${id}" placeholder="0" min="0"/></div>
+  </div>`:''}
+  <div style="margin-top:10px"><label style="margin-top:0">Observações</label><textarea id="obs-${id}" placeholder="opcional" rows="2" style="resize:vertical;min-height:60px"></textarea></div>`;
+  document.getElementById('lista-servicos').appendChild(div);
+}
+
+function toggleNoshowEscala(id){
+  const ativo=document.getElementById('noshow-esc-'+id).value==='1';
+  const novoValor=ativo?'0':'1';
+  document.getElementById('noshow-esc-'+id).value=novoValor;
+  const banner=document.getElementById('noshow-esc-banner-'+id);
+  const btn=document.getElementById('btn-noshow-esc-'+id);
+  const fields=document.getElementById('card-'+id).querySelectorAll('input[type=text],input[type=number],textarea');
+  if(novoValor==='1'){
+    banner.style.display='block';
+    btn.style.background='#c0392b';btn.style.color='#fff';btn.style.borderColor='#c0392b';
+    // Desabilita campos de valores
+    fields.forEach(f=>{if(!f.id.startsWith('motivo-esc')&&!f.id.startsWith('noshow-esc')){f.disabled=true;f.style.opacity='0.4';}});
+  } else {
+    banner.style.display='none';
+    btn.style.background='#faeeda';btn.style.color='#854f0b';btn.style.borderColor='#f0c070';
+    fields.forEach(f=>{f.disabled=false;f.style.opacity='1';});
+  }
+}
+
 function adicionarServico(){
   const id=++contador;servicosAtivos.push(id);
   const div=document.createElement('div');div.className='servico-card';div.id='card-'+id;
@@ -815,13 +953,20 @@ async function enviarRelatorio(){
   if(!motorista){alert('Informe o motorista.');return}
   const itens=[];
   for(const id of servicosAtivos){
-    const s=document.getElementById('srv-'+id).value;
+    const sEl=document.getElementById('srv-'+id);const s=sEl?sEl.value:'';
     if(!s){alert('Selecione o tipo em todos os serviços.');return}
     let item={servico:s};
     if(isChegada(s)){item.voo=document.getElementById('voo-'+id).value.trim().toUpperCase();item.pax=parseInt(document.getElementById('pax-'+id).value)||0;item.chd=parseInt(document.getElementById('chd-'+id).value)||0;item.vendas=parseMoeda(document.getElementById('vendas-'+id).value);item.noshow=parseInt(document.getElementById('noshow-'+id).value)||0}
     else if(isSaida(s)){item.noshow=parseInt(document.getElementById('noshow-s-'+id).value)||0}
     else{item.vendas=parseMoeda(document.getElementById('vendas-o-'+id).value);item.noshow=parseInt(document.getElementById('noshow-o-'+id).value)||0}
     item.obs=document.getElementById('obs-'+id).value.trim();
+    // No-show de escala
+    const noshowEscEl=document.getElementById('noshow-esc-'+id);
+    if(noshowEscEl&&noshowEscEl.value==='1'){
+      item.noshow_escala=true;
+      const motivoEl=document.getElementById('motivo-esc-'+id);
+      item.motivo_noshow=motivoEl?motivoEl.value.trim():'';
+    }
     itens.push(item);
   }
   showLoading();
@@ -865,7 +1010,8 @@ async function renderHistorico(){
         if(isChegada(it.servico))campos=`<div class="sub-item"><label>Voo</label><p>${it.voo||'—'}</p></div><div class="sub-item"><label>Pax</label><p>${it.pax??0}</p></div><div class="sub-item"><label>Chd</label><p>${it.chd??0}</p></div><div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div><div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
         else if(isSaida(it.servico))campos=`<div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
         else campos=`<div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div><div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
-        return`<div class="sub-card"><div class="sub-header"><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span></div><div class="sub-body">${campos}</div>${it.obs?`<p class="obs-text">📝 ${it.obs}</p>`:''}</div>`;
+        const noshowEscTag=it.noshow_escala?'<span style="background:#fde8e8;color:#c0392b;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px">🚫 No-show escala</span>':'';
+        return`<div class="sub-card"><div class="sub-header"><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span>${noshowEscTag}</div>${it.noshow_escala?`<div style="font-size:12px;color:#c0392b;padding:4px 0">${it.motivo_noshow||'Serviço não realizado'}</div>`:`<div class="sub-body">${campos}</div>`}${it.obs?`<p class="obs-text">📝 ${it.obs}</p>`:''}</div>`;
       }).join('');
       return`<div class="rel-card"><div class="rel-dia"><span>${dataFmt} · ${r.motorista}</span><span>${r.itens.length} serviço${r.itens.length>1?'s':''}</span></div>${itensHtml}</div>`;
     }).join('');
