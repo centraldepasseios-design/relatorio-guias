@@ -517,13 +517,13 @@ async function carregarEscalaHoje(){
   try{
     const snap=await window._getDocs(window._query(
       window._collection(window._db,'escalas'),
-      window._where('data','==',dataEscalaAtual),
-      window._where('guia','==',guiaAtual)
+      window._where('data','==',dataEscalaAtual)
     ));
-    const itens=snap.docs.map(d=>d.data());
+    const itens=snap.docs.map(d=>d.data()).filter(d=>d.guia===guiaAtual);
     hideLoading();
     if(!itens.length){
-      el.innerHTML='<div class="no-escala">📭 Nenhum serviço escalado para hoje.<br><small>Consulte seu coordenador.</small></div>';
+      const dtLabel=new Date(dataEscalaAtual+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+      el.innerHTML='<div class="no-escala">📭 Nenhum serviço escalado para '+dtLabel+'.<br><small>Consulte seu coordenador.</small></div>';
       return;
     }
     // Verifica confirmação
@@ -533,7 +533,7 @@ async function carregarEscalaHoje(){
       jaConfirmou=confSnap.exists();
     }catch(e){}
     const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
-    const dataFmt=new Date(hoje()+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+    const dataFmt=new Date(dataEscalaAtual+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
     let vooIdx=0;
     let rows=itens.map(it=>{
       const isCheg=it.servico&&it.servico.startsWith('chegada');
@@ -800,10 +800,9 @@ async function carregarEscalaNoRelatorio(){
   try{
     const snap=await window._getDocs(window._query(
       window._collection(window._db,'escalas'),
-      window._where('data','==',data),
-      window._where('guia','==',guiaAtual)
+      window._where('data','==',data)
     ));
-    const itens=snap.docs.map(d=>d.data()).sort((a,b)=>a.horario.localeCompare(b.horario));
+    const itens=snap.docs.map(d=>d.data()).filter(d=>d.guia===guiaAtual).sort((a,b)=>a.horario.localeCompare(b.horario));
     if(!itens.length){
       // Sem escala — deixa o guia adicionar manualmente
       if(servicosAtivos.length===0)adicionarServico();
