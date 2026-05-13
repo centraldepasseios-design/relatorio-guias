@@ -503,14 +503,16 @@ async function carregarEscalaHoje(){
     let vooIdx=0;
     let rows=itens.map(it=>{
       const isCheg=it.servico&&it.servico.startsWith('chegada');
-      const vooId=it.voo?'voo-status-'+(vooIdx++):'';
+      const numVooDisp=it.voo||it.hsrv||'';
+      const temVooIATA=isCheg&&numVooDisp.replace(/[^A-Za-z0-9]/g,'').match(/^[A-Z]{2}\d+$/i);
+      const vooId=temVooIATA?'voo-status-'+(vooIdx++):'';
       return`<div class="escala-row">
         <div><span class="escala-horario">⏰ ${it.horario}</span></div>
         <div class="escala-info">
           <div class="escala-servico">${LBLS[it.servico]||it.servico}</div>
           ${it.hsrv?`<div style="font-size:12px;color:var(--muted);margin-top:2px">✈️ ${it.hsrv}</div>`:''}
-          ${it.voo?`<div style="font-size:12px;color:var(--muted);margin-top:2px">✈️ ${it.voo}</div>`:''}
-          ${isCheg&&(it.voo||it.hsrv)?`<div id="${vooId}"></div>`:''}
+          ${it.voo&&it.voo!==it.hsrv?`<div style="font-size:12px;color:var(--muted);margin-top:2px">✈️ ${it.voo}</div>`:''}
+          ${temVooIATA?`<div id="${vooId}" style="margin-top:4px"></div>`:''}
           ${it.pax?`<div class="escala-pax">👥 ${it.pax} pax${it.chd?' + '+it.chd+' chd':''}</div>`:''}
           <div class="escala-motorista">🚐 ${it.motorista||'—'}</div>
           ${it.obs?`<div style="font-size:12px;color:var(--muted);margin-top:4px">📝 ${it.obs}</div>`:''}
