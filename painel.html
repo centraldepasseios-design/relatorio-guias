@@ -172,10 +172,13 @@
         <button style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);cursor:pointer" onclick="notificarPendentes()">🔔 Notificar sem relatório</button>
       </div>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><label>Ver escalas de</label><input type="date" id="escala-inicio" style="padding:7px 10px;font-size:13px;width:auto"/></div>
-      <div><label>até</label><input type="date" id="escala-fim" style="padding:7px 10px;font-size:13px;width:auto"/></div>
-      <button class="btn-sm" onclick="buscarEscalaPeriodo()">🔍 Buscar período</button>
+    <div>
+      <button class="btn-outline" onclick="toggleFiltroPeriodo()" id="btn-filtro-periodo" style="width:100%;text-align:left;padding:10px 14px;font-size:13px;margin-bottom:8px">📅 Ver escalas por período ▾</button>
+      <div id="filtro-periodo-wrap" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div><label>Ver escalas de</label><input type="date" id="escala-inicio" style="padding:7px 10px;font-size:13px;width:auto"/></div>
+        <div><label>até</label><input type="date" id="escala-fim" style="padding:7px 10px;font-size:13px;width:auto"/></div>
+        <button class="btn-sm" onclick="buscarEscalaPeriodo()">🔍 Buscar período</button>
+      </div>
     </div>
     <div id="alerta-confirmacao" style="display:none;margin-bottom:1rem"></div>
     <div id="escala-linhas"></div>
@@ -848,6 +851,15 @@ async function redistribuir(data,guiaAntigo,servico,horario,motorista,hsrv,pax,s
   }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
 }
 
+
+function toggleFiltroPeriodo(){
+  const wrap=document.getElementById('filtro-periodo-wrap');
+  const btn=document.getElementById('btn-filtro-periodo');
+  const visible=wrap.style.display==='flex';
+  wrap.style.display=visible?'none':'flex';
+  btn.textContent='📅 Ver escalas por período '+(visible?'▾':'▴');
+  btn.style.marginBottom=visible?'0':'8px';
+}
 
 function toggleResumoGuia(){
   const wrap=document.getElementById('resumo-guia-wrap');
