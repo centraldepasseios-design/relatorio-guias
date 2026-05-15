@@ -132,6 +132,7 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 
 const SENHA_ADMIN='luck1960';
@@ -288,7 +289,7 @@ async function publicarEscala(){
       if(!horario){alert('Preencha o horário de apresentação em todas as linhas.');return}
     }
     const pax=srv.startsWith('chegada')?parseInt(document.getElementById('epax-'+id).value)||0:0;
-    const hotelVal=(document.getElementById('eh-hotel-'+id)||{}).value||'';
+    const hotelVal=_hotelMap[id]||'';
     itens.push({guia,servico:srv,horario,hsrv,motorista,pax,hotel:hotelVal,obs:document.getElementById('eo-'+id).value.trim()});
   }
   if(!confirm(`Publicar ${itens.length} serviço(s) para ${data}? Eles serão adicionados à escala já existente.`))return;
@@ -1182,19 +1183,14 @@ function renderCardsImportados(itens, data){
   });
 }
 
+const _hotelMap={};
+
 function adicionarLinhaImportada(dados){
   adicionarLinha(dados);
-  // Add hidden hotel field to last card
+  // Store hotel in global map keyed by line id
   if(dados.hotel){
     const lastId=linhas[linhas.length-1];
-    const card=document.getElementById('lc-'+lastId);
-    if(card){
-      const inp=document.createElement('input');
-      inp.type='hidden';
-      inp.id='eh-hotel-'+lastId;
-      inp.value=dados.hotel;
-      card.appendChild(inp);
-    }
+    _hotelMap[lastId]=dados.hotel;
   }
 }
 
@@ -1202,6 +1198,7 @@ function limparImportacao(){
   document.getElementById('escala-linhas').innerHTML='';
   linhas=[];contL=0;
   _itensImportados=[];
+  Object.keys(_hotelMap).forEach(k=>delete _hotelMap[k]);
 }
 
 const WHATSAPP_GUIAS={
@@ -1394,6 +1391,122 @@ async function enviarEscalaWhatsApp(){
     if(semFone.length)resultado+='\n\n⚠️ Sem número cadastrado:\n'+semFone.join(', ');
     alert(resultado);
   }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
+}
+
+
+// ===== IMPORTAR PDF PHOENIX =====
+async function importarPDFPhoenix(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  const data=document.getElementById('escala-data').value||hoje();
+  showLoad();
+  try{
+    const pdfjsLib=window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    const paxPorGuia={};
+    let guiaAtual=null;
+
+    for(let pi=1;pi<=pdf.numPages;pi++){
+      const page=await pdf.getPage(pi);
+      const content=await page.getTextContent();
+      // Group items by y position
+      const byY={};
+      content.items.forEach(item=>{
+        const y=Math.round(item.transform[5]/3)*3;
+        if(!byY[y])byY[y]=[];
+        byY[y].push({text:item.str.trim(),x:item.transform[4]});
+      });
+
+      const sortedYs=Object.keys(byY).map(Number).sort((a,b)=>b-a);
+
+      for(const y of sortedYs){
+        const words=byY[y].filter(w=>w.text).sort((a,b)=>a.x-b.x);
+        const line=words.map(w=>w.text).join(' ');
+
+        // Detect GUIA header (centered, few words, x > 300)
+        if(line.includes('- GUIA')&&words.length<=5&&!line.startsWith('Apoio')&&words[0]&&words[0].x>300){
+          guiaAtual=line.replace(/\s*-\s*GUIA\s*/,'').trim();
+          if(!paxPorGuia[guiaAtual])paxPorGuia[guiaAtual]=[];
+          continue;
+        }
+
+        // REC line
+        if(!words[0]||!words[0].text.startsWith('REC-')||!guiaAtual)continue;
+
+        // Pax at x~350-380 (PDF coords inverted from pdfjs)
+        const paxWord=words.find(w=>/^\d+\/\d+\/\d+$/.test(w.text));
+        if(!paxWord)continue;
+        const [adt,chd,inf]=paxWord.text.split('/').map(Number);
+        const total=adt+chd+inf;
+        const paxStr=adt+' adt'+(chd?'+'+chd+' chd':'');
+
+        // Hotel: x range for hotel column (adjust per PDF)
+        const hotelWords=[];
+        for(const dy of [-18,-9,9,18,27]){
+          const ay=y+dy;
+          const nearY=Object.keys(byY).map(Number).find(ky=>Math.abs(ky-ay)<5);
+          if(nearY){
+            byY[nearY].filter(w=>w.text&&w.x>160&&w.x<240).forEach(w=>hotelWords.push(w.text));
+          }
+        }
+        const hotel=[...new Set(hotelWords)].join(' ').trim();
+
+        // Client: x range for client column
+        const clientWords=[];
+        for(const dy of [-18,-9,9,18]){
+          const ay=y+dy;
+          const nearY=Object.keys(byY).map(Number).find(ky=>Math.abs(ky-ay)<5);
+          if(nearY){
+            byY[nearY].filter(w=>w.text&&w.x>270&&w.x<330&&!/^(VIAGENS|CVC|PDV|LUCK|RESTAURANTE|\d|Não|Sim)/.test(w.text)&&w.text!=='-').forEach(w=>clientWords.push(w.text));
+          }
+        }
+        const cliente=[...new Set(clientWords)].join(' ').trim();
+
+        paxPorGuia[guiaAtual].push({hotel:hotel.substring(0,45),cliente:cliente.substring(0,30),pax:total,paxStr});
+      }
+    }
+
+    hideLoad();
+    event.target.value='';
+
+    // Save to Firestore under pax_phoenix collection
+    const totalGuias=Object.keys(paxPorGuia).length;
+    if(!totalGuias){alert('Nenhum guia encontrado no PDF.');return}
+
+    if(!confirm('PDF Phoenix lido! '+totalGuias+' guia(s) encontrado(s).\n\nSalvar lista de pax para '+data+'?'))return;
+
+    showLoad();
+    // Busca guias que estão na escala do dia
+    const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
+    const guiasEscala=new Set(escSnap.docs.map(d=>d.data().guia));
+
+    // Filtra paxPorGuia para só os guias da escala
+    const guiasSalvos=[];
+    const guiasIgnorados=[];
+    for(const [guia,paxList] of Object.entries(paxPorGuia)){
+      // Tenta match exato ou parcial com guias da escala
+      const guiaMatch=[...guiasEscala].find(g=>
+        g===guia||
+        g.startsWith(guia)||
+        guia.startsWith(g)||
+        g.split(' ')[0]===guia.split(' ')[0]
+      );
+      if(guiaMatch){
+        await window._sd(window._doc(window._db,'pax_phoenix',data+'_'+guiaMatch),{
+          guia:guiaMatch,data,paxList,atualizadoEm:new Date().toISOString()
+        });
+        guiasSalvos.push(guiaMatch);
+      } else {
+        guiasIgnorados.push(guia);
+      }
+    }
+    hideLoad();
+    let msg='✅ Lista de pax salva para '+guiasSalvos.length+' guia(s) da escala!';
+    if(guiasIgnorados.length)msg+='\n\n⚠️ Ignorados (não estão na escala de '+data+'):\n'+guiasIgnorados.join(', ');
+    alert(msg);
+  }catch(e){hideLoad();alert('Erro ao ler PDF: '+e.message);console.error(e)}
 }
 
 // ===== REENVIAR ESCALA =====
@@ -1619,6 +1732,7 @@ async function confirmarReset(){
         <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
         <button class="btn-red" onclick="apagarEscalaDia()" style="padding:8px 14px;font-size:13px">🗑️ Apagar dia</button>
         <label style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#185fa5;color:#fff;border-radius:var(--rsm);cursor:pointer;white-space:nowrap">📊 Importar planilha<input type="file" accept=".xlsx" onchange="importarPlanilha(event)" style="display:none"/></label>
+        <label style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#8e44ad;color:#fff;border-radius:var(--rsm);cursor:pointer;white-space:nowrap">📋 Importar PDF Phoenix<input type="file" accept=".pdf" onchange="importarPDFPhoenix(event)" style="display:none"/></label>
         <button style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);cursor:pointer" onclick="notificarPendentes()">🔔 Notificar sem relatório</button>
         <button style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#25D366;color:#fff;border:none;border-radius:var(--rsm);cursor:pointer" onclick="enviarEscalaWhatsApp()">📱 Enviar WPP</button>
       </div>
