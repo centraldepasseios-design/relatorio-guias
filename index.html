@@ -521,6 +521,13 @@ function logout(){
 // ---- ESCALA ----
 let dataEscalaAtual=hoje();
 
+function toggleHotel(btn){
+  const detail=btn.nextElementSibling;
+  const open=detail.style.display==='block';
+  detail.style.display=open?'none':'block';
+  btn.textContent=open?'🏨 Hotel ▾':'🏨 Hotel ▸';
+}
+
 function navegarData(dir){
   const d=new Date(dataEscalaAtual+'T12:00:00');
   d.setDate(d.getDate()+dir);
