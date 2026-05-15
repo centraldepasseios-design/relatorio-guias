@@ -1016,7 +1016,7 @@ async function importarPlanilha(event){
 
     // Mapeia colunas baseado no cabeçalho
     // Colunas: 0=Horário OUT, 1=Horário IN, 2=Hotel OUT, 3=Hotel IN, 4=Veículo, 5=Motorista, 6=Guia, 7=Passeios OUT, 8=Passeios IN, 9=Pax OUT, 10=Pax IN
-    const COL_HOR_OUT=0, COL_HOR_IN=1, COL_VEI=4, COL_MOT=5, COL_GUIA=6;
+    const COL_HOR_OUT=0, COL_HOR_IN=1, COL_HOTEL_OUT=2, COL_HOTEL_IN=3, COL_VEI=4, COL_MOT=5, COL_GUIA=6;
     const COL_SERV_OUT=7, COL_SERV_IN=8, COL_PAX_OUT=9, COL_PAX_IN=10;
 
     const itensImportados=[];
@@ -1036,6 +1036,8 @@ async function importarPlanilha(event){
 
       const motorista=(row[COL_MOT]||'').toString().trim();
       const veiculo=(row[COL_VEI]||'').toString().trim();
+      const hotelOut=(row[COL_HOTEL_OUT]||'').toString().trim();
+      const hotelIn=(row[COL_HOTEL_IN]||'').toString().trim();
       const servOut=(row[COL_SERV_OUT]||'').toString().trim();
       const servIn=(row[COL_SERV_IN]||'').toString().trim();
       const paxOut=parseInt(row[COL_PAX_OUT])||0;
@@ -1103,7 +1105,7 @@ async function importarPlanilha(event){
           const horApres=det.horarioPadrao||horIn;
           itensImportados.push({
             guia:guiaMatch,servico:det.tipo,
-            horario:horApres,hsrv,voo,pax:paxIn,motorista,obs:''
+            horario:horApres,hsrv,voo,pax:paxIn,motorista,hotel:hotelIn,obs:''
           });
         }
       }
@@ -1121,7 +1123,7 @@ async function importarPlanilha(event){
             itensImportados.push({
               guia:guiaMatch,servico:det.tipo,
               horario:horAOut,hsrv:hsrvOut,
-              voo,pax:paxOut,motorista,obs:''
+              voo,pax:paxOut,motorista,hotel:hotelOut,obs:''
             });
           }
         }
