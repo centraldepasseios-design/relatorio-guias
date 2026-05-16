@@ -672,6 +672,21 @@ async function carregarEscalaHoje(){
 // ---- MONITORAMENTO DE VOO ----
 const AVIATION_KEY='c6d00a87ec3a442b4236b0c653b22a4d';
 
+
+const IATA_ICAO={
+  'LA':'LAN','G3':'GLO','AD':'AZU','JJ':'TAM','AA':'AAL',
+  'TP':'TAP','CM':'CMP','AV':'AVA','IB':'IBE','AF':'AFR',
+  'KL':'KLM','LH':'DLH','UA':'UAL','DL':'DAL','BA':'BAW',
+  '9V':'SVA','EK':'UAE','TK':'THY','AR':'ARG'
+};
+
+function vooParaICAO(voo){
+  const match=voo.match(/^([A-Z]{2})(\d+)$/);
+  if(!match)return voo;
+  const icao=IATA_ICAO[match[1]];
+  return icao?(icao+match[2]):voo;
+}
+
 async function buscarStatusVoo(numeroVoo, elId){
   const el=document.getElementById(elId);
   if(!el)return;
@@ -686,7 +701,7 @@ async function buscarStatusVoo(numeroVoo, elId){
     const data=await resp.json();
     if(!data.states||!data.states.length){
       // Voo não encontrado em voo — pode ter pousado ou ainda não decolou
-      el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-loading">🔍 '+voo+' — ver no FlightAware</span></a>';
+      el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+vooParaICAO(voo)+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-loading">🔍 '+voo+' — ver no FlightAware</span></a>';
       return;
     }
     const s=data.states[0];
@@ -708,10 +723,10 @@ async function buscarStatusVoo(numeroVoo, elId){
       badge='voo-loading';
       texto='✈️ '+voo+' — Dados parciais';
     }
-    el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status '+badge+'">'+texto+'</span></a>';
+    el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+vooParaICAO(voo)+'" target="_blank" style="text-decoration:none"><span class="voo-status '+badge+'">'+texto+'</span></a>';
   }catch(e){
     // Fallback para FlightAware
-    el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear '+voo+' no FlightAware</span></a>';
+    el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+vooParaICAO(voo)+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear '+voo+' no FlightAware</span></a>';
     console.log('OpenSky error:',e.message);
   }
 }
