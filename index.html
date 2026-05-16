@@ -602,6 +602,7 @@ function atualizarLabelData(){
 }
 
 async function carregarEscalaHoje(){
+  if(!window._fbReady){setTimeout(carregarEscalaHoje,500);return;}
   const el=document.getElementById('escala-conteudo');
   el.innerHTML='<p class="empty">Carregando escala...</p>';
   atualizarLabelData();
@@ -651,7 +652,7 @@ async function carregarEscalaHoje(){
       :`<button class="btn-ciente" onclick="confirmarEscala()">👍 Estou ciente da escala</button>`;
     el.innerHTML=`<div class="escala-card"><div class="escala-header"><span>📅 ${dataFmt}</span><span>${itens.length} serviço${itens.length>1?'s':''}</span></div><div class="escala-body">${rows}</div></div><div style="margin-top:8px">${btnCiente}</div>`;
     // Busca lista de pax do Phoenix
-    carregarPaxPhoenix(guiaAtual, data, itens);
+    carregarPaxPhoenix(guiaAtual, dataEscalaAtual, itens);
     // Busca status dos voos após renderizar
     let vooIdxPost=0;
     itens.forEach(it=>{
