@@ -686,7 +686,7 @@ async function buscarStatusVoo(numeroVoo, elId){
     const data=await resp.json();
     if(!data.states||!data.states.length){
       // Voo não encontrado em voo — pode ter pousado ou ainda não decolou
-      el.innerHTML='<a href="https://www.flightradar24.com/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-loading">🔍 '+voo+' — ver no Flightradar24</span></a>';
+      el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-loading">🔍 '+voo+' — ver no FlightAware</span></a>';
       return;
     }
     const s=data.states[0];
@@ -708,10 +708,10 @@ async function buscarStatusVoo(numeroVoo, elId){
       badge='voo-loading';
       texto='✈️ '+voo+' — Dados parciais';
     }
-    el.innerHTML='<a href="https://www.flightradar24.com/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status '+badge+'">'+texto+'</span></a>';
+    el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status '+badge+'">'+texto+'</span></a>';
   }catch(e){
-    // Fallback para Flightradar24
-    el.innerHTML='<a href="https://www.flightradar24.com/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear '+voo+' no Flightradar24</span></a>';
+    // Fallback para FlightAware
+    el.innerHTML='<a href="https://www.flightaware.com/live/flight/'+voo+'" target="_blank" style="text-decoration:none"><span class="voo-status voo-ok">🔍 Rastrear '+voo+' no FlightAware</span></a>';
     console.log('OpenSky error:',e.message);
   }
 }
