@@ -1,0 +1,131 @@
+name: Notificar Relatórios Pendentes
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  notificar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Criar script
+        run: |
+          cat > notificar.mjs << 'SCRIPT'
+          import { initializeApp, cert } from 'firebase-admin/app';
+          import { getFirestore } from 'firebase-admin/firestore';
+
+          const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+          const contatos = JSON.parse(process.env.CONTATOS_GUIAS);
+          const zapiToken = process.env.ZAPI_CLIENT_TOKEN;
+          const ZAPI_URL = 'https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/token/ECA321B4DA2EB4B2FF4CB937/send-text';
+
+          initializeApp({ credential: cert(credentials) });
+          const db = getFirestore();
+
+          function buscarFone(guia) {
+            if (contatos[guia]) return contatos[guia];
+            const key = Object.keys(contatos).find(k =>
+              k === guia ||
+              k.split(' ')[0] === guia.split(' ')[0] ||
+              guia.startsWith(k) ||
+              k.startsWith(guia)
+            );
+            return key ? contatos[key] : null;
+          }
+
+          async function enviarWpp(phone, message) {
+            const res = await fetch(ZAPI_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Client-Token': zapiToken
+              },
+              body: JSON.stringify({ phone, message })
+            });
+            const data = await res.json();
+            console.log('Z-API response:', JSON.stringify(data));
+            return data;
+          }
+
+          async function main() {
+            // Data de hoje em horário de Brasília (UTC-3)
+            const agora = new Date();
+            const brasiliaOffset = -3 * 60;
+            const brasiliaTime = new Date(agora.getTime() + brasiliaOffset * 60000);
+            const data = brasiliaTime.toISOString().slice(0, 10);
+            const dia = String(brasiliaTime.getDate()).padStart(2, '0');
+            const mes = String(brasiliaTime.getMonth() + 1).padStart(2, '0');
+            const dataFmt = dia + '/' + mes;
+
+            console.log('Data verificando:', data);
+
+            // Busca escalas do dia
+            const escSnap = await db.collection('escalas').where('data', '==', data).get();
+            const guiasEscala = [...new Set(escSnap.docs.map(d => d.data().guia))];
+
+            if (!guiasEscala.length) {
+              console.log('Nenhuma escala para hoje. Encerrando.');
+              process.exit(0);
+            }
+            console.log('Guias escalados:', guiasEscala.join(', '));
+
+            // Busca relatórios do dia
+            const relSnap = await db.collection('relatorios').where('data', '==', data).get();
+            const comRelatorio = new Set(relSnap.docs.map(d => d.data().guia));
+
+            const pendentes = guiasEscala.filter(g => !comRelatorio.has(g));
+
+            if (!pendentes.length) {
+              console.log('Todos enviaram relatório!');
+              process.exit(0);
+            }
+
+            console.log('Pendentes:', pendentes.join(', '));
+
+            let enviados = 0;
+            for (const guia of pendentes) {
+              const fone = buscarFone(guia);
+              if (!fone) {
+                console.log('Sem número para:', guia);
+                continue;
+              }
+
+              const msg =
+                '*LUCK RECEPTIVO*\n\n' +
+                '⚠️ Olá, *' + guia + '*!\n\n' +
+                'Você ainda não enviou o relatório do dia *' + dataFmt + '*.\n\n' +
+                'Acesse o app e registre agora:\n' +
+                'https://centraldepasseios-design.github.io/relatorio-guias/';
+
+              try {
+                await enviarWpp(fone, msg);
+                console.log('✅ WPP enviado para', guia, fone);
+                enviados++;
+                await new Promise(r => setTimeout(r, 700));
+              } catch (e) {
+                console.log('❌ Erro para', guia, e.message);
+              }
+            }
+
+            console.log('Finalizado:', enviados + '/' + pendentes.length, 'enviados');
+          }
+
+          main().catch(e => { console.error('ERRO FATAL:', e); process.exit(1); });
+          SCRIPT
+
+      - name: Instalar firebase-admin
+        run: npm install firebase-admin
+
+      - name: Executar notificação
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          CONTATOS_GUIAS: ${{ secrets.CONTATOS_GUIAS }}
+          ZAPI_CLIENT_TOKEN: ${{ secrets.ZAPI_CLIENT_TOKEN }}
+        run: node notificar.mjs
