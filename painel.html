@@ -953,8 +953,9 @@ async function carregarDisp(){
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px">Último serviço: ${ultima}</div>
             <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+              ${gData['obs_admin']?('<div style="font-size:13px;font-weight:600;color:#fff;background:#2c3e50;padding:6px 12px;border-radius:var(--rsm);margin-bottom:6px;display:flex;align-items:center;gap:6px">📌 '+gData['obs_admin']+'</div>'):''}
               ${obs?('<div style="font-size:12px;font-weight:500;color:#854f0b;background:#faeeda;padding:6px 10px;border-radius:6px;margin-bottom:4px;border-left:3px solid #e67e22">📝 Guia: '+obs+'</div>'):'<div style="font-size:11px;color:var(--hint);margin-bottom:4px">Sem observação do guia</div>'}
-              <input type="text" placeholder="Obs. do admin (interno)..." value="${gData['obs_admin']||''}" onchange="salvarObsGuia('${g}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);width:220px"/>
+              <input type="text" placeholder="📌 Observação do admin..." value="${gData['obs_admin']||''}" onchange="salvarObsGuia('${g}',this.value)" style="font-size:13px;font-weight:500;padding:7px 10px;border:2px solid ${gData['obs_admin']?'#2c3e50':'var(--border)'};border-radius:var(--rsm);background:${gData['obs_admin']?'#eaf0f6':'var(--bg)'};color:${gData['obs_admin']?'#2c3e50':'var(--text)'};width:240px"/>
             </div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
