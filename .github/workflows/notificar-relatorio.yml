@@ -18,16 +18,25 @@ jobs:
       - name: Instalar firebase-admin
         run: npm install firebase-admin
 
-      - name: Criar script
+      - name: Salvar arquivos de configuração
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          CONTATOS_GUIAS: ${{ secrets.CONTATOS_GUIAS }}
+        run: |
+          echo "$FIREBASE_CREDENTIALS" > firebase-credentials.json
+          echo "$CONTATOS_GUIAS" > contatos.json
+
+      - name: Criar e executar script
+        env:
+          ZAPI_CLIENT_TOKEN: ${{ secrets.ZAPI_CLIENT_TOKEN }}
         run: |
           cat > notificar.mjs << 'SCRIPT'
           import { initializeApp, cert } from 'firebase-admin/app';
           import { getFirestore } from 'firebase-admin/firestore';
-
-          // Lê credenciais do arquivo (evita problema de escape no JSON)
           import { readFileSync } from 'fs';
+
           const credentials = JSON.parse(readFileSync('firebase-credentials.json', 'utf8'));
-          const contatos = JSON.parse(process.env.CONTATOS_GUIAS);
+          const contatos = JSON.parse(readFileSync('contatos.json', 'utf8'));
           const zapiToken = process.env.ZAPI_CLIENT_TOKEN;
           const ZAPI_URL = 'https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/token/ECA321B4DA2EB4B2FF4CB937/send-text';
 
@@ -39,8 +48,7 @@ jobs:
             const key = Object.keys(contatos).find(k =>
               k === guia ||
               k.split(' ')[0] === guia.split(' ')[0] ||
-              guia.startsWith(k) ||
-              k.startsWith(guia)
+              guia.startsWith(k) || k.startsWith(guia)
             );
             return key ? contatos[key] : null;
           }
@@ -59,7 +67,7 @@ jobs:
             const brasiliaTime = new Date(agora.getTime() + (-3 * 60 * 60000));
             const data = brasiliaTime.toISOString().slice(0, 10);
             const dataFmt = String(brasiliaTime.getDate()).padStart(2,'0') + '/' + String(brasiliaTime.getMonth()+1).padStart(2,'0');
-            console.log('Verificando data:', data);
+            console.log('Data:', data);
 
             const escSnap = await db.collection('escalas').where('data', '==', data).get();
             const guiasEscala = [...new Set(escSnap.docs.map(d => d.data().guia))];
@@ -76,28 +84,18 @@ jobs:
             let enviados = 0;
             for (const guia of pendentes) {
               const fone = buscarFone(guia);
-              if (!fone) { console.log('Sem número:', guia); continue; }
-              const msg = '*LUCK RECEPTIVO*\n\n⚠️ Olá, *' + guia + '*!\n\nVocê ainda não enviou o relatório do dia *' + dataFmt + '*.\n\nAcesse o app:\nhttps://centraldepasseios-design.github.io/relatorio-guias/';
+              if (!fone) { console.log('Sem numero:', guia); continue; }
+              const msg = '*LUCK RECEPTIVO*\n\nOla, *' + guia + '*!\n\nVoce ainda nao enviou o relatorio do dia *' + dataFmt + '*.\n\nAcesse o app:\nhttps://centraldepasseios-design.github.io/relatorio-guias/';
               try {
                 await enviarWpp(fone, msg);
-                console.log('✅ Enviado para', guia);
+                console.log('Enviado para', guia);
                 enviados++;
                 await new Promise(r => setTimeout(r, 700));
-              } catch(e) { console.log('❌ Erro:', guia, e.message); }
+              } catch(e) { console.log('Erro:', guia, e.message); }
             }
-            console.log('Total:', enviados + '/' + pendentes.length);
+            console.log('Total enviados:', enviados + '/' + pendentes.length);
           }
 
-          main().catch(e => { console.error('ERRO:', e); process.exit(1); });
+          main().catch(e => { console.error('ERRO:', e.message); process.exit(1); });
           SCRIPT
-
-      - name: Salvar credenciais Firebase
-        env:
-          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
-        run: echo "$FIREBASE_CREDENTIALS" > firebase-credentials.json
-
-      - name: Executar notificação
-        env:
-          CONTATOS_GUIAS: ${{ secrets.CONTATOS_GUIAS }}
-          ZAPI_CLIENT_TOKEN: ${{ secrets.ZAPI_CLIENT_TOKEN }}
-        run: node notificar.mjs
+          node notificar.mjs
