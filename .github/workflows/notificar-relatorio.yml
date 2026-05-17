@@ -18,17 +18,26 @@ jobs:
       - name: Instalar firebase-admin
         run: npm install firebase-admin
 
-      - name: Salvar arquivos de configuração
+      - name: Salvar contatos
+        env:
+          CONTATOS_GUIAS: ${{ secrets.CONTATOS_GUIAS }}
+        run: echo "$CONTATOS_GUIAS" > contatos.json
+
+      - name: Salvar credenciais Firebase
         env:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
-          CONTATOS_GUIAS: ${{ secrets.CONTATOS_GUIAS }}
         run: |
-          echo "$FIREBASE_CREDENTIALS" > firebase-credentials.json
-          echo "$CONTATOS_GUIAS" > contatos.json
+          python3 -c "
+          import os, json
+          raw = os.environ['FIREBASE_CREDENTIALS']
+          # Valida e reformata o JSON corretamente
+          data = json.loads(raw)
+          with open('firebase-credentials.json', 'w') as f:
+              json.dump(data, f)
+          print('Credenciais salvas OK')
+          "
 
-      - name: Criar e executar script
-        env:
-          ZAPI_CLIENT_TOKEN: ${{ secrets.ZAPI_CLIENT_TOKEN }}
+      - name: Criar script
         run: |
           cat > notificar.mjs << 'SCRIPT'
           import { initializeApp, cert } from 'firebase-admin/app';
@@ -93,9 +102,13 @@ jobs:
                 await new Promise(r => setTimeout(r, 700));
               } catch(e) { console.log('Erro:', guia, e.message); }
             }
-            console.log('Total enviados:', enviados + '/' + pendentes.length);
+            console.log('Total:', enviados + '/' + pendentes.length);
           }
 
           main().catch(e => { console.error('ERRO:', e.message); process.exit(1); });
           SCRIPT
-          node notificar.mjs
+
+      - name: Executar
+        env:
+          ZAPI_CLIENT_TOKEN: ${{ secrets.ZAPI_CLIENT_TOKEN }}
+        run: node notificar.mjs
