@@ -1588,14 +1588,15 @@ async function importarPDFPhoenix(event){
 // ===== REENVIAR ESCALA =====
 async function reenviarEscalaGuia(guia, data){
   if(!data){alert('Data não encontrada.');return}
+  const fone=buscarFoneGuia(guia);
+  if(!fone){alert('Número de WhatsApp não encontrado para '+guia+'.');return}
   const d=new Date(data+'T12:00:00');
   const dataFmt=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
   const dias=['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
   const diaSem=dias[d.getDay()];
-  if(!confirm('Reenviar notificação da escala de '+dataFmt+' para '+guia+'?'))return;
+  if(!confirm('Reenviar escala de '+dataFmt+' para '+guia+' via WhatsApp?'))return;
   showLoad();
   try{
-    // Pega serviços deste guia nesta data
     const escSnap=await window._gds(window._q(
       window._col(window._db,'escalas'),
       window._w('data','==',data),
@@ -1603,19 +1604,20 @@ async function reenviarEscalaGuia(guia, data){
     ));
     const servicos=escSnap.docs.map(d=>d.data());
     if(!servicos.length){hideLoad();alert('Nenhum serviço encontrado para '+guia+' em '+dataFmt);return}
-    const resumo=servicos.map(s=>'⏰ '+s.horario+' — '+(LBLS[s.servico]||s.servico)).join('\n');
-    // Salva notificação no Firestore
-    await window._ad(window._col(window._db,'notificacoes'),{
-      guia,
-      titulo:'📅 Escala '+dataFmt+' ('+diaSem+')',
-      mensagem:'Lembrete: você tem '+servicos.length+' serviço'+( servicos.length>1?'s':'')+' escalado'+( servicos.length>1?'s':'')+' para '+dataFmt+'\n'+resumo+'\n\nAbra o app para confirmar.',
-      data,lida:false,
-      criadoEm:new Date().toISOString()
-    });
+    const linhas=servicos.map(s=>{
+      let linha='\u23F0 *'+s.horario+'* - '+(LBLS[s.servico]||s.servico);
+      if(s.hsrv)linha+=' | '+s.hsrv;
+      if(s.pax)linha+=' | '+s.pax+' pax';
+      if(s.motorista)linha+=' | '+s.motorista;
+      return linha;
+    }).join('\n');
+    const msg='*LUCK RECEPTIVO*\n*Escala '+dataFmt+' ('+diaSem+')*\n\nOla, *'+guia+'*! Lembrete da sua escala:\n\n'+linhas+'\n\nAcesse o app: https://centraldepasseios-design.github.io/relatorio-guias/';
+    await enviarWhatsApp(fone, msg);
     hideLoad();
-    alert('✅ Notificação reenviada para '+guia+'! Ela verá ao abrir o app.');
+    alert('Escala reenviada para '+guia+' via WhatsApp!');
   }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
 }
+
 
 // ===== NOTIFICAÇÕES =====
 async function notificarPendentes(){
@@ -1636,56 +1638,42 @@ async function notificarPendentes(){
     const pendentes=guiasEscala.filter(g=>!guiasComRelatorio.has(g));
     if(!pendentes.length){hideLoad();alert('✅ Todos os guias da escala já enviaram o relatório!');return}
 
-    // 4. Verifica quem tem push token
-    const tokenSnap=await window._gds(window._col(window._db,'push_tokens'));
-    const tokensMap={};
-    tokenSnap.docs.forEach(d=>{const dd=d.data();if(dd.aceitou)tokensMap[dd.guia]=true});
-
-    const comPush=pendentes.filter(g=>tokensMap[g]);
-    const semPush=pendentes.filter(g=>!tokensMap[g]);
+    // 4. Verifica quem tem WhatsApp cadastrado
+    const comWpp=pendentes.filter(g=>buscarFoneGuia(g));
+    const semWpp=pendentes.filter(g=>!buscarFoneGuia(g));
 
     hideLoad();
 
-    // 5. Mostra resumo e confirma
     const dataFmt=new Date(data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-    let msg=`Guias sem relatório em ${dataFmt}:
-
-`;
-    if(comPush.length)msg+=`📱 Receberão notificação (${comPush.length}):
-${comPush.join(', ')}
-
-`;
-    if(semPush.length)msg+=`⚠️ Sem push ativado (${semPush.length}):
-${semPush.join(', ')}`;
-    msg+=`
-
-Enviar notificação para os ${comPush.length} guia(s) com push ativado?`;
-
-    if(!comPush.length){
-      alert('Nenhum desses guias ativou notificações no app:\n\n'+pendentes.join(', '));
-      return;
-    }
+    let msg='Guias sem relatório em '+dataFmt+':\n\n';
+    if(comWpp.length)msg+='📱 Receberão WPP ('+comWpp.length+'):\n'+comWpp.join(', ')+'\n\n';
+    if(semWpp.length)msg+='⚠️ Sem WPP ('+semWpp.length+'):\n'+semWpp.join(', ');
+    msg+='\n\nEnviar cobrança via WhatsApp?';
 
     if(!confirm(msg))return;
 
-    // 6. Salva notificação pendente no Firestore (guia lê ao abrir o app)
     showLoad();
-    for(const guia of comPush){
-      await window._ad(window._col(window._db,'notificacoes'),{
-        guia,
-        titulo:'⚠️ Relatório pendente',
-        mensagem:'Você ainda não enviou o relatório do dia '+dataFmt+'. Acesse o app e registre agora!',
-        data,
-        lida:false,
-        criadoEm:new Date().toISOString()
-      });
+    let enviados=0;
+    const erros=[];
+    for(const guia of comWpp){
+      const fone=buscarFoneGuia(guia);
+      const wppMsg='*LUCK RECEPTIVO*\n\n⚠️ Olá, *'+guia+'*!\n\nVocê ainda não enviou o relatório do dia *'+dataFmt+'*.\n\nPor favor, acesse o app e registre agora:\nhttps://centraldepasseios-design.github.io/relatorio-guias/';
+      try{
+        await enviarWhatsApp(fone, wppMsg);
+        enviados++;
+        await new Promise(r=>setTimeout(r,500));
+      }catch(e){
+        erros.push(guia);
+      }
     }
     hideLoad();
-    alert(`✅ Notificação enviada para ${comPush.length} guia(s)!
-
-${semPush.length?semPush.length+' guia(s) não têm push ativado: '+semPush.join(', '):'Todos notificados!'}`);
+    let resultado='✅ Cobrança enviada via WhatsApp para '+enviados+' guia(s)!';
+    if(semWpp.length)resultado+='\n\n⚠️ Sem número cadastrado:\n'+semWpp.join(', ');
+    if(erros.length)resultado+='\n\n❌ Erro ao enviar para:\n'+erros.join(', ');
+    alert(resultado);
   }catch(e){hideLoad();alert('Erro: '+e.message);console.error(e)}
 }
+
 
 // ===== AVULSO =====
 let _dataAvulso='';
