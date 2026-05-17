@@ -20,9 +20,9 @@ jobs:
 
       - name: Notificar guias sem relatório
         env:
-          FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
+          FIREBASE_SA: ${{ secrets.FIREBASE_CREDENTIALS }}
           CONTATOS_GUIAS: ${{ secrets.CONTATOS_GUIAS }}
-          ZAPI_TOKEN: ${{ secrets.ZAPI_TOKEN }}
+          ZAPI_TOKEN: ${{ secrets.ZAPI_CLIENT_TOKEN }}
         run: |
           node -e "
           const https = require('https');
