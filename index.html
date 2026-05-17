@@ -742,12 +742,18 @@ async function carregarDisponibilidade(){
     // Carrega idiomas salvos
     const guiaDoc=await window._getDoc(window._doc(window._db,'guias',guiaAtual));
     const idiomasSalvos=guiaDoc.exists()&&guiaDoc.data().idiomas?guiaDoc.data().idiomas:[];
-    // Gera próximos 7 dias
+    // Gera próximos 14 dias
     const dias=[];
-    for(let i=0;i<7;i++){
+    for(let i=0;i<14;i++){
       const d=new Date();d.setDate(d.getDate()+i);
       dias.push(d.toISOString().slice(0,10));
     }
+    // Carrega bloqueios do admin
+    const bloqSnap=await window._getDocs(window._query(
+      window._collection(window._db,'bloqueios'),
+      window._where('guia','==',guiaAtual)
+    ));
+    const bloqueios=bloqSnap.docs.map(d=>d.data());
     // Carrega disponibilidades já salvas (busca por guia, filtra datas no cliente)
     const dispSnap=await window._getDocs(window._query(
       window._collection(window._db,'disponibilidades'),
@@ -774,6 +780,16 @@ async function carregarDisponibilidade(){
       const status=dispMap[data]||'';
       const obs=obsMap[data]||'';
       const confirmado=confirmMap[data]||false;
+      const bloqueio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim)||null;
+      if(bloqueio){
+        return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:6px;background:#f0f0f0;border-radius:var(--rsm);padding:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="disp-date">${diaSem}<small>${fmt}</small></div>
+            <span style="background:#2c3e50;color:#fff;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:500">🔒 Bloqueado</span>
+          </div>
+          <div style="font-size:13px;color:#2c3e50;background:#fff;border-radius:var(--rsm);padding:8px 10px;border-left:3px solid #2c3e50">📋 ${bloqueio.descricao}</div>
+        </div>`;
+      }
       if(confirmado){
         const statusLabel=status==='sim'?'✅ Disponível':status==='nao'?'❌ Indisponível':'⬜ Não informado';
         const cor=status==='sim'?'#e1f5ee;color:#0f6e56':status==='nao'?'#fde8e8;color:#c0392b':'#f0f0f0;color:#9a9a96';

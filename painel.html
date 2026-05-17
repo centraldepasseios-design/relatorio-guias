@@ -808,6 +808,76 @@ async function resumoPorGuia(){
   }catch(e){hideLoad();document.getElementById('rg-resultado').innerHTML='<p class="empty">Erro: '+e.message+'</p>';console.error(e)}
 }
 
+
+// ===== BLOQUEIO DE AGENDA =====
+let _guiaBloqueio='';
+
+async function abrirModalBloqueio(guia){
+  _guiaBloqueio=guia;
+  document.getElementById('bloqueio-desc').textContent='Bloquear agenda de '+guia;
+  document.getElementById('bloqueio-inicio').value=hoje();
+  document.getElementById('bloqueio-fim').value=hoje();
+  document.getElementById('bloqueio-desc-servico').value='';
+  // Carrega bloqueios existentes
+  await carregarBloqueiosExistentes(guia);
+  document.getElementById('modal-bloqueio').style.display='flex';
+}
+
+async function carregarBloqueiosExistentes(guia){
+  const wrap=document.getElementById('bloqueios-existentes');
+  try{
+    const snap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('guia','==',guia)));
+    if(!snap.docs.length){wrap.innerHTML='';return;}
+    const items=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.inicio.localeCompare(b.inicio));
+    const rows=items.map(b=>{
+      const ini=new Date(b.inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+      const fim=new Date(b.fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+      return`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--bg);border-radius:var(--rsm);margin-bottom:4px;font-size:12px">
+        <span>🔒 ${ini} → ${fim} — ${b.descricao||'Serviço especial'}</span>
+        <button onclick="removerBloqueio('${b.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px">×</button>
+      </div>`;
+    }).join('');
+    wrap.innerHTML='<div style="margin-bottom:8px"><label style="font-size:11px;color:var(--muted)">BLOQUEIOS ATIVOS</label>'+rows+'</div>';
+  }catch(e){wrap.innerHTML='';}
+}
+
+async function removerBloqueio(id){
+  if(!confirm('Remover este bloqueio?'))return;
+  showLoad();
+  try{
+    await window._dd(window._doc(window._db,'bloqueios',id));
+    await carregarBloqueiosExistentes(_guiaBloqueio);
+    hideLoad();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
+function fecharModalBloqueio(){
+  document.getElementById('modal-bloqueio').style.display='none';
+  _guiaBloqueio='';
+}
+
+async function confirmarBloqueio(){
+  const inicio=document.getElementById('bloqueio-inicio').value;
+  const fim=document.getElementById('bloqueio-fim').value;
+  const descricao=document.getElementById('bloqueio-desc-servico').value.trim();
+  if(!inicio||!fim){alert('Selecione as datas.');return}
+  if(!descricao){alert('Adicione uma descrição do serviço.');return}
+  if(inicio>fim){alert('Data início deve ser menor que data fim.');return}
+  showLoad();
+  try{
+    await window._ad(window._col(window._db,'bloqueios'),{
+      guia:_guiaBloqueio,inicio,fim,descricao,
+      criadoEm:new Date().toISOString()
+    });
+    hideLoad();
+    await carregarBloqueiosExistentes(_guiaBloqueio);
+    document.getElementById('bloqueio-inicio').value=hoje();
+    document.getElementById('bloqueio-fim').value=hoje();
+    document.getElementById('bloqueio-desc-servico').value='';
+    alert('✅ Agenda de '+_guiaBloqueio+' bloqueada de '+new Date(inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' a '+new Date(fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+'!');
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
 // ===== DISPONIBILIDADE ADMIN =====
 const TODOS_GUIAS_DISP=['JUNIOR', 'POLLY', 'NATALIA', 'GEORGE', 'KATARINA', 'EDMILTON', 'EVILAZIO', 'LUCIENE', 'VITOR', 'ERLON', 'HENRIQUE JR', 'FELIPE', 'EDSON', 'TATIANA', 'TOM JONES', 'ADRIANE', 'GUILHERME', 'FÁBIO GOMES', 'DANIEL', 'NEIDE', 'JUAN', 'EUGENIO', 'VALTER', 'GONÇALVES', 'ANTÔNIO', 'GERARDO', 'ELANE', 'HUGO', 'JOEL', 'HENRIQUE FARIAS', 'CHICO DINIZ', 'MARILANDE', 'WIRON', 'IANNE', 'ADIANÊS', 'MADSON', 'CAMILLA', 'ANDRÉ', 'ANA FLÁVIA', 'RENATA', 'GESSYCA', 'TAVARES', 'MATHEUS', 'ALICE', 'LIDIANE', 'CARLA', 'ALBERTO', 'XIMENES', 'SIDNEI', 'DRIELLY', 'RAÍSSA', 'ISADORA', 'SANTIAGO', 'ARTHUR', 'GIL', 'HUMBERTO', 'FÁBIO COZZI', 'BRENO', 'LUIZ CARLOS', 'RODRIGO', 'JOELMA', 'OLIVEIRA', 'BRUNO M', 'TALES', 'FRANCINALDO', 'AMAURY', 'ARLENE', 'JACIANE', 'FRANÇA', 'FREITAS', 'LUIZ FELIPE', 'RAFAEL', 'JULIANA', 'DEYVISON', 'ALEX', 'RUTH', 'CAMILA', 'GLÓRIA', 'ELISIO', 'REBECA', 'ENEZIANE', 'BRUNO S', 'ALVARO', 'ZENA', 'CARLOS M', 'CHICO LIMA', 'SERGIO', 'LUCIA V', 'MARCOS F', 'MADALENA', 'ARLINDO'];
 const FLAG_IDIOMA={'Português':'🇧🇷','Inglês':'🇺🇸','Espanhol':'🇪🇸','Francês':'🇫🇷','Italiano':'🇮🇹','Alemão':'🇩🇪'};
@@ -873,18 +943,23 @@ async function carregarDisp(){
         const idiomas=(gData.idiomas||[]).map(id=>FLAG_IDIOMA[id]||id).join(' ');
         const obs=dispObs[g]||'';
         const ultima=ultimaEscala[g]?new Date(ultimaEscala[g]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'Nunca';
+        const trabalhando=ultimaEscala[g]===data;
         const statusBadge=status==='sim'?'<span style="background:#e1f5ee;color:#0f6e56;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">✅ Disponível</span>':status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">❌ Indisponível</span>':'<span style="background:#f0f0f0;color:#9a9a96;padding:3px 10px;border-radius:99px;font-size:12px">⬜ Sem resposta</span>';
         return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
           <div>
-            <div style="font-size:14px;font-weight:600">${g} <span style="font-size:14px">${idiomas}</span></div>
+            <div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px">
+              ${g} <span style="font-size:14px">${idiomas}</span>
+              ${trabalhando?'<span style="background:#e67e22;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap">🔧 Trabalhando hoje</span>':''}
+            </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px">Último serviço: ${ultima}</div>
             <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
               ${obs?('<div style="font-size:12px;font-weight:500;color:#854f0b;background:#faeeda;padding:6px 10px;border-radius:6px;margin-bottom:4px;border-left:3px solid #e67e22">📝 Guia: '+obs+'</div>'):'<div style="font-size:11px;color:var(--hint);margin-bottom:4px">Sem observação do guia</div>'}
-              <input type="text" placeholder="Obs. do admin (interno)..." value="${gData['obs_admin_'+data]||''}" onchange="salvarObsGuia('${g}','${data}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);width:220px"/>
+              <input type="text" placeholder="Obs. do admin (interno)..." value="${gData['obs_admin']||''}" onchange="salvarObsGuia('${g}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);width:220px"/>
             </div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
             ${statusBadge}
+            <button onclick="abrirModalBloqueio('${g}')" style="padding:3px 10px;font-size:11px;font-family:'DM Sans',sans-serif;background:#2c3e50;color:#fff;border:none;border-radius:99px;cursor:pointer;white-space:nowrap">🔒 Bloquear dias</button>
           </div>
         </div>`;
       }).join('');
@@ -905,11 +980,11 @@ async function carregarDisp(){
   }catch(e){hideLoad();console.error(e);document.getElementById('disp-lista').innerHTML='<p class="empty">Erro: '+e.message+'</p>';}
 }
 
-async function salvarObsGuia(guia,data,obs){
+async function salvarObsGuia(guia,obs){
   try{
     const snap=await window._gd(window._doc(window._db,'guias',guia));
     const dados=snap.exists()?snap.data():{};
-    dados['obs_'+data]=obs;
+    dados['obs_admin']=obs;
     await window._sd(window._doc(window._db,'guias',guia),dados);
   }catch(e){console.error('Erro obs:',e)}
 }
@@ -1851,6 +1926,27 @@ async function confirmarReset(){
     <div class="modal-btns">
       <button class="btn-outline" onclick="fecharModal()">Cancelar</button>
       <button class="btn-sm" onclick="confirmarReset()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL BLOQUEIO -->
+<div class="modal-overlay" id="modal-bloqueio" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <h3>🔒 Bloquear agenda</h3>
+    <p id="bloqueio-desc" style="color:var(--muted);font-size:13px;margin-bottom:1rem"></p>
+    <div class="g2" style="margin-bottom:10px">
+      <div><label>Data início</label><input type="date" id="bloqueio-inicio"/></div>
+      <div><label>Data fim</label><input type="date" id="bloqueio-fim"/></div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label>Descrição do serviço especial</label>
+      <textarea id="bloqueio-desc-servico" placeholder="ex: Congresso de turismo, Evento privado, Cruzeiro MSC..." rows="3" style="width:100%;padding:8px;font-size:13px;font-family:'DM Sans',sans-serif;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);resize:vertical"></textarea>
+    </div>
+    <div id="bloqueios-existentes" style="margin-bottom:12px"></div>
+    <div class="modal-btns">
+      <button class="btn-outline" onclick="fecharModalBloqueio()">Cancelar</button>
+      <button class="btn-sm" style="background:#2c3e50" onclick="confirmarBloqueio()">🔒 Bloquear</button>
     </div>
   </div>
 </div>
