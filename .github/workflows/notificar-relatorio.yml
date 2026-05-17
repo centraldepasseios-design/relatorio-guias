@@ -2,110 +2,91 @@ name: Notificar Relatórios Pendentes
 
 on:
   schedule:
-    # 21h horário de Brasília = 00h UTC (Brasília é UTC-3)
     - cron: '0 0 * * *'
-  workflow_dispatch: # Permite disparar manualmente também
+  workflow_dispatch:
 
 jobs:
   notificar:
     runs-on: ubuntu-latest
     steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências
+        run: npm install firebase-admin node-fetch@2
+
       - name: Notificar guias sem relatório
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          CONTATOS_GUIAS: ${{ secrets.CONTATOS_GUIAS }}
+          ZAPI_CLIENT_TOKEN: ${{ secrets.ZAPI_CLIENT_TOKEN }}
         run: |
-          node -e "
-          const https = require('https');
+          node << 'NODESCRIPT'
+          const admin = require('firebase-admin');
+          const fetch = require('node-fetch');
 
-          const FIREBASE_KEY = '${{ secrets.FIREBASE_KEY }}';
+          const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+          const contatos = JSON.parse(process.env.CONTATOS_GUIAS);
+          const zapiToken = process.env.ZAPI_CLIENT_TOKEN;
+
+          admin.initializeApp({ credential: admin.credential.cert(credentials) });
+          const db = admin.firestore();
+
           const ZAPI_URL = 'https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/token/ECA321B4DA2EB4B2FF4CB937/send-text';
-          const ZAPI_TOKEN = 'F1b7c26e0ce09416fbc813a307ce5f298S';
 
-          const CONTATOS = ${{ secrets.CONTATOS_GUIAS }};
+          function buscarFone(guia) {
+            if (contatos[guia]) return contatos[guia];
+            const key = Object.keys(contatos).find(k =>
+              k === guia || k.split(' ')[0] === guia.split(' ')[0] ||
+              guia.startsWith(k) || k.startsWith(guia)
+            );
+            return key ? contatos[key] : null;
+          }
 
-          function req(url, method, body, headers) {
-            return new Promise((resolve, reject) => {
-              const u = new URL(url);
-              const opts = {
-                hostname: u.hostname,
-                path: u.pathname + u.search,
-                method: method || 'GET',
-                headers: { 'Content-Type': 'application/json', ...headers }
-              };
-              const r = https.request(opts, res => {
-                let data = '';
-                res.on('data', d => data += d);
-                res.on('end', () => resolve(JSON.parse(data)));
-              });
-              r.on('error', reject);
-              if (body) r.write(JSON.stringify(body));
-              r.end();
+          async function enviarWpp(phone, message) {
+            const res = await fetch(ZAPI_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Client-Token': zapiToken },
+              body: JSON.stringify({ phone, message })
             });
+            return res.json();
           }
 
           async function main() {
-            const hoje = new Date();
-            // Ajusta para horário de Brasília (UTC-3)
-            hoje.setHours(hoje.getHours() - 3);
-            const data = hoje.toISOString().slice(0, 10);
-            const dataFmt = String(hoje.getDate()).padStart(2,'0') + '/' + String(hoje.getMonth()+1).padStart(2,'0');
+            const agora = new Date();
+            agora.setHours(agora.getHours() - 3);
+            const data = agora.toISOString().slice(0, 10);
+            const dataFmt = String(agora.getDate()).padStart(2,'0') + '/' + String(agora.getMonth()+1).padStart(2,'0');
+            console.log('Verificando:', data);
 
-            console.log('Verificando relatórios para', data);
+            const escSnap = await db.collection('escalas').where('data', '==', data).get();
+            const guiasEscala = [...new Set(escSnap.docs.map(d => d.data().guia))];
+            if (!guiasEscala.length) { console.log('Sem escala hoje.'); return; }
+            console.log('Escalados:', guiasEscala.join(', '));
 
-            const projectId = 'relatorio-guias';
-            const baseUrl = \`https://firestore.googleapis.com/v1/projects/\${projectId}/databases/(default)/documents\`;
-
-            // Busca escalas do dia
-            const escRes = await req(\`\${baseUrl}/escalas?pageSize=200\`, 'GET', null, { 'Authorization': 'Bearer ' + FIREBASE_KEY });
-            const escalas = (escRes.documents || [])
-              .map(d => d.fields)
-              .filter(f => f && f.data && f.data.stringValue === data && f.guia)
-              .map(f => f.guia.stringValue);
-
-            const guiasEscala = [...new Set(escalas)];
-            if (!guiasEscala.length) {
-              console.log('Nenhuma escala para hoje');
-              return;
-            }
-            console.log('Guias escalados:', guiasEscala.join(', '));
-
-            // Busca relatórios do dia
-            const relRes = await req(\`\${baseUrl}/relatorios?pageSize=200\`, 'GET', null, { 'Authorization': 'Bearer ' + FIREBASE_KEY });
-            const comRelatorio = new Set(
-              (relRes.documents || [])
-                .map(d => d.fields)
-                .filter(f => f && f.data && f.data.stringValue === data && f.guia)
-                .map(f => f.guia.stringValue)
-            );
+            const relSnap = await db.collection('relatorios').where('data', '==', data).get();
+            const comRelatorio = new Set(relSnap.docs.map(d => d.data().guia));
 
             const pendentes = guiasEscala.filter(g => !comRelatorio.has(g));
-            if (!pendentes.length) {
-              console.log('Todos enviaram relatório!');
-              return;
-            }
-
+            if (!pendentes.length) { console.log('Todos enviaram!'); return; }
             console.log('Pendentes:', pendentes.join(', '));
 
-            // Envia WhatsApp para cada pendente
+            let enviados = 0;
             for (const guia of pendentes) {
-              const fone = CONTATOS[guia] || Object.entries(CONTATOS).find(([k]) =>
-                k === guia || k.startsWith(guia.split(' ')[0]) || guia.startsWith(k.split(' ')[0])
-              )?.[1];
-
-              if (!fone) {
-                console.log('Sem número para', guia);
-                continue;
-              }
-
-              const msg = '*LUCK RECEPTIVO*\n\n⚠️ Olá, *' + guia + '*!\n\nVocê ainda não enviou o relatório do dia *' + dataFmt + '*.\n\nPor favor, acesse o app e registre agora:\nhttps://centraldepasseios-design.github.io/relatorio-guias/';
-
+              const fone = buscarFone(guia);
+              if (!fone) { console.log('Sem número:', guia); continue; }
+              const msg = '*LUCK RECEPTIVO*\n\n⚠️ Olá, *' + guia + '*!\n\nVocê ainda não enviou o relatório do dia *' + dataFmt + '*.\n\nAcesse o app:\nhttps://centraldepasseios-design.github.io/relatorio-guias/';
               try {
-                await req(ZAPI_URL, 'POST', { phone: fone, message: msg }, { 'Client-Token': ZAPI_TOKEN });
-                console.log('✅ WPP enviado para', guia, '(' + fone + ')');
+                await enviarWpp(fone, msg);
+                console.log('✅ Enviado para', guia);
+                enviados++;
                 await new Promise(r => setTimeout(r, 600));
-              } catch(e) {
-                console.log('❌ Erro para', guia, e.message);
-              }
+              } catch(e) { console.log('❌ Erro:', guia, e.message); }
             }
+            console.log('Enviados:', enviados + '/' + pendentes.length);
           }
 
-          main().catch(console.error);
-          "
+          main().catch(e => { console.error(e); process.exit(1); });
+          NODESCRIPT
