@@ -2,7 +2,6 @@ name: Notificar Relatório Pendente
 
 on:
   schedule:
-    # 21h horário de Recife/Brasília = 00:00 UTC
     - cron: '0 0 * * *'
   workflow_dispatch:
 
@@ -15,35 +14,30 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Instalar dependências
+      - name: Instalar firebase-admin
         run: npm install firebase-admin
 
+      - name: Criar arquivo de credenciais
+        run: echo '${{ secrets.FIREBASE_CREDENTIALS }}' > credentials.json
+
       - name: Notificar guias sem relatório
-        env:
-          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
         run: |
           node << 'EOF'
           const admin = require('firebase-admin');
           const https = require('https');
+          const fs = require('fs');
 
-          // Inicializa Firebase com credenciais do secret
-          const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-          admin.initializeApp({
-            credential: admin.credential.cert(credentials)
-          });
+          const credentials = JSON.parse(fs.readFileSync('credentials.json', 'utf8'));
+          admin.initializeApp({ credential: admin.credential.cert(credentials) });
           const db = admin.firestore();
 
           const ZAPI_URL = 'https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/token/ECA321B4DA2EB4B2FF4CB937/send-text';
           const ZAPI_CLIENT_TOKEN = 'F1b7c26e0ce09416fbc813a307ce5f298S';
 
-          // Data de hoje em Recife
           const hoje = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Recife'}));
           const data = hoje.toISOString().slice(0, 10);
-          const dia = String(hoje.getDate()).padStart(2,'0');
-          const mes = String(hoje.getMonth()+1).padStart(2,'0');
-          const dataFmt = dia + '/' + mes;
-
-          console.log('Data verificada:', data, '(', dataFmt, ')');
+          const dataFmt = String(hoje.getDate()).padStart(2,'0') + '/' + String(hoje.getMonth()+1).padStart(2,'0');
+          console.log('Verificando:', data);
 
           function enviarWpp(phone, message) {
             return new Promise((resolve, reject) => {
@@ -60,9 +54,9 @@ jobs:
                 }
               };
               const req = https.request(options, res => {
-                let data = '';
-                res.on('data', d => data += d);
-                res.on('end', () => { console.log('WPP response:', data); resolve(data); });
+                let d = '';
+                res.on('data', x => d += x);
+                res.on('end', () => { console.log('WPP:', d); resolve(d); });
               });
               req.on('error', reject);
               req.write(body);
@@ -71,25 +65,20 @@ jobs:
           }
 
           async function main() {
-            // 1. Busca escalas do dia
             const escSnap = await db.collection('escalas').where('data', '==', data).get();
             const guiasEscala = new Set();
             escSnap.forEach(doc => guiasEscala.add(doc.data().guia));
+            console.log('Na escala:', [...guiasEscala].join(', ') || 'Nenhum');
+            if (!guiasEscala.size) return;
 
-            console.log('Guias na escala:', [...guiasEscala].join(', ') || 'Nenhum');
-            if (!guiasEscala.size) { console.log('Sem escala hoje.'); return; }
-
-            // 2. Busca relatórios do dia
             const relSnap = await db.collection('relatorios').where('data', '==', data).get();
             const guiasComRel = new Set();
             relSnap.forEach(doc => guiasComRel.add(doc.data().guia));
 
-            // 3. Pendentes
             const pendentes = [...guiasEscala].filter(g => !guiasComRel.has(g));
             console.log('Pendentes:', pendentes.join(', ') || 'Nenhum');
             if (!pendentes.length) { console.log('Todos enviaram!'); return; }
 
-            // 4. Busca números
             const guiasSnap = await db.collection('guias').get();
             const fones = {};
             guiasSnap.forEach(doc => {
@@ -97,23 +86,26 @@ jobs:
               if (d.whatsapp) fones[doc.id] = d.whatsapp;
             });
 
-            // 5. Envia WPP
             let enviados = 0;
             for (const guia of pendentes) {
               const fone = fones[guia];
-              if (!fone) { console.log('Sem número para:', guia); continue; }
-              const msg = '*LUCK RECEPTIVO*\n\n⚠️ Olá, *' + guia + '*!\n\nVocê ainda não enviou o relatório do dia *' + dataFmt + '*.\n\nPor favor, acesse o app e registre agora:\nhttps://centraldepasseios-design.github.io/relatorio-guias/';
+              if (!fone) { console.log('Sem número:', guia); continue; }
+              const msg = '*LUCK RECEPTIVO*\n\n⚠️ Olá, *' + guia + '*!\n\nVocê ainda não enviou o relatório do dia *' + dataFmt + '*.\n\nAcesse o app:\nhttps://centraldepasseios-design.github.io/relatorio-guias/';
               try {
                 await enviarWpp(fone, msg);
-                console.log('✅ Enviado para:', guia, fone);
+                console.log('✅', guia);
                 enviados++;
                 await new Promise(r => setTimeout(r, 600));
               } catch(e) {
-                console.log('❌ Erro para', guia, ':', e.message);
+                console.log('❌', guia, e.message);
               }
             }
-            console.log('Total enviado:', enviados, 'de', pendentes.length);
+            console.log('Enviados:', enviados, '/', pendentes.length);
           }
 
           main().catch(e => { console.error(e); process.exit(1); });
           EOF
+
+      - name: Limpar credenciais
+        if: always()
+        run: rm -f credentials.json
