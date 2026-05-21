@@ -1675,6 +1675,20 @@ async function notificarPendentes(){
 }
 
 
+// ===== SINCRONIZAR FONES =====
+async function sincronizarFones(){
+  try{
+    for(const [guia,fone] of Object.entries(WHATSAPP_GUIAS)){
+      const snap=await window._gd(window._doc(window._db,'guias',guia));
+      const dados=snap.exists()?snap.data():{};
+      if(dados.whatsapp!==fone){
+        await window._sd(window._doc(window._db,'guias',guia),{...dados,whatsapp:fone});
+      }
+    }
+    console.log('Fones sincronizados no Firestore');
+  }catch(e){console.log('Sync fones:',e.message)}
+}
+
 // ===== AVULSO =====
 let _dataAvulso='';
 
@@ -2000,6 +2014,8 @@ window._col=collection;window._q=query;window._w=where;window._od=orderBy;
 window._gds=getDocs;window._doc=doc;window._gd=getDoc;window._sd=setDoc;
 window._ad=addDoc;window._dd=deleteDoc;
 document.getElementById('fb-status').textContent='✅ Conectado';
+// Sincroniza números WPP no Firestore para o GitHub Actions usar
+sincronizarFones();
 // Auto-login admin se sessão salva
 if(localStorage.getItem('luck_admin')==='1'&&typeof entrar==='function'){
   document.getElementById('login-wrap').style.display='none';
