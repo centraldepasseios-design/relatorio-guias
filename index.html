@@ -206,7 +206,10 @@
     <div id="banner-escala" style="display:none;background:#e1f5ee;color:#0f6e56;border-radius:var(--rsm);padding:10px 14px;font-size:13px;margin-bottom:10px;border:1px solid #b2dfdb"></div>
     <hr class="divider" />
     <div id="lista-servicos"></div>
-    <button class="btn-add" onclick="adicionarServico()">+ Adicionar serviço</button>
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <button class="btn-add" style="flex:1" onclick="adicionarServico()">+ Adicionar serviço</button>
+      <button class="btn-add" style="flex:1;background:#8e44ad" onclick="adicionarSoVendas()">💰 Só Vendas</button>
+    </div>
     <div class="resumo-envio hidden" id="resumo-envio">
       <p>Serviços a enviar</p>
       <div class="tags" id="tags-resumo"></div>
@@ -569,6 +572,38 @@ async function carregarPaxPhoenix(guia, data, itens){
       escalaCard.parentElement.insertBefore(div,escalaCard.nextSibling);
     }
   }catch(e){console.log('pax phoenix:',e.message)}
+}
+
+let _editRelId='', _editRelDataAtual='';
+
+function editarDataRelatorio(id, dataAtual){
+  _editRelId=id;
+  _editRelDataAtual=dataAtual;
+  document.getElementById('edit-data-input').value=dataAtual;
+  document.getElementById('modal-edit-data').style.display='flex';
+}
+
+function fecharEditData(){
+  document.getElementById('modal-edit-data').style.display='none';
+  _editRelId='';_editRelDataAtual='';
+}
+
+async function salvarEditData(){
+  const novaData=document.getElementById('edit-data-input').value;
+  if(!novaData){alert('Selecione uma data.');return}
+  if(novaData===_editRelDataAtual){fecharEditData();return}
+  showLoading();
+  try{
+    const ref=window._doc(window._db,'relatorios',_editRelId);
+    const snap=await window._getDoc(ref);
+    if(!snap.exists()){throw new Error('Relatório não encontrado')}
+    const dados=snap.data();
+    await window._setDoc(ref,{...dados,data:novaData,dataEditada:true,dataOriginal:_editRelDataAtual,editadoEm:new Date().toISOString()});
+    hideLoading();
+    fecharEditData();
+    alert('✅ Data corrigida para '+new Date(novaData+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+'!');
+    renderHistorico();
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
 }
 
 function toggleHotel(btn){
@@ -1006,6 +1041,27 @@ function toggleNoshowEscala(id){
   }
 }
 
+function adicionarSoVendas(){
+  const id=++contador;servicosAtivos.push(id);
+  const div=document.createElement('div');div.className='servico-card';div.id='card-'+id;
+  div.innerHTML=
+    '<div class="servico-card-header">'+
+    '<span class="servico-num">💰 Só Vendas '+servicosAtivos.length+'</span>'+
+    '<button class="btn-remover" onclick="removerServico('+id+')">×</button>'+
+    '</div>'+
+    '<input type="hidden" id="srv-'+id+'" value="so-vendas"/>'+
+    '<div style="margin-top:10px"><label style="margin-top:0">REC do passageiro</label>'+
+    '<input type="text" id="rec-'+id+'" placeholder="Nome ou número de reserva (ex: REC-123456)"/></div>'+
+    '<div class="row2" style="margin-top:10px">'+
+    '<div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-sv-'+id+'" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div>'+
+    '<div><label style="margin-top:0">No-show</label><input type="number" id="noshow-sv-'+id+'" placeholder="0" min="0"/></div>'+
+    '</div>'+
+    '<div style="margin-top:10px"><label style="margin-top:0">Observações</label>'+
+    '<textarea id="obs-'+id+'" placeholder="opcional" rows="2" style="resize:vertical;min-height:54px"></textarea></div>';
+  document.getElementById('lista-servicos').appendChild(div);
+  atualizarResumo();
+}
+
 function adicionarServico(){
   const id=++contador;servicosAtivos.push(id);
   const div=document.createElement('div');div.className='servico-card';div.id='card-'+id;
@@ -1066,6 +1122,14 @@ async function enviarRelatorio(){
   for(const id of servicosAtivos){
     const sEl=document.getElementById('srv-'+id);const s=sEl?sEl.value:'';
     if(!s){alert('Selecione o tipo em todos os serviços.');return}
+    if(s==='so-vendas'){
+      const rec=document.getElementById('rec-'+id).value.trim();
+      const vendas=parseMoeda(document.getElementById('vendas-sv-'+id).value);
+      const noshow=parseInt(document.getElementById('noshow-sv-'+id).value)||0;
+      const obs=document.getElementById('obs-'+id).value.trim();
+      itens.push({servico:'so-vendas',rec,vendas,noshow,obs});
+      continue;
+    }
     let item={servico:s};
     if(isChegada(s)){item.voo=document.getElementById('voo-'+id).value.trim().toUpperCase();item.pax=parseInt(document.getElementById('pax-'+id).value)||0;item.chd=parseInt(document.getElementById('chd-'+id).value)||0;item.vendas=parseMoeda(document.getElementById('vendas-'+id).value);item.noshow=parseInt(document.getElementById('noshow-'+id).value)||0}
     else if(isSaida(s)){item.noshow=parseInt(document.getElementById('noshow-s-'+id).value)||0}
@@ -1124,13 +1188,31 @@ async function renderHistorico(){
         else if(isSaida(it.servico))campos=`<div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
         else campos=`<div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div><div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
         const noshowEscTag=it.noshow_escala?'<span style="background:#fde8e8;color:#c0392b;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px">🚫 No-show escala</span>':'';
+        if(it.servico==='so-vendas'){
+          return('<div class="sub-card"><div class="sub-header"><span class="badge" style="background:#eeedfe;color:#534ab7">💰 Só Vendas</span>'+(it.rec?'<span style="font-size:12px;color:var(--muted)">'+it.rec+'</span>':'')+'</div>'+
+          '<div class="sub-body"><div class="sub-item"><label>Vendas</label><p>R$ '+(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'</p></div>'+(it.noshow?'<div class="sub-item"><label>No-show</label><p>'+it.noshow+' pax</p></div>':'')+'</div>'+
+          (it.obs?'<p class="obs-text">📝 '+it.obs+'</p>':'')+'</div>');
+        }
         return`<div class="sub-card"><div class="sub-header"><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span>${noshowEscTag}</div>${it.noshow_escala?`<div style="font-size:12px;color:#c0392b;padding:4px 0">${it.motivo_noshow||'Serviço não realizado'}</div>`:`<div class="sub-body">${campos}</div>`}${it.obs?`<p class="obs-text">📝 ${it.obs}</p>`:''}</div>`;
       }).join('');
-      return`<div class="rel-card"><div class="rel-dia"><span>${dataFmt} · ${r.motorista}</span><span>${r.itens.length} serviço${r.itens.length>1?'s':''}</span></div>${itensHtml}</div>`;
+      return`<div class="rel-card"><div class="rel-dia"><span>${dataFmt} · ${r.motorista}</span><div style="display:flex;align-items:center;gap:8px"><span>${r.itens.length} serviço${r.itens.length>1?'s':''}</span><button onclick="editarDataRelatorio('${r.id}','${r.data}')" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);padding:2px 8px;font-size:11px;color:var(--muted);cursor:pointer;font-family:DM Sans,sans-serif">✏️ Data</button></div></div>${itensHtml}</div>`;
     }).join('');
   }catch(e){document.getElementById('lista-relatorios').innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}finally{hideLoading()}
 }
 </script>
+<!-- MODAL EDITAR DATA RELATORIO -->
+<div class="loading-overlay" id="modal-edit-data" style="display:none;z-index:200">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:360px;margin:1rem">
+    <h3 style="font-size:16px;font-weight:600;margin-bottom:6px">✏️ Corrigir data do relatório</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">Selecione a data correta:</p>
+    <input type="date" id="edit-data-input" style="width:100%;padding:10px;font-size:15px;font-family:DM Sans,sans-serif;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);margin-bottom:12px"/>
+    <div style="display:flex;gap:8px">
+      <button onclick="fecharEditData()" class="btn-ciente" style="background:var(--muted)">Cancelar</button>
+      <button onclick="salvarEditData()" class="btn-ciente">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL IDIOMAS -->
 <div class="loading-overlay" id="modal-idiomas" style="display:none;z-index:200">
   <div style="background:var(--surface);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:400px;margin:1rem">

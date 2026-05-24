@@ -535,13 +535,16 @@ function aplicarFiltros(){
   if(!linhasF.length){document.getElementById('tabela-wrap').innerHTML='<p class="empty">Nenhum resultado.</p>';return}
   const rows=linhasF.map(({r,it})=>{
     const dt=new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const editBadge=r.dataEditada?'<br><span style="font-size:10px;background:#faeeda;color:#854f0b;padding:1px 6px;border-radius:99px">✏️ Data editada</span>':'';
     let det='';
-    if(it.noshow_escala){
+    if(it.servico==='so-vendas'){
+      det='<span style="background:#eeedfe;color:#534ab7;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:500">💰 Só Vendas</span>'+(it.rec?' · REC: <strong>'+it.rec+'</strong>':'')+' · R$<strong>'+((it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2}))+'</strong>';
+    } else if(it.noshow_escala){
       det=`<span style="background:#fde8e8;color:#c0392b;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:500">🚫 No-show de escala</span>${it.motivo_noshow?' — '+it.motivo_noshow:''}`;
     } else if(it.servico&&it.servico.startsWith('chegada'))det=`Voo: <strong>${it.voo||'—'}</strong> · Pax: <strong>${it.pax??0}</strong>${it.chd?` · Chd: <strong>${it.chd}</strong>`:''} · Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>${it.noshow_obs?` <span style="color:var(--muted);font-size:12px">— ${it.noshow_obs}</span>`:''}`;
     else if(it.servico&&it.servico.startsWith('saida'))det=`No-show: <strong>${it.noshow??0} pax</strong>`;
     else det=`Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
-    return`<tr><td>${dt}</td><td><strong>${r.guia}</strong><br><small style="color:var(--muted)">🚐 ${r.motorista}</small></td><td><span class="badge ${BADGE[it.servico]||''}">${LBLS[it.servico]||it.servico}</span></td><td>${det}${it.obs?`<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;white-space:pre-line">📝 ${it.obs}</div>`:''}</td></tr>`;
+    return`<tr><td>${dt}${editBadge}</td><td><strong>${r.guia}</strong><br><small style="color:var(--muted)">🚐 ${r.motorista}</small></td><td><span class="badge ${BADGE[it.servico]||''}">${LBLS[it.servico]||it.servico}</span></td><td>${det}${it.obs?`<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;white-space:pre-line">📝 ${it.obs}</div>`:''}</td></tr>`;
   }).join('');
   document.getElementById('tabela-wrap').innerHTML=`<table><thead><tr><th>Data</th><th>Guia/Motorista</th><th>Serviço</th><th>Detalhes</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
