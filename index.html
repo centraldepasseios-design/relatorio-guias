@@ -208,7 +208,7 @@
     <div id="lista-servicos"></div>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <button class="btn-add" style="flex:1" onclick="adicionarServico()">+ Adicionar serviço</button>
-      <button class="btn-add" style="flex:1;background:#8e44ad" onclick="adicionarSoVendas()">💰 Só Vendas</button>
+      <button class="btn-add" style="flex:1;background:#0f6e56;color:#fff" onclick="adicionarSoVendas()">💰 Pós Venda / Venda em Passeio</button>
     </div>
     <div class="resumo-envio hidden" id="resumo-envio">
       <p>Serviços a enviar</p>
@@ -1117,7 +1117,8 @@ async function enviarRelatorio(){
   const data=document.getElementById('data-geral').value;
   const motorista=document.getElementById('motorista-geral').value.trim();
   if(!data){alert('Informe a data.');return}
-  if(!motorista){alert('Informe o motorista.');return}
+  const _apenasVendas=servicosAtivos.length>0&&servicosAtivos.every(id=>{const el=document.getElementById('srv-'+id);return el&&el.value==='so-vendas';});
+  if(!motorista&&!_apenasVendas){alert('Informe o motorista.');return}
   const itens=[];
   for(const id of servicosAtivos){
     const sEl=document.getElementById('srv-'+id);const s=sEl?sEl.value:'';
@@ -1189,7 +1190,7 @@ async function renderHistorico(){
         else campos=`<div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div><div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
         const noshowEscTag=it.noshow_escala?'<span style="background:#fde8e8;color:#c0392b;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px">🚫 No-show escala</span>':'';
         if(it.servico==='so-vendas'){
-          return('<div class="sub-card"><div class="sub-header"><span class="badge" style="background:#eeedfe;color:#534ab7">💰 Só Vendas</span>'+(it.rec?'<span style="font-size:12px;color:var(--muted)">'+it.rec+'</span>':'')+'</div>'+
+          return('<div class="sub-card"><div class="sub-header"><span class="badge" style="background:#e1f5ee;color:#0f6e56">💰 Pós Venda</span>'+(it.rec?'<span style="font-size:12px;color:var(--muted)">'+it.rec+'</span>':'')+'</div>'+
           '<div class="sub-body"><div class="sub-item"><label>Vendas</label><p>R$ '+(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'</p></div>'+(it.noshow?'<div class="sub-item"><label>No-show</label><p>'+it.noshow+' pax</p></div>':'')+'</div>'+
           (it.obs?'<p class="obs-text">📝 '+it.obs+'</p>':'')+'</div>');
         }
