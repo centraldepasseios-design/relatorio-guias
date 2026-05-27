@@ -295,6 +295,21 @@ async function publicarEscala(){
   if(!confirm(`Publicar ${itens.length} serviço(s) para ${data}? Eles serão adicionados à escala já existente.`))return;
   showLoad();
   try{
+    // Verifica disponibilidade antes de publicar
+    const guiasNovos=[...new Set(itens.map(i=>i.guia))];
+    const dispSnap=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('data','==',data)));
+    const indisponiveis=[];
+    dispSnap.docs.forEach(d=>{
+      const dd=d.data();
+      if(dd.status==='nao'&&guiasNovos.includes(dd.guia))
+        indisponiveis.push(dd.guia+(dd.obs?' — '+dd.obs:''));
+    });
+    if(indisponiveis.length){
+      hideLoad();
+      const msg='⚠️ ATENÇÃO! Guia(s) marcaram INDISPONÍVEL para '+data+':\n\n'+indisponiveis.join('\n')+'\n\nPublicar mesmo assim?';
+      if(!confirm(msg))return;
+      showLoad();
+    }
     // Apenas ADICIONA, sem apagar o que já existe
     for(const item of itens)await window._ad(window._col(window._db,'escalas'),{...item,data,publicadoEm:new Date().toISOString()});
     hideLoad();
@@ -1223,6 +1238,20 @@ async function importarPlanilha(event){
     itensImportados.forEach(it=>{if(!porGuia[it.guia])porGuia[it.guia]=[];porGuia[it.guia].push(it)});
     const resumo=Object.entries(porGuia).map(([g,its])=>g+' ('+its.length+' serviço'+( its.length>1?'s':'')+')').join(', ');
 
+    // Verifica disponibilidade antes de mostrar cards
+    const guiasImpCheck=[...new Set(itensImportados.map(i=>i.guia))];
+    const dispSnapImp=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('data','==',data)));
+    const indispImp=[];
+    dispSnapImp.docs.forEach(d=>{
+      const dd=d.data();
+      if(dd.status==='nao'&&guiasImpCheck.includes(dd.guia))
+        indispImp.push(dd.guia+(dd.obs?' — '+dd.obs:''));
+    });
+    if(indispImp.length){
+      hideLoad();
+      const msgImp='⚠️ ATENÇÃO! Guia(s) marcaram INDISPONÍVEL para '+data+':\n\n'+indispImp.join('\n')+'\n\nContinuar com a importação?';
+      if(!confirm(msgImp)){event.target.value='';return}
+    }
     // Em vez de publicar direto, carrega nos cards editáveis
     _itensImportados=itensImportados;
     event.target.value='';
