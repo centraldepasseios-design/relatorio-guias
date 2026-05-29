@@ -606,6 +606,38 @@ async function salvarEditData(){
   }catch(e){hideLoading();alert('Erro: '+e.message)}
 }
 
+function recusarEscala(){
+  document.getElementById('recusa-motivo').value='';
+  document.getElementById('modal-recusar').style.display='flex';
+}
+
+function fecharRecusa(){
+  document.getElementById('modal-recusar').style.display='none';
+}
+
+async function confirmarRecusa(){
+  const motivo=document.getElementById('recusa-motivo').value.trim();
+  if(!motivo){alert('Informe o motivo da recusa.');return}
+  showLoading();
+  try{
+    // Salva recusa no Firestore
+    await window._setDoc(
+      window._doc(window._db,'confirmacoes',dataEscalaAtual+'_'+guiaAtual),{
+        guia:guiaAtual,
+        data:dataEscalaAtual,
+        recusado:true,
+        motivo,
+        recusadoEm:new Date().toISOString()
+      }
+    );
+    hideLoading();
+    fecharRecusa();
+    // Recarrega escala para mostrar status atualizado
+    carregarEscalaHoje();
+    alert('Recusa registrada. O coordenador será notificado.');
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
 function toggleHotel(btn){
   const detail=btn.nextElementSibling;
   const open=detail.style.display==='block';
@@ -682,9 +714,20 @@ async function carregarEscalaHoje(){
         </div>
       </div>`;
     }).join('');
-    const btnCiente=jaConfirmou
+    // Check if guia recused
+    let jaRecusou=false;
+    try{
+      const recSnap=await window._getDoc(window._doc(window._db,'confirmacoes',dataEscalaAtual+'_'+guiaAtual));
+      if(recSnap.exists()&&recSnap.data().recusado)jaRecusou=true;
+    }catch(e){}
+    const btnCiente=jaRecusou
+      ?`<div class="ciente-confirmado" style="background:#fde8e8;color:#c0392b;border-color:#f5c6c6">❌ Você recusou esta escala</div>`
+      :jaConfirmou
       ?`<div class="ciente-confirmado">✅ Você confirmou o recebimento desta escala</div>`
-      :`<button class="btn-ciente" onclick="confirmarEscala()">👍 Estou ciente da escala</button>`;
+      :`<div style="display:flex;gap:8px">
+        <button class="btn-ciente" style="flex:1" onclick="confirmarEscala()">👍 Estou ciente</button>
+        <button class="btn-ciente" style="flex:1;background:#c0392b" onclick="recusarEscala()">❌ Recusar</button>
+      </div>`;
     el.innerHTML=`<div class="escala-card"><div class="escala-header"><span>📅 ${dataFmt}</span><span>${itens.length} serviço${itens.length>1?'s':''}</span></div><div class="escala-body">${rows}</div></div><div style="margin-top:8px">${btnCiente}</div>`;
     // Busca lista de pax do Phoenix
     carregarPaxPhoenix(guiaAtual, dataEscalaAtual, itens);
@@ -1201,6 +1244,19 @@ async function renderHistorico(){
   }catch(e){document.getElementById('lista-relatorios').innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}finally{hideLoading()}
 }
 </script>
+<!-- MODAL RECUSAR ESCALA -->
+<div class="loading-overlay" id="modal-recusar" style="display:none;z-index:200">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:380px;margin:1rem">
+    <h3 style="font-size:16px;font-weight:600;margin-bottom:6px;color:#c0392b">❌ Recusar escala</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">Informe o motivo da recusa:</p>
+    <textarea id="recusa-motivo" placeholder="ex: Compromisso de saúde, viagem marcada, conflito de horário..." rows="3" style="width:100%;padding:8px;font-size:13px;font-family:DM Sans,sans-serif;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);resize:vertical;margin-bottom:12px"></textarea>
+    <div style="display:flex;gap:8px">
+      <button onclick="fecharRecusa()" class="btn-ciente" style="background:var(--muted)">Voltar</button>
+      <button onclick="confirmarRecusa()" class="btn-ciente" style="background:#c0392b">❌ Confirmar recusa</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL EDITAR DATA RELATORIO -->
 <div class="loading-overlay" id="modal-edit-data" style="display:none;z-index:200">
   <div style="background:var(--surface);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:360px;margin:1rem">
