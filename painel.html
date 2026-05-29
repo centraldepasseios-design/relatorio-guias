@@ -1001,7 +1001,10 @@ async function carregarDisp(){
     // Filtra guias
     let guiasFiltrados=TODOS_GUIAS_DISP.filter(g=>{
       const status=dispMap[g]||'sem';
-      if(filtStatus&&filtStatus!==status)return false;
+      const trabalhando=ultimaEscala[g]===data;
+      if(filtStatus==='trabalhando'){
+        if(!trabalhando)return false;
+      } else if(filtStatus&&filtStatus!==status)return false;
       if(filtIdioma){
         const idiomas=(guiasData[g]&&guiasData[g].idiomas)||[];
         if(!idiomas.includes(filtIdioma))return false;
@@ -1014,10 +1017,24 @@ async function carregarDisp(){
     const dispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='sim').length;
     const indispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='nao').length;
     const semResp=total-dispCount-indispCount;
+    const trabCount=TODOS_GUIAS_DISP.filter(g=>ultimaEscala[g]===data).length;
     document.getElementById('disp-resumo').innerHTML=`
       <div class="resumo-card" style="border-left:3px solid #0f6e56"><div class="num" style="color:#0f6e56">${dispCount}</div><div class="lbl">Disponíveis</div></div>
       <div class="resumo-card" style="border-left:3px solid #c0392b"><div class="num" style="color:#c0392b">${indispCount}</div><div class="lbl">Indisponíveis</div></div>
-      <div class="resumo-card" style="border-left:3px solid #9a9a96"><div class="num">${semResp}</div><div class="lbl">Sem resposta</div></div>`;
+      <div class="resumo-card" style="border-left:3px solid #9a9a96"><div class="num">${semResp}</div><div class="lbl">Sem resposta</div></div>
+      <div class="resumo-card" style="border-left:3px solid #e67e22;cursor:pointer" onclick="document.getElementById('disp-status').value='trabalhando';carregarDisp()"><div class="num" style="color:#e67e22">${trabCount}</div><div class="lbl">Trabalhando</div></div>`;
+
+    // Ordena: 1º trabalhando hoje, 2º por mais tempo sem ser escalado
+    guiasFiltrados.sort((a,b)=>{
+      const aTrab=ultimaEscala[a]===data;
+      const bTrab=ultimaEscala[b]===data;
+      if(aTrab&&!bTrab)return -1;
+      if(!aTrab&&bTrab)return 1;
+      // Entre iguais, ordena por quem está há mais tempo sem ser escalado
+      const aUlt=ultimaEscala[a]||'0000-00-00';
+      const bUlt=ultimaEscala[b]||'0000-00-00';
+      return aUlt.localeCompare(bUlt);
+    });
 
     // Lista
     if(!guiasFiltrados.length){document.getElementById('disp-lista').innerHTML='<p class="empty">Nenhum guia encontrado.</p>';}
@@ -2003,6 +2020,7 @@ async function confirmarReset(){
           <option value="sim">✅ Disponíveis</option>
           <option value="nao">❌ Indisponíveis</option>
           <option value="sem">⬜ Sem resposta</option>
+          <option value="trabalhando">🔧 Trabalhando hoje</option>
         </select>
       </div>
       <button class="btn-sm" onclick="carregarDisp()">🔍 Buscar</button>
