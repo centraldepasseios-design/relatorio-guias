@@ -469,12 +469,14 @@ async function carregarConfirmacoes(){
       guia:d.data().guia,
       recusado:d.data().recusado||false,
       motivo:d.data().motivo||'',
+      substituido:d.data().substituido||false,
+      substituidoPor:d.data().substituidoPor||'',
       hora:d.data().confirmadoEm?new Date(d.data().confirmadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):d.data().recusadoEm?new Date(d.data().recusadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'
     })).sort((a,b)=>a.guia.localeCompare(b.guia));
     const confirmados=lista.filter(h=>!h.recusado);
     const recusados=lista.filter(h=>h.recusado);
     const rowsConf=confirmados.map(h=>`<div class="conf-row"><span><strong>${h.guia}</strong></span><span style="font-size:12px;color:var(--muted)">${h.hora}</span></div>`).join('');
-    const rowsRec=recusados.map(h=>`<div class="conf-row" style="background:#fde8e8"><span><strong>${h.guia}</strong> <span style="font-size:11px;color:#c0392b">❌ Recusou${h.motivo?' — '+h.motivo:''}</span></span><span style="font-size:12px;color:#c0392b">${h.hora}</span></div>`).join('');
+    const rowsRec=recusados.map(h=>`<div class="conf-row" style="background:#fde8e8"><span><strong>${h.guia}</strong> <span style="font-size:11px;color:#c0392b">❌ Recusou${h.motivo?' — '+h.motivo:''}</span>${h.substituido?'<span style="font-size:10px;color:var(--muted)"> → substituído por '+h.substituidoPor+'</span>':''}</span><span style="font-size:12px;color:#c0392b">${h.hora}</span></div>`).join('');
     wrap.innerHTML=(confirmados.length?`<div class="conf-box"><div class="conf-header">✅ Confirmações recebidas (${confirmados.length})</div>${rowsConf}</div>`:'')+(recusados.length?`<div class="conf-box" style="margin-top:8px"><div class="conf-header" style="background:#fde8e8;color:#c0392b">❌ Recusas (${recusados.length})</div>${rowsRec}</div>`:'');
   }catch(e){console.error(e);wrap.innerHTML=''}
 }
@@ -873,10 +875,21 @@ async function salvarEditItem(){
     await window._sd(window._doc(window._db,'escalas',_editItemId),{
       ...dados,guia,motorista,horario,hsrv,editadoEm:new Date().toISOString()
     });
-    // Se trocou o guia, apaga confirmação do guia antigo
+    // Se trocou o guia, preserva recusa mas marca como substituído
     if(dados.guia&&dados.guia!==guia){
       const confId=dados.data+'_'+dados.guia;
-      try{await window._dd(window._doc(window._db,'confirmacoes',confId));}catch(e){}
+      try{
+        const confSnap=await window._gd(window._doc(window._db,'confirmacoes',confId));
+        if(confSnap.exists()){
+          // Mantém a recusa mas marca que foi substituído
+          await window._sd(window._doc(window._db,'confirmacoes',confId),{
+            ...confSnap.data(),
+            substituido:true,
+            substituidoPor:guia,
+            substituidoEm:new Date().toISOString()
+          });
+        }
+      }catch(e){}
       // Notifica novo guia via WPP
       const foneNovo=buscarFoneGuia(guia);
       if(foneNovo){
