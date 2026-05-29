@@ -382,7 +382,7 @@ function _renderLinhasAgrupadas(itens){
       const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
       const motTxt=isCS&&it.motorista?it.motorista:'—';
       const borderTop=idx===0?'':'border-top:1px dashed var(--border);';
-      return`<div class="pub-row" style="${borderTop}"><span class="pub-hor">⏰ ${it.horario}</span><div><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span></div>`;
+      return`<div class="pub-row" style="${borderTop}"><span class="pub-hor">⏰ ${it.horario}</span><div><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div><span style="font-size:12px;color:var(--muted)">🚐 ${motTxt}</span><div style="display:flex;gap:4px;align-items:center"><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span><button onclick="editarItemEscala('${it.id}')" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);padding:2px 7px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button></div></div>`;
     }).join('');
     const totalSrv=servicos.length;
     const dataEsc=servicos[0].data||'';
@@ -467,10 +467,15 @@ async function carregarConfirmacoes(){
     if(!snap.docs.length){wrap.innerHTML='';return}
     const lista=snap.docs.map(d=>({
       guia:d.data().guia,
-      hora:d.data().confirmadoEm?new Date(d.data().confirmadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'
+      recusado:d.data().recusado||false,
+      motivo:d.data().motivo||'',
+      hora:d.data().confirmadoEm?new Date(d.data().confirmadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):d.data().recusadoEm?new Date(d.data().recusadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'
     })).sort((a,b)=>a.guia.localeCompare(b.guia));
-    const rows=lista.map(h=>`<div class="conf-row"><span><strong>${h.guia}</strong></span><span style="font-size:12px;color:var(--muted)">${h.hora}</span></div>`).join('');
-    wrap.innerHTML=`<div class="conf-box"><div class="conf-header">✅ Confirmações recebidas (${lista.length})</div>${rows}</div>`;
+    const confirmados=lista.filter(h=>!h.recusado);
+    const recusados=lista.filter(h=>h.recusado);
+    const rowsConf=confirmados.map(h=>`<div class="conf-row"><span><strong>${h.guia}</strong></span><span style="font-size:12px;color:var(--muted)">${h.hora}</span></div>`).join('');
+    const rowsRec=recusados.map(h=>`<div class="conf-row" style="background:#fde8e8"><span><strong>${h.guia}</strong> <span style="font-size:11px;color:#c0392b">❌ Recusou${h.motivo?' — '+h.motivo:''}</span></span><span style="font-size:12px;color:#c0392b">${h.hora}</span></div>`).join('');
+    wrap.innerHTML=(confirmados.length?`<div class="conf-box"><div class="conf-header">✅ Confirmações recebidas (${confirmados.length})</div>${rowsConf}</div>`:'')+(recusados.length?`<div class="conf-box" style="margin-top:8px"><div class="conf-header" style="background:#fde8e8;color:#c0392b">❌ Recusas (${recusados.length})</div>${rowsRec}</div>`:'');
   }catch(e){console.error(e);wrap.innerHTML=''}
 }
 
@@ -826,6 +831,68 @@ async function resumoPorGuia(){
   }catch(e){hideLoad();document.getElementById('rg-resultado').innerHTML='<p class="empty">Erro: '+e.message+'</p>';console.error(e)}
 }
 
+
+
+// ===== EDITAR ITEM ESCALA =====
+let _editItemId='';
+
+async function editarItemEscala(id){
+  if(!id){alert('ID não encontrado.');return}
+  _editItemId=id;
+  showLoad();
+  try{
+    const snap=await window._gd(window._doc(window._db,'escalas',id));
+    if(!snap.exists()){hideLoad();alert('Serviço não encontrado.');return}
+    const d=snap.data();
+    document.getElementById('edit-item-desc').textContent=(LBLS[d.servico]||d.servico)+' · '+d.data+' · '+d.guia;
+    document.getElementById('edit-item-guia').value=d.guia||'';
+    document.getElementById('edit-item-motorista').value=d.motorista||'';
+    document.getElementById('edit-item-horario').value=d.horario||'';
+    document.getElementById('edit-item-hsrv').value=d.hsrv||'';
+    hideLoad();
+    document.getElementById('modal-edit-item').style.display='flex';
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
+function fecharEditItem(){
+  document.getElementById('modal-edit-item').style.display='none';
+  _editItemId='';
+}
+
+async function salvarEditItem(){
+  if(!_editItemId)return;
+  const guia=document.getElementById('edit-item-guia').value;
+  const motorista=document.getElementById('edit-item-motorista').value.trim();
+  const horario=document.getElementById('edit-item-horario').value.trim();
+  const hsrv=document.getElementById('edit-item-hsrv').value.trim();
+  if(!guia){alert('Selecione o guia.');return}
+  showLoad();
+  try{
+    const snap=await window._gd(window._doc(window._db,'escalas',_editItemId));
+    const dados=snap.data();
+    await window._sd(window._doc(window._db,'escalas',_editItemId),{
+      ...dados,guia,motorista,horario,hsrv,editadoEm:new Date().toISOString()
+    });
+    // Se trocou o guia, apaga confirmação do guia antigo
+    if(dados.guia&&dados.guia!==guia){
+      const confId=dados.data+'_'+dados.guia;
+      try{await window._dd(window._doc(window._db,'confirmacoes',confId));}catch(e){}
+      // Notifica novo guia via WPP
+      const foneNovo=buscarFoneGuia(guia);
+      if(foneNovo){
+        const dObj=new Date(dados.data+'T12:00:00');
+        const dataFmt=String(dObj.getDate()).padStart(2,'0')+'/'+String(dObj.getMonth()+1).padStart(2,'0');
+        const dias=['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+        const msg='*LUCK RECEPTIVO*\n\n📅 *Escala '+dataFmt+' ('+dias[dObj.getDay()]+')*\n\nOlá, *'+guia+'*! Você foi escalado:\n\n⏰ *'+horario+'* — '+(LBLS[dados.servico]||dados.servico)+(hsrv?' | '+hsrv:'')+(dados.pax?' | '+dados.pax+' pax':'')+(motorista?' | 🚐 '+motorista:'')+'\n\nAcesse o app: https://centraldepasseios-design.github.io/relatorio-guias/';
+        try{await enviarWhatsApp(foneNovo,msg);}catch(e){console.log('WPP novo guia:',e.message)}
+      }
+    }
+    hideLoad();
+    fecharEditItem();
+    carregarEscalaPublicada();
+    alert('✅ Serviço atualizado!'+(dados.guia!==guia?' Confirmação de '+dados.guia+' removida e '+guia+' notificado.':''));
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
 
 // ===== BLOQUEIO DE AGENDA =====
 let _guiaBloqueio='';
@@ -1961,6 +2028,37 @@ async function confirmarReset(){
     <div class="modal-btns">
       <button class="btn-outline" onclick="fecharModal()">Cancelar</button>
       <button class="btn-sm" onclick="confirmarReset()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR ITEM ESCALA -->
+<div class="modal-overlay" id="modal-edit-item" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <h3>✏️ Editar serviço</h3>
+    <p id="edit-item-desc" style="font-size:13px;color:var(--muted);margin-bottom:1rem"></p>
+    <div style="margin-bottom:10px">
+      <label>Guia</label>
+      <select id="edit-item-guia">
+        <option value="">— selecionar —</option>
+        <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM JONES</option><option>ADRIANE</option><option>GUILHERME</option><option>FÁBIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option><option>ANTÔNIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANÊS</option><option>MADSON</option><option>CAMILLA</option><option>ANDRÉ</option><option>ANA FLÁVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAÍSSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FÁBIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO M</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANÇA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLÓRIA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO S</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+      </select>
+    </div>
+    <div style="margin-bottom:10px">
+      <label>Motorista</label>
+      <input type="text" id="edit-item-motorista" placeholder="Nome do motorista"/>
+    </div>
+    <div style="margin-bottom:10px">
+      <label>Horário apresentação</label>
+      <input type="text" id="edit-item-horario" placeholder="ex: 6:00 no aero"/>
+    </div>
+    <div style="margin-bottom:12px">
+      <label>Horário do serviço / Voo</label>
+      <input type="text" id="edit-item-hsrv" placeholder="ex: AD4310 Nac. 10:55" style="text-transform:uppercase"/>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-outline" onclick="fecharEditItem()">Cancelar</button>
+      <button class="btn-sm" onclick="salvarEditItem()">💾 Salvar</button>
     </div>
   </div>
 </div>
