@@ -1287,6 +1287,10 @@ async function importarPlanilha(event){
       const veicUpper=veiculo.toUpperCase();
       const isVan=veicUpper.includes('VAN')||veicUpper.includes('LOCALIZA');
       const isMicroBus=veicUpper.includes('MICRO')||veicUpper.includes('BUS')||veicUpper.includes('MICRAO');
+      // Motoristas novatos também fazem saídas com guia
+      const NOVATOS=['MENEZES','MENDONÇA','MANOEL','RAFAEL','ANDREIVISON','FABRIZIO','CAMPOS'];
+      const motUpper=motorista.toUpperCase();
+      const isNovato=NOVATOS.some(n=>motUpper.includes(n));
 
       // Serviço IN (chegada) — todos os veículos com guia
       if(servIn&&horIn){
@@ -1295,7 +1299,25 @@ async function importarPlanilha(event){
           const voo=extrairVoo(servIn);
           const horVoo=extrairHorarioVoo(servIn);
           const hsrv=voo?(voo+(horVoo?' Nac. '+horVoo:'')):'';
-          const horApres=det.horarioPadrao||horIn;
+          // Calcula horário de apresentação: 30min antes do horário do serviço
+          let horApres=det.horarioPadrao||horIn;
+          if(!det.horarioPadrao&&horVoo){
+            // horVoo ex: "10:55" -> apresentação 10:25
+            const matchHor=horVoo.match(/(\d{1,2}):(\d{2})/);
+            if(matchHor){
+              let h=parseInt(matchHor[1]),m=parseInt(matchHor[2]);
+              m-=30;if(m<0){m+=60;h-=1;}if(h<0)h=0;
+              horApres=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' no aero';
+            }
+          } else if(!det.horarioPadrao&&horIn){
+            // Usa horário IN como base
+            const matchHor=horIn.match(/(\d{1,2}):(\d{2})/);
+            if(matchHor){
+              let h=parseInt(matchHor[1]),m=parseInt(matchHor[2]);
+              m-=30;if(m<0){m+=60;h-=1;}if(h<0)h=0;
+              horApres=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' no aero';
+            }
+          }
           itensImportados.push({
             guia:guiaMatch,servico:det.tipo,
             horario:horApres,hsrv,voo,pax:paxIn,motorista,hotel:hotelIn,obs:''
@@ -1303,10 +1325,9 @@ async function importarPlanilha(event){
         }
       }
 
-      // Serviço OUT (saída) — só MICRO e BUS, não VAN
-      if(servOut&&horOut&&horOut!=='00:00'&&(isMicroBus||(!isVan&&!isMicroBus))){
-        // VAN: pula OUT. MICRO/BUS: importa OUT.
-        if(!isVan){
+      // Serviço OUT (saída) — MICRO/BUS ou motorista novato, não VAN
+      if(servOut&&horOut&&horOut!=='00:00'){
+        if(!isVan&&(isMicroBus||isNovato)){
           const det=detectarServico(servOut);
           if(det){
             const voo=extrairVoo(servOut);
