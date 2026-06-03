@@ -144,6 +144,21 @@ let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
 
 function hoje(){return new Date().toISOString().slice(0,10)}
 function inicioMes(){const d=new Date();d.setDate(1);return d.toISOString().slice(0,10)}
+function setQuinzena(q,prefixo){
+  const hoje=new Date();
+  const ano=hoje.getFullYear();
+  const mes=String(hoje.getMonth()+1).padStart(2,'0');
+  const ini=prefixo+'-inicio';
+  const fim=prefixo+'-fim';
+  if(q===1){
+    document.getElementById(ini).value=ano+'-'+mes+'-01';
+    document.getElementById(fim).value=ano+'-'+mes+'-15';
+  }else{
+    const ultimoDia=new Date(ano,hoje.getMonth()+1,0).getDate();
+    document.getElementById(ini).value=ano+'-'+mes+'-16';
+    document.getElementById(fim).value=ano+'-'+mes+'-'+String(ultimoDia).padStart(2,'0');
+  }
+}
 function showLoad(){if(document.getElementById('lo'))return;const e=document.createElement('div');e.id='lo';e.className='loading-overlay';e.innerHTML='<div class="loading-spinner"></div>';document.body.appendChild(e)}
 function hideLoad(){const e=document.getElementById('lo');if(e)e.remove()}
 
@@ -1992,6 +2007,11 @@ async function confirmarReset(){
       <button class="btn-outline" onclick="toggleResumoGuia()" id="btn-resumo-guia" style="width:100%;text-align:left;padding:10px 14px;font-size:13px">📊 Resumo por guia no período ▾</button>
     </div>
     <div id="resumo-guia-wrap" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem">
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">Quinzena:</span>
+        <button class="btn-sm" style="background:#27ae60;font-size:12px" onclick="setQuinzena(1,'rg')">1ª (01–15)</button>
+        <button class="btn-sm" style="background:#2980b9;font-size:12px" onclick="setQuinzena(2,'rg')">2ª (16–31)</button>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
         <div><label>Data início</label><input type="date" id="rg-inicio"/></div>
         <div><label>Data fim</label><input type="date" id="rg-fim"/></div>
@@ -2006,6 +2026,11 @@ async function confirmarReset(){
         </div>
       </div>
       <div id="rg-resultado"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+      <span style="font-size:12px;color:var(--muted);white-space:nowrap">Quinzena:</span>
+      <button class="btn-sm" style="background:#27ae60;font-size:12px" onclick="setQuinzena(1,'f');buscar()">1ª (01–15)</button>
+      <button class="btn-sm" style="background:#2980b9;font-size:12px" onclick="setQuinzena(2,'f');buscar()">2ª (16–31)</button>
     </div>
     <div class="filtros-box">
       <div class="fg1">

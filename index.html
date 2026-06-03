@@ -226,7 +226,14 @@
   <!-- HISTÓRICO -->
   <div id="sec-hist" class="section">
     <div class="resumo-hist" id="resumo-hist"></div>
-    <div style="margin-bottom:1rem"><input type="month" id="filtro-mes" onchange="renderHistorico()" /></div>
+    <div style="margin-bottom:1rem">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
+        <input type="month" id="filtro-mes" onchange="window._quinzenaHist=0;renderHistorico()" style="flex:1;min-width:140px" />
+        <button onclick="setQuinzenaHist(1)" id="btn-q1" style="padding:7px 12px;border-radius:var(--radius,8px);border:1px solid #27ae60;background:#27ae60;color:#fff;font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap">1ª quinzena</button>
+        <button onclick="setQuinzenaHist(2)" id="btn-q2" style="padding:7px 12px;border-radius:var(--radius,8px);border:1px solid #2980b9;background:#2980b9;color:#fff;font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap">2ª quinzena</button>
+        <button onclick="setQuinzenaHist(0)" id="btn-qall" style="padding:7px 12px;border-radius:var(--radius,8px);border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap">Mês todo</button>
+      </div>
+    </div>
     <div id="lista-relatorios"></div>
   </div>
 </div>
@@ -504,7 +511,7 @@ function entrarNoApp(nome){
   document.getElementById('guia-nome-header').textContent='Olá, '+nome+'! 👋';
   document.getElementById('user-bar-nome').textContent='👤 '+nome;
   document.getElementById('data-geral').value=hoje();
-  document.getElementById('filtro-mes').value=mesAtual();
+  document.getElementById('filtro-mes').value=mesAtual();window._quinzenaHist=0;
   servicosAtivos=[];contador=0;
   document.getElementById('lista-servicos').innerHTML='';
   carregarEscalaHoje();
@@ -1209,12 +1216,40 @@ function novoRelatorio(){
   adicionarServico();
 }
 
+function setQuinzenaHist(q){
+  window._quinzenaHist=q;
+  // Update button styles
+  var defaults={'btn-q1':'#27ae60','btn-q2':'#2980b9','btn-qall':'var(--surface)'};
+  Object.keys(defaults).forEach(function(id){
+    var btn=document.getElementById(id);
+    if(!btn)return;
+    btn.style.background=defaults[id];
+    btn.style.color=id==='btn-qall'?'var(--muted)':'#fff';
+    btn.style.borderColor=id==='btn-qall'?'var(--border)':defaults[id];
+  });
+  var activeId=q===1?'btn-q1':q===2?'btn-q2':'btn-qall';
+  var active=document.getElementById(activeId);
+  var darken={'btn-q1':'#1e8449','btn-q2':'#1f6391','btn-qall':'var(--border)'};
+  if(active){active.style.background=darken[activeId];active.style.borderColor=darken[activeId];}
+  renderHistorico();
+}
 async function renderHistorico(){
   if(!guiaAtual||!window._fbReady)return;
   const mes=document.getElementById('filtro-mes').value||mesAtual();
-  const inicio=mes+'-01';
   const[ano,m]=mes.split('-').map(Number);
-  const fim=new Date(ano,m,1).toISOString().slice(0,10);
+  const q=window._quinzenaHist||0;
+  let inicio,fim;
+  if(q===1){
+    inicio=mes+'-01';
+    fim=mes+'-16';
+  }else if(q===2){
+    const ultimoDia=new Date(ano,m,0).getDate();
+    inicio=mes+'-16';
+    fim=new Date(ano,m,1).toISOString().slice(0,10);
+  }else{
+    inicio=mes+'-01';
+    fim=new Date(ano,m,1).toISOString().slice(0,10);
+  }
   showLoading();
   try{
     const q=window._query(window._collection(window._db,'relatorios'),window._where('guia','==',guiaAtual),window._where('data','>=',inicio),window._where('data','<',fim),window._orderBy('data','desc'));
