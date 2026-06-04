@@ -1683,11 +1683,12 @@ function buscarFoneGuia(guia){
   if(WHATSAPP_GUIAS[guia])return WHATSAPP_GUIAS[guia];
   const n=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
   const gN=n(guia);
-  const key=Object.keys(WHATSAPP_GUIAS).find(k=>{
-    const kN=n(k);
-    return kN===gN||gN.startsWith(kN)||kN.startsWith(gN)||gN.includes(kN)||kN.includes(gN);
-  });
-  return key?WHATSAPP_GUIAS[key]:null;
+  // Ordena candidatos pelo mais longo (mais específico) primeiro
+  const candidatos=Object.keys(WHATSAPP_GUIAS)
+    .map(k=>({k,kN:n(k)}))
+    .filter(({kN})=>kN===gN||gN.startsWith(kN)||kN.startsWith(gN)||gN.includes(kN)||kN.includes(gN))
+    .sort((a,b)=>b.kN.length-a.kN.length);
+  return candidatos.length?WHATSAPP_GUIAS[candidatos[0].k]:null;
 }
 
 async function enviarWhatsApp(phone, mensagem){
