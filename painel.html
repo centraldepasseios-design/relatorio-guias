@@ -174,7 +174,7 @@ function entrar(){
     setTimeout(verificarRascunho,600);
     document.getElementById('escala-inicio').value=hoje();
     document.getElementById('escala-fim').value=hoje();
-    document.getElementById('disp-data').value=hoje();
+    document.getElementById('disp-data').value=amanha();
     document.getElementById('rg-inicio').value=inicioMes();
     document.getElementById('rg-fim').value=hoje();
     carregarEscalaPublicada();
@@ -1249,7 +1249,7 @@ async function carregarPasseios(){
         +'<span style="font-size:14px;font-weight:600">🏖️ '+g.destino+'</span>'
         +'<span style="font-size:12px;color:var(--muted);margin-left:8px">'+fmt+'</span>'
         +'<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">'
-        +guiasOrdenados.map(gu=>'<span style="font-size:12px"><span style="background:#e67e22;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;margin-right:5px">'+gu.posicao+'º</span>'+gu.nome+(gu.idioma?' <span style="background:#e8f4fd;color:#185fa5;padding:1px 6px;border-radius:99px;font-size:10px">'+(FLAG[gu.idioma]||'')+' '+gu.idioma+'</span>':'')+'</span>').join('')
+        +guiasOrdenados.map(gu=>'<span style="font-size:12px"><span style="background:#e67e22;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;margin-right:5px">'+gu.posicao+'º</span>'+gu.nome+(gu.idioma&&FLAG[gu.idioma]?' <span style="background:#e8f4fd;color:#185fa5;padding:1px 6px;border-radius:99px;font-size:10px">'+FLAG[gu.idioma]+' '+gu.idioma+'</span>':'')+'</span>').join('')
         +'</div></div>'
         +'<div style="display:flex;gap:6px;align-items:flex-start">'
         +'<button onclick="enviarWppPasseio('+grupoJson+')" style="padding:5px 12px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:12px;cursor:pointer;font-weight:600">📱 Enviar WPP</button>'
@@ -1404,15 +1404,13 @@ async function carregarDisp(){
     });
 
     // Carrega passeios do dia para marcar como trabalhando
-    const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio'),window._w('inicio','==',data)));
     const guiasEmPasseio=new Set();
     passeioSnap.docs.forEach(d=>{
       const dd=d.data();
-      if(data>=dd.inicio&&data<=dd.fim){
-        const guiaN=_normDisp(dd.guia);
-        const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN||_normDisp(g).startsWith(guiaN)||guiaN.startsWith(_normDisp(g)))||dd.guia;
-        guiasEmPasseio.add(guiaKey);
-      }
+      const guiaN=_normDisp(dd.guia);
+      const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
+      guiasEmPasseio.add(guiaKey);
     });
 
     hideLoad();
@@ -2710,7 +2708,7 @@ if(localStorage.getItem('luck_admin')==='1'&&typeof entrar==='function'){
   document.getElementById('escala-data').value=hoje();
   document.getElementById('escala-inicio').value=hoje();
   document.getElementById('escala-fim').value=hoje();
-  document.getElementById('disp-data').value=hoje();
+  document.getElementById('disp-data').value=amanha();
   document.getElementById('rg-inicio').value=inicioMes();
   document.getElementById('rg-fim').value=hoje();
 }
