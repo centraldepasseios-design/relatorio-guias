@@ -288,8 +288,8 @@ window._registrarPush = registrarPush;
 </script>
 
 <script>
-const LABELS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
-const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf'};
+const LABELS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF','passeio':'🏖️ Passeio'};
+const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf','passeio':'badge-apoio'};
 let guiaAtual='',contador=0,servicosAtivos=[];
 function formatMoeda(val){
   let v=val.replace(/\D/g,'');
@@ -687,11 +687,41 @@ async function carregarEscalaHoje(){
     ));
     const itens=snap.docs.map(d=>d.data()).filter(d=>d.guia===guiaAtual);
     hideLoading();
+    // Verifica se há passeio para este guia nesta data
+    let passeioInfo=null;
+    try{
+      const bloqSnap=await window._getDocs(window._query(
+        window._collection(window._db,'bloqueios'),
+        window._where('guia','==',guiaAtual),
+        window._where('tipo','==','passeio')
+      ));
+      const bloqDia=bloqSnap.docs.map(d=>d.data()).find(b=>dataEscalaAtual>=b.inicio&&dataEscalaAtual<=b.fim);
+      if(bloqDia)passeioInfo=bloqDia;
+    }catch(e){}
+
     if(!itens.length){
       const dtLabel=new Date(dataEscalaAtual+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-      el.innerHTML='<div class="no-escala">📭 Nenhum serviço escalado para '+dtLabel+'.<br><small>Consulte seu coordenador.</small></div>';
+      if(passeioInfo){
+        const sufixo=passeioInfo.posicao===1?'1º carro':passeioInfo.posicao+'º carro';
+        el.innerHTML='<div style="background:#fff8f0;border:2px solid #e67e22;border-radius:var(--radius);padding:20px;text-align:center">'
+          +'<div style="font-size:32px;margin-bottom:8px">🏖️</div>'
+          +'<div style="font-size:17px;font-weight:700;color:#e67e22;margin-bottom:6px">'+passeioInfo.descricao+'</div>'
+          +'<div style="font-size:14px;color:#7c5c00;margin-bottom:4px">📍 Posição: <strong>'+sufixo+'</strong></div>'
+          +'<div style="font-size:13px;color:var(--muted);margin-top:8px">Aguarde a escala com mais detalhes em breve.</div>'
+          +'</div>';
+      } else {
+        el.innerHTML='<div class="no-escala">📭 Nenhum serviço escalado para '+dtLabel+'.<br><small>Consulte seu coordenador.</small></div>';
+      }
       return;
     }
+    // Se tem itens mas também tem passeio, mostra card de passeio antes
+    const FLAG_ESC={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
+    const idiomaEscLabel=passeioInfo&&passeioInfo.idioma?('<span style="background:#e8f4fd;color:#185fa5;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;margin-left:6px">'+(FLAG_ESC[passeioInfo.idioma]||'')+' '+passeioInfo.idioma+'</span>'):'';
+    const passeioCard=passeioInfo?('<div style="background:#fff8f0;border:2px solid #e67e22;border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px">'
+      +'<span style="font-size:24px">🏖️</span>'
+      +'<div><div style="font-size:14px;font-weight:700;color:#e67e22">'+passeioInfo.descricao+idiomaEscLabel+'</div>'
+      +'<div style="font-size:12px;color:var(--muted)">Posição: <strong>'+(passeioInfo.posicao===1?'1º carro':passeioInfo.posicao+'º carro')+'</strong></div></div>'
+      +'</div>'):'';
     // Verifica confirmação
     let jaConfirmou=false;
     try{
@@ -734,7 +764,7 @@ async function carregarEscalaHoje(){
         <button class="btn-ciente" style="flex:1" onclick="confirmarEscala()">👍 Estou ciente</button>
         <button class="btn-ciente" style="flex:1;background:#c0392b" onclick="recusarEscala()">❌ Recusar</button>
       </div>`;
-    el.innerHTML=`<div class="escala-card"><div class="escala-header"><span>📅 ${dataFmt}</span><span>${itens.length} serviço${itens.length>1?'s':''}</span></div><div class="escala-body">${rows}</div></div><div style="margin-top:8px">${btnCiente}</div>`;
+    el.innerHTML=passeioCard+`<div class="escala-card"><div class="escala-header"><span>📅 ${dataFmt}</span><span>${itens.length} serviço${itens.length>1?'s':''}</span></div><div class="escala-body">${rows}</div></div><div style="margin-top:8px">${btnCiente}</div>`;
     // Busca lista de pax do Phoenix
     carregarPaxPhoenix(guiaAtual, dataEscalaAtual, itens);
     // Busca status dos voos após renderizar
@@ -884,7 +914,22 @@ async function carregarDisponibilidade(){
       const status=dispMap[data]||'';
       const obs=obsMap[data]||'';
       const confirmado=confirmMap[data]||false;
-      const bloqueio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim)||null;
+      const bloqueio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim&&b.tipo!=='passeio')||null;
+      const passeio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim&&b.tipo==='passeio')||null;
+      if(passeio){
+        const FLAG_PAS={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
+        const idiomaPasLabel=passeio.idioma?(FLAG_PAS[passeio.idioma]||'')+' '+passeio.idioma:'';
+        return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:6px;background:#fff8f0;border-radius:var(--rsm);padding:10px;border:1px solid #f0a500">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+            <div class="disp-date">${diaSem}<small>${fmt}</small></div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span style="background:#e67e22;color:#fff;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:500">🏖️ Passeio</span>
+              ${idiomaPasLabel?'<span style="background:#e8f4fd;color:#185fa5;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:500">'+idiomaPasLabel+'</span>':''}
+            </div>
+          </div>
+          <div style="font-size:13px;color:#e67e22;background:#fff;border-radius:var(--rsm);padding:8px 10px;border-left:3px solid #e67e22">🏖️ ${passeio.descricao}</div>
+        </div>`;
+      }
       if(bloqueio){
         return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:6px;background:#f0f0f0;border-radius:var(--rsm);padding:10px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -895,8 +940,8 @@ async function carregarDisponibilidade(){
         </div>`;
       }
       if(confirmado){
-        const statusLabel=status==='sim'?'✅ Disponível':status==='nao'?'❌ Indisponível':'⬜ Não informado';
-        const cor=status==='sim'?'#e1f5ee;color:#0f6e56':status==='nao'?'#fde8e8;color:#c0392b':'#f0f0f0;color:#9a9a96';
+        const statusLabel=status==='sim'?'✅ Disponível':status==='nao'?'❌ Indisponível':status==='passeio'?'🏖️ Passeio':'⬜ Não informado';
+        const cor=status==='sim'?'#e1f5ee;color:#0f6e56':status==='nao'?'#fde8e8;color:#c0392b':status==='passeio'?'#fff3e0;color:#e67e22':'#f0f0f0;color:#9a9a96';
         const dd=dispSnap.docs.find(d=>d.data().data===data);
         const ddData=dd?dd.data():{};
         const foiEditado=ddData.editado||false;
@@ -916,6 +961,7 @@ async function carregarDisponibilidade(){
             <div class="disp-btns">
               <button class="btn-disp sim${status==='sim'?' ativo':''} edit-sim-${data}" onclick="marcarDispEdicao('${data}','sim',this)">✅ Disponível</button>
               <button class="btn-disp nao${status==='nao'?' ativo':''} edit-nao-${data}" onclick="marcarDispEdicao('${data}','nao',this)">❌ Indisponível</button>
+              <button class="btn-disp${status==='passeio'?' ativo':''} edit-pas-${data}" style="background:#fff3e0;color:#e67e22;border-color:#f0a500" onclick="marcarDispEdicao('${data}','passeio',this)">🏖️ Passeio</button>
             </div>
             <input type="text" id="obs-edit-${data}" placeholder="Observação (opcional)" value="${obs}" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
             <div style="display:flex;gap:8px">
@@ -931,6 +977,7 @@ async function carregarDisponibilidade(){
           <div class="disp-btns">
             <button class="btn-disp sim${status==='sim'?' ativo':''}" onclick="marcarDisp('${data}','sim',this)">✅ Disponível</button>
             <button class="btn-disp nao${status==='nao'?' ativo':''}" onclick="marcarDisp('${data}','nao',this)">❌ Indisponível</button>
+            <button class="btn-disp${status==='passeio'?' ativo':''}" style="background:#fff3e0;color:#e67e22;border-color:#f0a500" onclick="marcarDisp('${data}','passeio',this)">🏖️ Passeio</button>
           </div>
         </div>
         <input type="text" placeholder="Restrição de horário ou observação (opcional)" value="${obs}" onblur="salvarObsDisp('${data}',this.value)" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);width:100%"/>
@@ -941,7 +988,7 @@ async function carregarDisponibilidade(){
     const diasParaConfirmar=dias.filter(data=>{
       const bloqueio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim)||null;
       return !bloqueio && !confirmMap[data] && (dispMap[data]==='sim'||dispMap[data]==='nao');
-    });
+    }).filter(data=>!bloqueios.find(b=>data>=b.inicio&&data<=b.fim&&b.tipo==='passeio'));
     const jaConfirmados=dias.filter(data=>confirmMap[data]).length;
     const btnConfirmarTudo=diasParaConfirmar.length>0
       ?'<button onclick="confirmarTudo()" style="width:100%;padding:14px;background:#534ab7;color:#fff;border:none;border-radius:var(--rsm);font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:4px">🔒 Confirmar e bloquear '+diasParaConfirmar.length+' dia'+(diasParaConfirmar.length>1?'s':'')+' preenchido'+(diasParaConfirmar.length>1?'s':'')+'</button>'
@@ -1246,19 +1293,51 @@ function adicionarServico(){
       <div class="row2"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-o-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric" /></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-o-${id}" placeholder="0" min="0" /></div></div>
     </div>
     <div id="f-mot-wrap-${id}" class="hidden" style="margin-top:10px"><label style="margin-top:0">Motorista</label><input type="text" id="mot-${id}" placeholder="Nome do motorista" /></div>
+    <div id="f-passeio-${id}" class="hidden" style="margin-top:14px;background:var(--bg);border-radius:var(--rsm);padding:12px;border:1px solid var(--border)">
+      <div class="row2">
+        <div><label style="margin-top:0">Destino</label>
+          <select id="passeio-dest-${id}" onchange="const o=document.getElementById('passeio-dest-outro-'+${id});o.style.display=this.value==='outro'?'block':'none'">
+            <option value="">— selecionar —</option>
+            <option value="Carneiros">🏖️ Carneiros</option>
+            <option value="Maragogi">🏖️ Maragogi</option>
+            <option value="Cabo de Santo Agostinho">🏖️ Cabo de Santo Agostinho</option>
+            <option value="Litoral Norte">🏖️ Litoral Norte</option>
+            <option value="City Tour Recife e Olinda">🏛️ City Tour Recife e Olinda</option>
+            <option value="São José da Coroa Grande">🏖️ São José da Coroa Grande</option>
+            <option value="outro">✏️ Outro...</option>
+          </select>
+          <input type="text" id="passeio-dest-outro-${id}" placeholder="Digite o destino" style="display:none;margin-top:6px"/>
+        </div>
+        <div><label style="margin-top:0">Idioma</label>
+          <select id="passeio-idioma-${id}">
+            <option value="">🌍 Português</option>
+            <option value="Espanhol">🇪🇸 Espanhol</option>
+            <option value="Bilíngue">🇧🇷🇪🇸 Bilíngue</option>
+            <option value="Inglês">🇺🇸 Inglês</option>
+            <option value="Francês">🇫🇷 Francês</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <div><label style="margin-top:0">Pax</label><input type="number" id="passeio-pax-${id}" placeholder="0" min="0"/></div>
+        <div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="passeio-vendas-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div>
+      </div>
+    </div>
     <div id="f-obs-wrap-${id}" class="hidden" style="margin-top:10px"><label style="margin-top:0">Observações</label><textarea id="obs-${id}" placeholder="opcional" rows="3" style="resize:vertical;min-height:80px"></textarea></div>`;
   document.getElementById('lista-servicos').appendChild(div);atualizarResumo();
 }
 
 function onTipoChange(id){
   const s=document.getElementById('srv-'+id).value;
-  const ch=isChegada(s),sa=isSaida(s);
+  const ch=isChegada(s),sa=isSaida(s),pas=s==='passeio';
   document.getElementById('f-chegada-'+id).classList.toggle('hidden',!ch);
   document.getElementById('f-saida-'+id).classList.toggle('hidden',!sa);
-  document.getElementById('f-outro-'+id).classList.toggle('hidden',ch||sa||!s);
+  document.getElementById('f-outro-'+id).classList.toggle('hidden',ch||sa||pas||!s);
   document.getElementById('f-obs-wrap-'+id).classList.toggle('hidden',!s);
   const motWrap=document.getElementById('f-mot-wrap-'+id);
-  if(motWrap)motWrap.classList.toggle('hidden',!s);
+  if(motWrap)motWrap.classList.toggle('hidden',!s||pas);
+  const pasWrap=document.getElementById('f-passeio-'+id);
+  if(pasWrap)pasWrap.classList.toggle('hidden',!pas);
   atualizarResumo();
 }
 
@@ -1368,14 +1447,48 @@ async function renderHistorico(){
   }
   showLoading();
   try{
-    const q=window._query(window._collection(window._db,'relatorios'),window._where('guia','==',guiaAtual),window._where('data','>=',inicio),window._where('data','<',fim),window._orderBy('data','desc'));
-    const snap=await window._getDocs(q);
+    const qRel=window._query(window._collection(window._db,'relatorios'),window._where('guia','==',guiaAtual),window._where('data','>=',inicio),window._where('data','<',fim),window._orderBy('data','desc'));
+    const snap=await window._getDocs(qRel);
     const lista=snap.docs.map(d=>({id:d.id,...d.data()}));
+
+    // Busca passeios do guia no período
+    const passeioSnap=await window._getDocs(window._query(
+      window._collection(window._db,'bloqueios'),
+      window._where('guia','==',guiaAtual),
+      window._where('tipo','==','passeio')
+    ));
+    const FLAG_H={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
+    const passeiosHist=passeioSnap.docs.map(d=>d.data())
+      .filter(p=>p.inicio>=inicio&&p.inicio<fim)
+      .map(p=>({
+        _passeio:true,
+        data:p.inicio,
+        descricao:p.descricao,
+        idioma:p.idioma||'',
+        posicao:p.posicao||1
+      }));
+
+    // Mescla e ordena por data desc
+    const tudo=[...lista,...passeiosHist].sort((a,b)=>b.data.localeCompare(a.data));
+
     let ts=0,tp=0,tv=0,tn=0;
     lista.forEach(r=>r.itens.forEach(it=>{ts++;if(isChegada(it.servico))tp+=(it.pax||0);if(it.vendas)tv+=it.vendas;if(it.noshow)tn+=it.noshow}));
+    ts+=passeiosHist.length;
     document.getElementById('resumo-hist').innerHTML=`<div class="resumo-card"><div class="num">${ts}</div><div class="lbl">serviços</div></div><div class="resumo-card"><div class="num">${tp}</div><div class="lbl">pax</div></div><div class="resumo-card"><div class="num">R$${tv.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="lbl">vendas</div></div><div class="resumo-card"><div class="num">${tn}</div><div class="lbl">no-show</div></div>`;
-    if(!lista.length){document.getElementById('lista-relatorios').innerHTML='<p class="empty">Nenhum relatório neste mês.</p>';return}
-    document.getElementById('lista-relatorios').innerHTML=lista.map(r=>{
+    if(!tudo.length){document.getElementById('lista-relatorios').innerHTML='<p class="empty">Nenhum registro neste período.</p>';return}
+    document.getElementById('lista-relatorios').innerHTML=tudo.map(r=>{
+      // Card de passeio
+      if(r._passeio){
+        const dataFmt=new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'short'});
+        const idiomaBadge=r.idioma?('<span style="background:#e8f4fd;color:#185fa5;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px">'+(FLAG_H[r.idioma]||'')+' '+r.idioma+'</span>'):'';
+        const sufixo=r.posicao===1?'1º carro':r.posicao+'º carro';
+        return'<div class="rel-card" style="border-left:3px solid #e67e22">'+
+          '<div class="rel-dia"><span>'+dataFmt+'</span><span style="background:#fff3e0;color:#e67e22;font-size:12px;padding:2px 10px;border-radius:99px;font-weight:600">🏖️ Passeio</span></div>'+
+          '<div class="sub-card" style="border-left:3px solid #e67e22">'+
+          '<div style="font-size:14px;font-weight:600;color:#e67e22">🏖️ '+r.descricao+idiomaBadge+'</div>'+
+          '<div style="font-size:12px;color:var(--muted);margin-top:4px">📍 Posição: <strong>'+sufixo+'</strong></div>'+
+          '</div></div>';
+      }
       const dataFmt=new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'short'});
       const itensHtml=r.itens.map(it=>{
         let campos='';

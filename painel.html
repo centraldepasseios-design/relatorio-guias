@@ -136,13 +136,14 @@
 <script>
 
 const SENHA_ADMIN='luck1960';
-const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
+const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
 const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf'};
 const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM JONES','ADRIANE','GUILHERME','FÁBIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONÇALVES','ANTÔNIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANÊS','MADSON','CAMILLA','ANDRÉ','ANA FLÁVIA','RENATA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAÍSSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FÁBIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO M','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANÇA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLÓRIA','ELISIO','REBECA','ENEZIANE','BRUNO S','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
 
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
 
 function hoje(){return new Date().toISOString().slice(0,10)}
+function amanha(){const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10)}
 function inicioMes(){const d=new Date();d.setDate(1);return d.toISOString().slice(0,10)}
 function setQuinzena(q,prefixo){
   const hoje=new Date();
@@ -399,11 +400,24 @@ async function publicarEscala(){
   try{
     // Verifica disponibilidade antes de publicar
     const guiasNovos=[...new Set(itens.map(i=>i.guia))];
+    // Verifica passeios do dia — impede publicação
+    const passeioSnapPub=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    const guiasEmPasseioPub=[];
+    passeioSnapPub.docs.forEach(d=>{
+      const dd=d.data();
+      if(data>=dd.inicio&&data<=dd.fim&&guiasNovos.includes(dd.guia))
+        if(!guiasEmPasseioPub.includes(dd.guia))guiasEmPasseioPub.push(dd.guia);
+    });
+    if(guiasEmPasseioPub.length){
+      hideLoad();
+      alert('🚫 Não é possível publicar!\n\nOs guias abaixo já estão em PASSEIO no dia '+data+':\n\n'+guiasEmPasseioPub.join('\n')+'\n\nRemova-os da escala ou cancele o passeio.');
+      return;
+    }
     const dispSnap=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('data','==',data)));
     const indisponiveis=[];
     dispSnap.docs.forEach(d=>{
       const dd=d.data();
-      if(dd.status==='nao'&&guiasNovos.includes(dd.guia))
+      if((dd.status==='nao'||dd.status==='passeio')&&guiasNovos.includes(dd.guia))
         indisponiveis.push(dd.guia+(dd.obs?' — '+dd.obs:''));
     });
     if(indisponiveis.length){
@@ -1026,6 +1040,256 @@ async function salvarEditItem(){
 // ===== BLOQUEIO DE AGENDA =====
 let _guiaBloqueio='';
 
+// ===== PASSEIOS =====
+function togglePasseioForm(){
+  const f=document.getElementById('passeio-form');
+  const show=f.style.display==='none';
+  f.style.display=show?'block':'none';
+  if(show){
+    document.getElementById('passeio-data').value=amanha();
+    document.getElementById('passeio-busca').value='';
+    document.getElementById('passeio-nome-sel').value='';
+    document.getElementById('passeio-nome').value='';
+    document.getElementById('passeio-nome').style.display='none';
+    window._passeioSelecionados=[];
+    renderGuiasPasseio('');
+    document.getElementById('passeio-ordem-wrap').style.display='none';
+    document.getElementById('passeio-ordem-lista').innerHTML='';
+    carregarPasseios();
+  }
+}
+
+// Guarda selecionados globalmente para persistir entre filtros
+window._passeioSelecionados=[];
+
+function renderGuiasPasseio(filtro){
+  const wrap=document.getElementById('passeio-guias-wrap');
+  const f=filtro.toUpperCase().trim();
+  if(!f&&!window._passeioSelecionados.length){
+    wrap.innerHTML='<span style="font-size:12px;color:var(--muted)">Digite o nome do guia para buscar...</span>';
+    return;
+  }
+  // Mostra selecionados sempre + resultado da busca
+  const porBusca=f?GUIAS.filter(g=>g.includes(f)&&!window._passeioSelecionados.includes(g)):[];
+  const lista=[...window._passeioSelecionados,...porBusca];
+  wrap.innerHTML=lista.map(g=>{
+    const sel=window._passeioSelecionados.includes(g);
+    return'<label style="display:flex;align-items:center;gap:5px;font-size:13px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:99px;cursor:pointer'+(sel?';outline:2px solid #e67e22;background:#fff8f0':'')+'">'
+    +'<input type="checkbox" value="'+g+'" '+(sel?'checked':'')+' onchange="onCheckPasseio(this)" style="cursor:pointer"/> '+g+'</label>';
+  }).join('');
+}
+
+function onCheckPasseio(cb){
+  if(cb.checked){
+    if(!window._passeioSelecionados.includes(cb.value))window._passeioSelecionados.push(cb.value);
+  } else {
+    window._passeioSelecionados=window._passeioSelecionados.filter(g=>g!==cb.value);
+  }
+  renderGuiasPasseio(document.getElementById('passeio-busca').value);
+  atualizarOrdemPasseio();
+}
+
+function onDestinoChange(){
+  const sel=document.getElementById('passeio-nome-sel').value;
+  const inp=document.getElementById('passeio-nome');
+  if(sel==='outro'){inp.style.display='block';inp.value='';inp.focus();}
+  else{inp.style.display='none';inp.value=sel;}
+}
+
+function getDestinoPasseio(){
+  const sel=document.getElementById('passeio-nome-sel').value;
+  if(sel==='outro'||sel==='')return document.getElementById('passeio-nome').value.trim();
+  return sel;
+}
+
+function filtrarGuiasPasseio(){
+  const busca=document.getElementById('passeio-busca').value;
+  renderGuiasPasseio(busca);
+}
+
+function atualizarOrdemPasseio(){
+  const selecionados=window._passeioSelecionados||[];
+  const wrap=document.getElementById('passeio-ordem-wrap');
+  const lista=document.getElementById('passeio-ordem-lista');
+  if(!selecionados.length){wrap.style.display='none';return}
+  wrap.style.display='block';
+  // Mantém ordem existente, adiciona novos no final, remove desmarcados
+  const atual=[...lista.querySelectorAll('.ordem-item')].map(el=>el.dataset.guia);
+  const mantidos=atual.filter(g=>selecionados.includes(g));
+  const novos=selecionados.filter(g=>!mantidos.includes(g));
+  const ordemFinal=[...mantidos,...novos];
+  // Preserva idiomas já selecionados antes de recriar
+  // Preserva idiomas antes de recriar
+  const idiomasAtuais={};
+  lista.querySelectorAll('.ordem-item').forEach(el=>{
+    const sel=el.querySelector('select');
+    if(sel)idiomasAtuais[el.dataset.guia]=sel.value;
+  });
+  lista.innerHTML=ordemFinal.map((g,i)=>{
+    const ia=idiomasAtuais[g]||'';
+    return '<div class="ordem-item" data-guia="'+g+'" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm)">'
+    +'<span style="background:#e67e22;color:#fff;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</span>'
+    +'<span style="flex:1;font-size:13px;font-weight:500">'+g+'</span>'
+    +'<select onchange="void(0)" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff">'
+    +'<option value=""'+(ia===''?' selected':'')+'>🌍 PT</option>'
+    +'<option value="Espanhol"'+(ia==='Espanhol'?' selected':'')+'>🇪🇸 ES</option>'
+    +'<option value="Bilíngue"'+(ia==='Bilíngue'?' selected':'')+'>🇧🇷🇪🇸 Bil</option>'
+    +'<option value="Inglês"'+(ia==='Inglês'?' selected':'')+'>🇺🇸 EN</option>'
+    +'<option value="Francês"'+(ia==='Francês'?' selected':'')+'>🇫🇷 FR</option>'
+    +'</select>'
+    +'<div style="display:flex;gap:2px">'
+    +(i>0?'<button onclick="moverOrdem(this,-1)" style="padding:2px 7px;font-size:11px;cursor:pointer;border:1px solid var(--border);border-radius:3px;background:var(--surface)">▲</button>':'<span style="display:inline-block;width:26px"></span>')
+    +(i<ordemFinal.length-1?'<button onclick="moverOrdem(this,1)" style="padding:2px 7px;font-size:11px;cursor:pointer;border:1px solid var(--border);border-radius:3px;background:var(--surface)">▼</button>':'<span style="display:inline-block;width:26px"></span>')
+    +'</div>'
+    +'</div>';
+  }).join('');
+}
+
+function moverOrdem(btn,dir){
+  const item=btn.closest('.ordem-item');
+  const lista=document.getElementById('passeio-ordem-lista');
+  const items=[...lista.querySelectorAll('.ordem-item')];
+  const idx=items.indexOf(item);
+  const newIdx=idx+dir;
+  if(newIdx<0||newIdx>=items.length)return;
+  if(dir===-1)lista.insertBefore(item,items[newIdx]);
+  else lista.insertBefore(items[newIdx],item);
+  atualizarOrdemPasseio();
+}
+
+async function salvarPasseio(){
+  const data=document.getElementById('passeio-data').value;
+  const destino=getDestinoPasseio();
+  const ordenados=[...document.querySelectorAll('#passeio-ordem-lista .ordem-item')].map(el=>el.dataset.guia);
+  if(!data){alert('Informe a data.');return}
+  if(!destino){alert('Informe o destino.');return}
+  if(!ordenados.length){alert('Selecione pelo menos um guia.');return}
+  showLoad();
+  try{
+    // Verifica conflitos: escala no mesmo dia
+    const escalaSnapPas=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
+    const guiasComEscala=[];
+    escalaSnapPas.docs.forEach(d=>{
+      const dd=d.data();
+      if(ordenados.includes(dd.guia)&&!guiasComEscala.includes(dd.guia))
+        guiasComEscala.push(dd.guia);
+    });
+    if(guiasComEscala.length){
+      hideLoad();
+      alert('🚫 Não é possível salvar o passeio!\n\nOs guias abaixo já têm SERVIÇO ESCALADO no dia '+data+':\n\n'+guiasComEscala.join('\n')+'\n\nRemova-os do passeio ou cancele a escala deles.');
+      return;
+    }
+    // Verifica conflitos: outro passeio no mesmo dia para o mesmo guia
+    const outrosPasseios=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    const guiasJaEmPasseio=[];
+    outrosPasseios.docs.forEach(d=>{
+      const dd=d.data();
+      if(data>=dd.inicio&&data<=dd.fim&&ordenados.includes(dd.guia)&&!guiasJaEmPasseio.includes(dd.guia))
+        guiasJaEmPasseio.push(dd.guia+' ('+dd.descricao+')');
+    });
+    if(guiasJaEmPasseio.length){
+      hideLoad();
+      if(!confirm('⚠️ Os guias abaixo já estão em outro passeio neste dia:\n\n'+guiasJaEmPasseio.join('\n')+'\n\nAdicionar mesmo assim?')){return}
+      showLoad();
+    }
+    const ordItems=document.querySelectorAll('#passeio-ordem-lista .ordem-item');
+    for(let i=0;i<ordenados.length;i++){
+      const guia=ordenados[i];
+      const posicao=i+1;
+      // Busca pelo data-guia para garantir o idioma correto mesmo após reordenação
+      const ordEl=[...ordItems].find(el=>el.dataset.guia===guia);
+      const idiomaEl=ordEl?ordEl.querySelector('select'):null;
+      const idiomaPas=idiomaEl?idiomaEl.value:'';
+      await window._ad(window._col(window._db,'bloqueios'),{
+        guia,inicio:data,fim:data,descricao:destino,tipo:'passeio',
+        posicao,idioma:idiomaPas,criadoEm:new Date().toISOString()
+      });
+    }
+    hideLoad();
+    // Limpa tudo para o próximo passeio
+    window._passeioSelecionados=[];
+    document.getElementById('passeio-nome-sel').value='';
+    document.getElementById('passeio-nome').value='';
+    document.getElementById('passeio-nome').style.display='none';
+    document.getElementById('passeio-busca').value='';
+    document.getElementById('passeio-ordem-wrap').style.display='none';
+    document.getElementById('passeio-ordem-lista').innerHTML='';
+    renderGuiasPasseio('');
+    carregarPasseios();
+    alert('🏖️ Passeio salvo para '+ordenados.length+' guia'+(ordenados.length>1?'s':'')+'!');
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
+async function carregarPasseios(){
+  const lista=document.getElementById('passeio-lista');
+  if(!lista)return;
+  try{
+    const snap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    if(!snap.docs.length){lista.innerHTML='<p class="empty">Nenhum passeio cadastrado.</p>';return}
+    const grupos={};
+    snap.docs.forEach(d=>{
+      const dd=d.data();
+      const key=dd.inicio+'__'+dd.descricao;
+      if(!grupos[key])grupos[key]={data:dd.inicio,destino:dd.descricao,idioma:dd.idioma||'',guias:[],ids:[]};
+      grupos[key].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id});
+      grupos[key].ids.push(d.id);
+    });
+    lista.innerHTML=Object.values(grupos).sort((a,b)=>b.data.localeCompare(a.data)).map(g=>{
+      const guiasOrdenados=g.guias.slice().sort((a,b)=>a.posicao-b.posicao);
+      const d=new Date(g.data+'T12:00:00');
+      const fmt=d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+      const idsJson=JSON.stringify(g.ids).replace(/"/g,'&quot;');
+      const grupoJson=JSON.stringify({data:g.data,destino:g.destino,guias:guiasOrdenados}).replace(/"/g,'&quot;');
+      const FLAG={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
+      const idiomasUnicos=[...new Set(guiasOrdenados.map(gu=>gu.idioma).filter(Boolean))];
+      const idiomaBadge=idiomasUnicos.map(id=>'<span style="background:#e8f4fd;color:#185fa5;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;margin-left:4px">'+(FLAG[id]||'')+' '+id+'</span>').join('');
+      return'<div style="padding:12px 0;border-bottom:1px solid var(--border)">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">'
+        +'<div>'
+        +'<span style="font-size:14px;font-weight:600">🏖️ '+g.destino+'</span>'
+        +'<span style="font-size:12px;color:var(--muted);margin-left:8px">'+fmt+'</span>'
+        +'<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">'
+        +guiasOrdenados.map(gu=>'<span style="font-size:12px"><span style="background:#e67e22;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;margin-right:5px">'+gu.posicao+'º</span>'+gu.nome+(gu.idioma?' <span style="background:#e8f4fd;color:#185fa5;padding:1px 6px;border-radius:99px;font-size:10px">'+(FLAG[gu.idioma]||'')+' '+gu.idioma+'</span>':'')+'</span>').join('')
+        +'</div></div>'
+        +'<div style="display:flex;gap:6px;align-items:flex-start">'
+        +'<button onclick="enviarWppPasseio('+grupoJson+')" style="padding:5px 12px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:12px;cursor:pointer;font-weight:600">📱 Enviar WPP</button>'
+        +'<button onclick="apagarPasseioGrupo('+idsJson+')" style="padding:5px 10px;background:#fde8e8;color:#c0392b;border:1px solid #f5c6c6;border-radius:99px;font-size:11px;cursor:pointer">🗑️</button>'
+        +'</div></div></div>';
+    }).join('');
+  }catch(e){lista.innerHTML='<p class="empty">Erro ao carregar.</p>'}
+}
+
+async function enviarWppPasseio(grupo){
+  const data=new Date(grupo.data+'T12:00:00');
+  const dataFmt=data.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
+  let enviados=0,semFone=[];
+  showLoad();
+  for(const gu of grupo.guias){
+    const fone=buscarFoneGuia(gu.nome);
+    if(!fone){semFone.push(gu.nome);continue}
+    const sufixo=gu.posicao===1?'1º carro':gu.posicao+'º carro';
+    const flagMap={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
+    const idiomaLinha=gu.idioma?('\n🌍 Idioma: *'+(flagMap[gu.idioma]||'')+' '+gu.idioma+'*'):'';
+    const msg='🏖️ *Passeio confirmado!*\n\nOlá '+gu.nome.split(' ')[0]+'! Você está confirmado no passeio de *'+grupo.destino+'* no dia *'+dataFmt+'*.\n\n📍 Posição: *'+sufixo+'*'+idiomaLinha+'\n\nAguarde a escala com mais detalhes em breve. 🙏';
+    await enviarWhatsApp(fone,msg);
+    enviados++;
+  }
+  hideLoad();
+  let res='✅ Mensagem enviada para '+enviados+' guia'+(enviados>1?'s':'')+'!';
+  if(semFone.length)res+='\n\n⚠️ Sem número cadastrado:\n'+semFone.join(', ');
+  alert(res);
+}
+
+async function apagarPasseioGrupo(ids){
+  if(!confirm('Apagar este passeio para todos os guias?'))return;
+  showLoad();
+  try{
+    for(const id of ids)await window._dd(window._doc(window._db,'bloqueios',id));
+    hideLoad();
+    carregarPasseios();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
 async function abrirModalBloqueio(guia){
   _guiaBloqueio=guia;
   document.getElementById('bloqueio-desc').textContent='Bloquear agenda de '+guia;
@@ -1139,15 +1403,27 @@ async function carregarDisp(){
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
+    // Carrega passeios do dia para marcar como trabalhando
+    const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    const guiasEmPasseio=new Set();
+    passeioSnap.docs.forEach(d=>{
+      const dd=d.data();
+      if(data>=dd.inicio&&data<=dd.fim){
+        const guiaN=_normDisp(dd.guia);
+        const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN||_normDisp(g).startsWith(guiaN)||guiaN.startsWith(_normDisp(g)))||dd.guia;
+        guiasEmPasseio.add(guiaKey);
+      }
+    });
+
     hideLoad();
 
     // Filtra guias
     let guiasFiltrados=TODOS_GUIAS_DISP.filter(g=>{
       const status=dispMap[g]||'sem';
-      const trabalhando=ultimaEscala[g]===data;
+      const trabalhando=ultimaEscala[g]===data||guiasEmPasseio.has(g);
       if(filtStatus==='trabalhando'){
         if(!trabalhando)return false;
-      } else if(filtStatus&&filtStatus!==status)return false;
+      } else if(filtStatus==='nao'){if(status!=='nao'&&status!=='passeio')return false;} else if(filtStatus&&filtStatus!==status)return false;
       if(filtIdioma){
         const idiomas=(guiasData[g]&&guiasData[g].idiomas)||[];
         if(!idiomas.includes(filtIdioma))return false;
@@ -1158,9 +1434,9 @@ async function carregarDisp(){
     // Resumo
     const total=TODOS_GUIAS_DISP.length;
     const dispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='sim').length;
-    const indispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='nao').length;
+    const indispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='nao'||dispMap[g]==='passeio').length;
     const semResp=total-dispCount-indispCount;
-    const trabCount=TODOS_GUIAS_DISP.filter(g=>ultimaEscala[g]===data).length;
+    const trabCount=TODOS_GUIAS_DISP.filter(g=>ultimaEscala[g]===data||guiasEmPasseio.has(g)).length;
     document.getElementById('disp-resumo').innerHTML=`
       <div class="resumo-card" style="border-left:3px solid #0f6e56"><div class="num" style="color:#0f6e56">${dispCount}</div><div class="lbl">Disponíveis</div></div>
       <div class="resumo-card" style="border-left:3px solid #c0392b"><div class="num" style="color:#c0392b">${indispCount}</div><div class="lbl">Indisponíveis</div></div>
@@ -1169,8 +1445,8 @@ async function carregarDisp(){
 
     // Ordena: 1º trabalhando hoje, 2º por mais tempo sem ser escalado
     guiasFiltrados.sort((a,b)=>{
-      const aTrab=ultimaEscala[a]===data;
-      const bTrab=ultimaEscala[b]===data;
+      const aTrab=ultimaEscala[a]===data||guiasEmPasseio.has(a);
+      const bTrab=ultimaEscala[b]===data||guiasEmPasseio.has(b);
       if(aTrab&&!bTrab)return -1;
       if(!aTrab&&bTrab)return 1;
       // Entre iguais, ordena por quem está há mais tempo sem ser escalado
@@ -1189,7 +1465,7 @@ async function carregarDisp(){
         const obs=dispObs[g]||'';
         const ultima=ultimaEscala[g]?new Date(ultimaEscala[g]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'Nunca';
         const trabalhando=ultimaEscala[g]===data;
-        const statusBadge=status==='sim'?'<span style="background:#e1f5ee;color:#0f6e56;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">✅ Disponível</span>':status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">❌ Indisponível</span>':'<span style="background:#f0f0f0;color:#9a9a96;padding:3px 10px;border-radius:99px;font-size:12px">⬜ Sem resposta</span>';
+        const statusBadge=status==='sim'?'<span style="background:#e1f5ee;color:#0f6e56;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">✅ Disponível</span>':status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">❌ Indisponível</span>':status==='passeio'?'<span style="background:#fff3e0;color:#e67e22;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">🏖️ Passeio</span>':'<span style="background:#f0f0f0;color:#9a9a96;padding:3px 10px;border-radius:99px;font-size:12px">⬜ Sem resposta</span>';
         const foiEditado=dispEditado[g]||false;
         const editadoEmStr=dispEditadoEm[g]?new Date(dispEditadoEm[g]).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
         const antLabel=dispStatusAnterior[g]==="sim"?"Disponivel":dispStatusAnterior[g]==="nao"?"Indisponivel":"";
@@ -1513,11 +1789,24 @@ async function importarPlanilha(event){
 
     // Verifica disponibilidade antes de mostrar cards
     const guiasImpCheck=[...new Set(itensImportados.map(i=>i.guia))];
+    // Verifica passeios — bloqueia importação
+    const passeioSnapImp=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    const guiasEmPasseioImp=[];
+    passeioSnapImp.docs.forEach(d=>{
+      const dd=d.data();
+      if(data>=dd.inicio&&data<=dd.fim&&guiasImpCheck.includes(dd.guia))
+        if(!guiasEmPasseioImp.includes(dd.guia))guiasEmPasseioImp.push(dd.guia);
+    });
+    if(guiasEmPasseioImp.length){
+      hideLoad();
+      alert('🚫 Importação bloqueada!\n\nOs guias abaixo já estão em PASSEIO no dia '+data+':\n\n'+guiasEmPasseioImp.join('\n')+'\n\nRemova-os da planilha ou cancele o passeio.');
+      event.target.value='';return;
+    }
     const dispSnapImp=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('data','==',data)));
     const indispImp=[];
     dispSnapImp.docs.forEach(d=>{
       const dd=d.data();
-      if(dd.status==='nao'&&guiasImpCheck.includes(dd.guia))
+      if((dd.status==='nao'||dd.status==='passeio')&&guiasImpCheck.includes(dd.guia))
         indispImp.push(dd.guia+(dd.obs?' — '+dd.obs:''));
     });
     if(indispImp.length){
@@ -2137,6 +2426,48 @@ async function confirmarReset(){
     <div id="alerta-confirmacao" style="display:none;margin-bottom:1rem"></div>
     <div id="escala-linhas"></div>
     <div id="escala-publicada"></div>
+
+    <!-- Seção Passeios -->
+    <div style="margin-top:2rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div style="background:#e67e22;color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600;font-size:14px">🏖️ Passeios</span>
+        <button onclick="togglePasseioForm()" id="btn-toggle-passeio" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:4px 12px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer">+ Adicionar passeio</button>
+      </div>
+      <div id="passeio-form" style="display:none;padding:16px;border-bottom:1px solid var(--border)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div><label>Data</label><input type="date" id="passeio-data" style="background:#fff"/></div>
+          <div>
+            <label>Destino</label>
+            <select id="passeio-nome-sel" onchange="onDestinoChange()" style="background:#fff;margin-bottom:4px">
+              <option value="">Selecione o destino...</option>
+              <option value="Carneiros">🏖️ Carneiros</option>
+              <option value="Maragogi">🏖️ Maragogi</option>
+              <option value="Cabo de Santo Agostinho">🏖️ Cabo de Santo Agostinho</option>
+              <option value="Litoral Norte">🏖️ Litoral Norte</option>
+              <option value="City Tour Recife e Olinda">🏛️ City Tour Recife e Olinda</option>
+              <option value="São José da Coroa Grande">🏖️ São José da Coroa Grande</option>
+              <option value="outro">✏️ Outro destino...</option>
+            </select>
+            <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
+          </div>
+
+        </div>
+        <div style="margin-bottom:10px">
+          <label>Guias e posição no carro</label>
+          <input type="text" id="passeio-busca" placeholder="🔍 Buscar guia..." oninput="filtrarGuiasPasseio()" style="background:#fff;margin-bottom:6px"/>
+          <div id="passeio-guias-wrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);max-height:160px;overflow-y:auto"></div>
+        </div>
+        <div id="passeio-ordem-wrap" style="display:none;margin-bottom:10px">
+          <label>Ordem dos guias <span style="font-size:11px;color:var(--muted)">(1º = 1º carro)</span></label>
+          <div id="passeio-ordem-lista" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm)"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="salvarPasseio()" style="padding:9px 18px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">💾 Salvar passeio</button>
+          <button onclick="togglePasseioForm()" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer">Cancelar</button>
+        </div>
+      </div>
+      <div id="passeio-lista" style="padding:12px 16px"><p class="empty">Nenhum passeio cadastrado.</p></div>
+    </div>
     <div id="escala-filtros" style="display:none;margin-bottom:10px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label>Filtrar por guia</label><input type="text" id="f-pub-guia" placeholder="Nome do guia..." oninput="filtrarPublicada()" style="background:#fff"/></div>
@@ -2224,6 +2555,7 @@ async function confirmarReset(){
           <option value="">Todos</option>
           <option value="sim">✅ Disponíveis</option>
           <option value="nao">❌ Indisponíveis</option>
+          <option value="passeio">🏖️ Passeio</option>
           <option value="sem">⬜ Sem resposta</option>
           <option value="trabalhando">🔧 Trabalhando hoje</option>
         </select>
