@@ -1098,14 +1098,18 @@ async function carregarDisp(){
     const dispEditado={};
     const dispEditadoEm={};
     const dispStatusAnterior={};
+    const _normDisp=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
     dispSnap.docs.forEach(d=>{
       const dd=d.data();
-      dispMap[dd.guia]=dd.status;
-      if(dd.obs)dispObs[dd.guia]=dd.obs;
+      // Salva tanto pelo nome original quanto pelo normalizado para garantir o match
+      const guiaN=_normDisp(dd.guia);
+      const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN||_normDisp(g).startsWith(guiaN)||guiaN.startsWith(_normDisp(g)))||dd.guia;
+      dispMap[guiaKey]=dd.status;
+      if(dd.obs)dispObs[guiaKey]=dd.obs;
       if(dd.editado){
-        dispEditado[dd.guia]=true;
-        if(dd.editadoEm)dispEditadoEm[dd.guia]=dd.editadoEm;
-        if(dd.statusAnterior)dispStatusAnterior[dd.guia]=dd.statusAnterior;
+        dispEditado[guiaKey]=true;
+        if(dd.editadoEm)dispEditadoEm[guiaKey]=dd.editadoEm;
+        if(dd.statusAnterior)dispStatusAnterior[guiaKey]=dd.statusAnterior;
       }
     });
 
@@ -1119,7 +1123,9 @@ async function carregarDisp(){
     const ultimaEscala={};
     escSnap.docs.forEach(d=>{
       const it=d.data();
-      if(!ultimaEscala[it.guia]||it.data>ultimaEscala[it.guia])ultimaEscala[it.guia]=it.data;
+      const guiaN=_normDisp(it.guia);
+      const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN||_normDisp(g).startsWith(guiaN)||guiaN.startsWith(_normDisp(g)))||it.guia;
+      if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
     hideLoad();
