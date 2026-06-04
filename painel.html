@@ -170,6 +170,7 @@ function entrar(){
     document.getElementById('f-inicio').value=inicioMes();
     document.getElementById('f-fim').value=hoje();
     document.getElementById('escala-data').value=hoje();
+    setTimeout(verificarRascunho,600);
     document.getElementById('escala-inicio').value=hoje();
     document.getElementById('escala-fim').value=hoje();
     document.getElementById('disp-data').value=hoje();
@@ -191,7 +192,7 @@ function trocarAba(aba){
     document.getElementById('sec-'+a).classList.toggle('active',aba===a);
   });
   if(aba==='senhas')carregarSenhas();
-  if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();verificarPendentes();}
+  if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();verificarPendentes();setTimeout(verificarRascunho,400);}
   if(aba==='disp')carregarDisp();
 }
 
@@ -248,12 +249,12 @@ function onTipo(id){
   const srv=document.getElementById('es-'+id).value;
   const isCS=srv.startsWith('chegada')||srv.startsWith('saida');
   const isAT=srv.startsWith('apoio')||srv==='trf';
-  // chegada/saida: mostrar horario apresentação + horario serviço + motorista
   const isCH=srv.startsWith('chegada');
+  // chegada/saida: horario apresentação + horario serviço + pax + motorista
   document.getElementById('ef-'+id).style.display=isCS?'grid':'none';
   document.getElementById('epax-wrap-'+id).style.display=isCH?'block':'none';
-  document.getElementById('em-wrap-'+id).style.display=isCS?'block':'none';
-  // apoio/trf: só horario apresentação (campo separado)
+  document.getElementById('em-wrap-'+id).style.display=(isCS||isAT)?'block':'none';
+  // apoio/trf: horario apresentação (campo separado) + motorista
   document.getElementById('eap-wrap-'+id).style.display=isAT?'block':'none';
 }
 
@@ -279,6 +280,92 @@ function duplicarLinha(id){
     motorista:isCS?document.getElementById('em-'+id).value:'',
     obs:document.getElementById('eo-'+id).value
   });
+}
+
+function coletarItensRascunho(){
+  const data=document.getElementById('escala-data').value||hoje();
+  const itens=[];
+  for(const id of linhas){
+    const guia=(document.getElementById('eg-'+id)||{}).value||'';
+    const srv=(document.getElementById('es-'+id)||{}).value||'';
+    const srv_el=document.getElementById('es-'+id);
+    const isCS=srv.startsWith('chegada')||srv.startsWith('saida');
+    const isAT=srv.startsWith('apoio')||srv==='trf';
+    let horario='',hsrv='',motorista='';
+    if(isCS){
+      horario=(document.getElementById('eh-'+id)||{}).value||'';
+      hsrv=(document.getElementById('ehs-'+id)||{}).value||'';
+      motorista=(document.getElementById('em-'+id)||{}).value||'';
+    }
+    if(isAT){
+      horario=(document.getElementById('eap-'+id)||{}).value||'';
+      motorista=(document.getElementById('em-'+id)||{}).value||'';
+    }
+    const pax=srv.startsWith('chegada')?parseInt((document.getElementById('epax-'+id)||{}).value)||0:0;
+    const obs=(document.getElementById('eo-'+id)||{}).value||'';
+    const hotel=_hotelMap[id]||'';
+    itens.push({guia,servico:srv,horario,hsrv,motorista,pax,hotel,obs});
+  }
+  return{data,itens};
+}
+
+function salvarRascunho(){
+  if(!linhas.length){alert('Nenhum serviço para salvar.');return}
+  const rascunho=coletarItensRascunho();
+  localStorage.setItem('escala_rascunho',JSON.stringify({...rascunho,salvoEm:new Date().toISOString()}));
+  const n=rascunho.itens.length;
+  alert('💾 Rascunho salvo com '+n+' serviço'+(n>1?'s':'')+' para '+rascunho.data+'!');
+}
+
+function verificarRascunho(){
+  try{
+    const raw=localStorage.getItem('escala_rascunho');
+    if(!raw)return;
+    const r=JSON.parse(raw);
+    if(!r||!r.itens||!r.itens.length)return;
+    const salvoEm=r.salvoEm?new Date(r.salvoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    const banner=document.createElement('div');
+    banner.id='banner-rascunho';
+    banner.style.cssText='background:#fff8e1;border:1px solid #f0c040;border-radius:var(--rsm);padding:12px 16px;font-size:13px;color:#7c5c00;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px';
+    banner.innerHTML='<span>💾 <strong>Rascunho salvo</strong> — '+r.itens.length+' serviço'+(r.itens.length>1?'s':'')+' para <strong>'+r.data+'</strong>'+(salvoEm?' · '+salvoEm:'')+'</span>'
+      +'<div style="display:flex;gap:8px">'
+      +'<button onclick="restaurarRascunho()" style="padding:6px 14px;background:#f39c12;color:#fff;border:none;border-radius:99px;font-size:12px;font-family:inherit;cursor:pointer;font-weight:600">↩ Restaurar</button>'
+      +'<button onclick="descartarRascunho()" style="padding:6px 12px;background:none;color:#7c5c00;border:1px solid #f0c040;border-radius:99px;font-size:12px;font-family:inherit;cursor:pointer">✕ Descartar</button>'
+      +'</div>';
+    const wrap=document.getElementById('escala-linhas');
+    if(wrap)wrap.parentNode.insertBefore(banner,wrap);
+  }catch(e){console.error('Erro rascunho:',e)}
+}
+
+function restaurarRascunho(){
+  try{
+    const raw=localStorage.getItem('escala_rascunho');
+    if(!raw)return;
+    const r=JSON.parse(raw);
+    if(!r||!r.itens)return;
+    // Seta a data
+    const dateEl=document.getElementById('escala-data');
+    if(dateEl&&r.data)dateEl.value=r.data;
+    // Limpa cards atuais
+    document.getElementById('escala-linhas').innerHTML='';
+    linhas=[];contL=0;
+    Object.keys(_hotelMap).forEach(k=>delete _hotelMap[k]);
+    // Recria os cards
+    r.itens.forEach(it=>{
+      adicionarLinha(it);
+      if(it.hotel){const lastId=linhas[linhas.length-1];_hotelMap[lastId]=it.hotel;}
+    });
+    // Remove banner
+    const b=document.getElementById('banner-rascunho');
+    if(b)b.remove();
+  }catch(e){alert('Erro ao restaurar: '+e.message)}
+}
+
+function descartarRascunho(){
+  if(!confirm('Descartar o rascunho salvo?'))return;
+  localStorage.removeItem('escala_rascunho');
+  const b=document.getElementById('banner-rascunho');
+  if(b)b.remove();
 }
 
 async function publicarEscala(){
@@ -329,6 +416,9 @@ async function publicarEscala(){
     for(const item of itens)await window._ad(window._col(window._db,'escalas'),{...item,data,publicadoEm:new Date().toISOString()});
     hideLoad();
     alert(`✅ ${itens.length} serviço(s) adicionados à escala de ${data}!`);
+    localStorage.removeItem('escala_rascunho');
+    const bRasc=document.getElementById('banner-rascunho');
+    if(bRasc)bRasc.remove();
     document.getElementById('escala-linhas').innerHTML='';
     linhas=[];contL=0;
     carregarEscalaPublicada();
@@ -1304,13 +1394,24 @@ async function importarPlanilha(event){
         if(t.includes('TRF IN CABO'))return{tipo:'chegada-cabo'};
         if(t.includes('TRF IN MRG')||t.includes('TRF IN MARAGOGI'))return{tipo:'chegada-maragogi'};
         if(t.includes('TRF IN SER'))return{tipo:'chegada-maragogi'};
-        if(t.includes('TRF OUT PGA')||t.includes('TRF OUT PORTO'))return{tipo:'saida-porto'};
-        if(t.includes('TRF OUT REC')||t.includes('TRF OUT RECIFE'))return{tipo:'saida-recife'};
-        if(t.includes('TRF OUT CABO'))return{tipo:'saida-cabo'};
-        if(t.includes('TRF OUT MRG')||t.includes('TRF OUT MARAGOGI')||t.includes('TRF OUT SER'))return{tipo:'saida-maragogi'};
-        if(t.includes('APOIO')&&(t.includes('RECIFE')||t.includes('REC')))return{tipo:'apoio-recife',horarioPadrao:'6:00 no aero'};
-        if(t.includes('APOIO'))return{tipo:'apoio-porto',horarioPadrao:'subir no carro dos guias'};
+        if(t.includes('TRF OUT PGA')||t.includes('TRF OUT PORTO'))return{tipo:'saida-porto',antecedenciaMin:120,localApres:'na garagem'};
+        if(t.includes('TRF OUT REC')||t.includes('TRF OUT RECIFE'))return{tipo:'saida-recife',antecedenciaMin:60,localApres:'no aeroporto'};
+        if(t.includes('TRF OUT CABO'))return{tipo:'saida-cabo',antecedenciaMin:120,localApres:'na garagem'};
+        if(t.includes('TRF OUT MRG')||t.includes('TRF OUT MARAGOGI')||t.includes('TRF OUT SER'))return{tipo:'saida-maragogi',antecedenciaMin:240,localApres:'na garagem'};
+        if(t.includes('APOIO')&&(t.includes('RECIFE')||t.includes('REC')))return{tipo:'apoio-recife',horarioPadrao:'06:00 no aero',comMotorista:true};
+        if(t.includes('APOIO'))return{tipo:'apoio-porto',horarioPadrao:'subir no carro dos guias',comMotorista:true};
         return null;
+      };
+
+      // Subtrai minutos de um horário HH:MM e retorna string formatada
+      const subtrairMinutos=(hor,mins,local)=>{
+        const match=hor.match(/(\d{1,2}):(\d{2})/);
+        if(!match)return hor;
+        let h=parseInt(match[1]),m=parseInt(match[2]);
+        m-=mins;
+        while(m<0){m+=60;h--;}
+        if(h<0)h=0;
+        return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+(local?' '+local:'');
       };
 
       const extrairVoo=(texto)=>{
@@ -1340,28 +1441,16 @@ async function importarPlanilha(event){
           const voo=extrairVoo(servIn);
           const horVoo=extrairHorarioVoo(servIn);
           const hsrv=voo?(voo+(horVoo?' Nac. '+horVoo:'')):'';
-          // Calcula horário de apresentação: 30min antes do horário do serviço
-          let horApres=det.horarioPadrao||horIn;
-          if(!det.horarioPadrao&&horVoo){
-            // horVoo ex: "10:55" -> apresentação 10:25
-            const matchHor=horVoo.match(/(\d{1,2}):(\d{2})/);
-            if(matchHor){
-              let h=parseInt(matchHor[1]),m=parseInt(matchHor[2]);
-              m-=30;if(m<0){m+=60;h-=1;}if(h<0)h=0;
-              horApres=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' no aero';
-            }
-          } else if(!det.horarioPadrao&&horIn){
-            // Usa horário IN como base
-            const matchHor=horIn.match(/(\d{1,2}):(\d{2})/);
-            if(matchHor){
-              let h=parseInt(matchHor[1]),m=parseInt(matchHor[2]);
-              m-=30;if(m<0){m+=60;h-=1;}if(h<0)h=0;
-              horApres=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' no aero';
-            }
+          // Calcula horário de apresentação: 30min antes do voo (ou horIn como fallback)
+          let horApres=det.horarioPadrao||'';
+          if(!det.horarioPadrao){
+            const baseHor=horVoo||horIn;
+            horApres=subtrairMinutos(baseHor,30,'no aero');
           }
+          const motChegada=det.comMotorista?motorista:'';
           itensImportados.push({
             guia:guiaFinal,servico:det.tipo,
-            horario:horApres,hsrv,voo,pax:paxIn,motorista,hotel:hotelIn,obs:''
+            horario:horApres,hsrv,voo,pax:paxIn,motorista:motChegada,hotel:hotelIn,obs:''
           });
         }
       }
@@ -1374,11 +1463,19 @@ async function importarPlanilha(event){
             const voo=extrairVoo(servOut);
             const horVoo=extrairHorarioVoo(servOut);
             const hsrvOut=voo?(voo+(horVoo?' Nac. '+horVoo:'')):'';
-            const horAOut=det.horarioPadrao||horOut;
+            let horAOut=det.horarioPadrao||'';
+            if(!det.horarioPadrao&&det.antecedenciaMin){
+              // Usa horário do voo se disponível, senão horOut
+              const baseHorSaida=horVoo||horOut;
+              horAOut=subtrairMinutos(baseHorSaida,det.antecedenciaMin,det.localApres);
+            } else if(!det.horarioPadrao){
+              horAOut=horOut;
+            }
+            const motSaida=det.comMotorista?motorista:motorista;
             itensImportados.push({
               guia:guiaFinal,servico:det.tipo,
               horario:horAOut,hsrv:hsrvOut,
-              voo,pax:paxOut,motorista,hotel:hotelOut,obs:''
+              voo,pax:paxOut,motorista:motSaida,hotel:hotelOut,obs:''
             });
           }
         }
@@ -1583,9 +1680,13 @@ const ZAPI_URL='https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/
 const ZAPI_CLIENT_TOKEN='F1b7c26e0ce09416fbc813a307ce5f298S';
 
 function buscarFoneGuia(guia){
-  // Tenta match exato, depois parcial
   if(WHATSAPP_GUIAS[guia])return WHATSAPP_GUIAS[guia];
-  const key=Object.keys(WHATSAPP_GUIAS).find(k=>guia.startsWith(k)||k.startsWith(guia)||guia.includes(k)||k.includes(guia));
+  const n=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  const gN=n(guia);
+  const key=Object.keys(WHATSAPP_GUIAS).find(k=>{
+    const kN=n(k);
+    return kN===gN||gN.startsWith(kN)||kN.startsWith(gN)||gN.includes(kN)||kN.includes(gN);
+  });
   return key?WHATSAPP_GUIAS[key]:null;
 }
 
@@ -1998,10 +2099,11 @@ async function confirmarReset(){
         <input type="date" id="escala-data" style="width:auto;padding:7px 10px;font-size:13px" title="Data para publicar escala"/>
         <button class="btn-sm" onclick="adicionarLinha()">+ Serviço</button>
         <button class="btn-green" onclick="publicarEscala()">✅ Publicar</button>
+        <button onclick="salvarRascunho()" style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#f39c12;color:#fff;border:none;border-radius:var(--rsm);cursor:pointer;white-space:nowrap">💾 Rascunho</button>
         <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
         <button class="btn-red" onclick="apagarEscalaDia()" style="padding:8px 14px;font-size:13px">🗑️ Apagar dia</button>
         <label style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#185fa5;color:#fff;border-radius:var(--rsm);cursor:pointer;white-space:nowrap">📊 Importar planilha<input type="file" accept=".xlsx" onchange="importarPlanilha(event)" style="display:none"/></label>
-        <label style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#8e44ad;color:#fff;border-radius:var(--rsm);cursor:pointer;white-space:nowrap">📋 Importar PDF Phoenix<input type="file" accept=".pdf" onchange="importarPDFPhoenix(event)" style="display:none"/></label>
+
         <button style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);cursor:pointer" onclick="notificarPendentes()">🔔 Notificar sem relatório</button>
         <button style="padding:8px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;background:#25D366;color:#fff;border:none;border-radius:var(--rsm);cursor:pointer" onclick="enviarEscalaWhatsApp()">📱 Enviar WPP</button>
       </div>
