@@ -1005,10 +1005,18 @@ async function carregarDisp(){
     const dispSnap=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('data','==',data)));
     const dispMap={};
     const dispObs={};
+    const dispEditado={};
+    const dispEditadoEm={};
+    const dispStatusAnterior={};
     dispSnap.docs.forEach(d=>{
       const dd=d.data();
       dispMap[dd.guia]=dd.status;
       if(dd.obs)dispObs[dd.guia]=dd.obs;
+      if(dd.editado){
+        dispEditado[dd.guia]=true;
+        if(dd.editadoEm)dispEditadoEm[dd.guia]=dd.editadoEm;
+        if(dd.statusAnterior)dispStatusAnterior[dd.guia]=dd.statusAnterior;
+      }
     });
 
     // Carrega dados dos guias (idiomas, obs)
@@ -1075,6 +1083,10 @@ async function carregarDisp(){
         const ultima=ultimaEscala[g]?new Date(ultimaEscala[g]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'Nunca';
         const trabalhando=ultimaEscala[g]===data;
         const statusBadge=status==='sim'?'<span style="background:#e1f5ee;color:#0f6e56;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">✅ Disponível</span>':status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">❌ Indisponível</span>':'<span style="background:#f0f0f0;color:#9a9a96;padding:3px 10px;border-radius:99px;font-size:12px">⬜ Sem resposta</span>';
+        const foiEditado=dispEditado[g]||false;
+        const editadoEmStr=dispEditadoEm[g]?new Date(dispEditadoEm[g]).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+        const antLabel=dispStatusAnterior[g]==="sim"?"Disponivel":dispStatusAnterior[g]==="nao"?"Indisponivel":"";
+        const editadoBadge=foiEditado?"<span style=\"background:#fff3cd;color:#856404;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600\">✏️ Editado"+(editadoEmStr?" "+editadoEmStr:"")+"</span>"+(antLabel?"<span style=\"background:#f0f0f0;color:#9a9a96;padding:3px 8px;border-radius:99px;font-size:10px\">Antes: "+antLabel+"</span>":""):"";
         return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px">
@@ -1090,6 +1102,7 @@ async function carregarDisp(){
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
             ${statusBadge}
+            ${editadoBadge}
             <button onclick="abrirModalBloqueio('${g}')" style="padding:3px 10px;font-size:11px;font-family:'DM Sans',sans-serif;background:#2c3e50;color:#fff;border:none;border-radius:99px;cursor:pointer;white-space:nowrap">🔒 Bloquear dias</button>
           </div>
         </div>`;

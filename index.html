@@ -850,7 +850,7 @@ async function carregarDisponibilidade(){
     const confirmMap={};
     dispSnap.docs.forEach(d=>{
       const dd=d.data();
-      if(dd.data>=dias[0]&&dd.data<=dias[6]){
+      if(dd.data>=dias[0]&&dd.data<=dias[13]){
         dispMap[dd.data]=dd.status;
         if(dd.obs)obsMap[dd.data]=dd.obs;
         if(dd.confirmado)confirmMap[dd.data]=true;
@@ -878,15 +878,32 @@ async function carregarDisponibilidade(){
       if(confirmado){
         const statusLabel=status==='sim'?'✅ Disponível':status==='nao'?'❌ Indisponível':'⬜ Não informado';
         const cor=status==='sim'?'#e1f5ee;color:#0f6e56':status==='nao'?'#fde8e8;color:#c0392b':'#f0f0f0;color:#9a9a96';
-        return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:6px;opacity:0.85">
-          <div style="display:flex;justify-content:space-between;align-items:center">
+        const dd=dispSnap.docs.find(d=>d.data().data===data);
+        const ddData=dd?dd.data():{};
+        const foiEditado=ddData.editado||false;
+        const editadoEm=ddData.editadoEm?' em '+new Date(ddData.editadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+        return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
             <div class="disp-date">${diaSem}<small>${fmt}</small></div>
-            <div style="display:flex;gap:6px;align-items:center">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <span style="background:${cor};padding:4px 12px;border-radius:99px;font-size:12px;font-weight:500">${statusLabel}</span>
-              <span style="font-size:11px;color:var(--muted)">🔒 Confirmado</span>
+              ${foiEditado?'<span style="background:#fff3cd;color:#856404;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500">✏️ Editado'+editadoEm+'</span>':'<span style="font-size:11px;color:var(--muted)">🔒 Confirmado</span>'}
+              <button onclick="editarDispConfirmado(''+data+'')" style="padding:5px 12px;border-radius:99px;border:1px solid #e67e22;background:#fff8f0;color:#e67e22;font-size:12px;cursor:pointer;font-family:inherit">✏️ Editar</button>
             </div>
           </div>
           ${obs?`<div style="font-size:13px;color:var(--muted);padding:6px 10px;background:var(--bg);border-radius:var(--rsm);border:1px solid var(--border)">📝 ${obs}</div>`:''}
+          <div id="edit-disp-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22">
+            <div style="font-size:12px;color:#e67e22;font-weight:600">✏️ Editar disponibilidade</div>
+            <div class="disp-btns">
+              <button class="btn-disp sim${status==='sim'?' ativo':''} edit-sim-${data}" onclick="marcarDispEdicao(''+data+'','sim',this)">✅ Disponível</button>
+              <button class="btn-disp nao${status==='nao'?' ativo':''} edit-nao-${data}" onclick="marcarDispEdicao(''+data+'','nao',this)">❌ Indisponível</button>
+            </div>
+            <input type="text" id="obs-edit-${data}" placeholder="Observação (opcional)" value="${obs}" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
+            <div style="display:flex;gap:8px">
+              <button onclick="salvarEdicaoDisp(''+data+'')" style="flex:1;padding:9px;background:#27ae60;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar edição</button>
+              <button onclick="cancelarEdicaoDisp(''+data+'')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
+            </div>
+          </div>
         </div>`;
       }
       return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:8px">
@@ -898,14 +915,23 @@ async function carregarDisponibilidade(){
           </div>
         </div>
         <input type="text" placeholder="Restrição de horário ou observação (opcional)" value="${obs}" onblur="salvarObsDisp('${data}',this.value)" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);width:100%"/>
-        <button class="btn-ciente btn-confirmar-dia" style="background:#534ab7;font-size:13px;padding:9px;display:${status?'block':'none'}" onclick="confirmarDia('${data}',this)">🔒 Confirmar e bloquear este dia</button>
       </div>`;
     }).join('');
 
+    // Conta dias preenchidos mas ainda não confirmados
+    const diasParaConfirmar=dias.filter(data=>{
+      const bloqueio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim)||null;
+      return !bloqueio && !confirmMap[data] && (dispMap[data]==='sim'||dispMap[data]==='nao');
+    });
+    const jaConfirmados=dias.filter(data=>confirmMap[data]).length;
+    const btnConfirmarTudo=diasParaConfirmar.length>0
+      ?'<button onclick="confirmarTudo()" style="width:100%;padding:14px;background:#534ab7;color:#fff;border:none;border-radius:var(--rsm);font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:4px">🔒 Confirmar e bloquear '+diasParaConfirmar.length+' dia'+(diasParaConfirmar.length>1?'s':'')+' preenchido'+(diasParaConfirmar.length>1?'s':'')+'</button>'
+      :(jaConfirmados>0?'<div style="text-align:center;padding:12px;font-size:13px;color:#0f6e56;background:#e1f5ee;border-radius:var(--rsm);font-weight:500">✅ Disponibilidade confirmada para '+jaConfirmados+' dia'+(jaConfirmados>1?'s':'')+'</div>':'');
     el.innerHTML=`
       <div class="disp-card">
-        <h3>📆 Minha disponibilidade — próximos 7 dias</h3>
+        <h3>📆 Minha disponibilidade — próximos 14 dias</h3>
         ${diasRows}
+        <div style="margin-top:12px">${btnConfirmarTudo}</div>
       </div>`;
   }catch(e){hideLoading();el.innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}
 }
@@ -942,16 +968,63 @@ async function salvarIdiomas(){
   }catch(e){hideLoading();alert('Erro: '+e.message)}
 }
 
-async function confirmarDia(data, btn){
-  const status=dispMap_global[data]||'';
-  if(!status){alert('Selecione disponível ou indisponível antes de confirmar.');return}
-  if(!confirm('Confirmar disponibilidade para este dia? Após confirmar não será possível editar.'))return;
+function editarDispConfirmado(data){
+  const el=document.getElementById('edit-disp-'+data);
+  if(el)el.style.display='flex';
+}
+function cancelarEdicaoDisp(data){
+  const el=document.getElementById('edit-disp-'+data);
+  if(el)el.style.display='none';
+}
+function marcarDispEdicao(data,status,btn){
+  window.dispMap_global[data]=status;
+  const painel=document.getElementById('edit-disp-'+data);
+  if(painel){
+    painel.querySelectorAll('.btn-disp').forEach(b=>b.classList.remove('ativo'));
+    btn.classList.add('ativo');
+  }
+}
+async function salvarEdicaoDisp(data){
+  const status=window.dispMap_global[data]||'';
+  if(!status){alert('Selecione disponível ou indisponível.');return}
+  const obsEl=document.getElementById('obs-edit-'+data);
+  const obs=obsEl?obsEl.value:'';
   showLoading();
   try{
     const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
     const snap=await window._getDoc(ref);
     const atual=snap.exists()?snap.data():{};
-    await window._setDoc(ref,{...atual,guia:guiaAtual,data,confirmado:true,confirmadoEm:new Date().toISOString()});
+    const statusAnterior=atual.status||'';
+    await window._setDoc(ref,{
+      ...atual,
+      guia:guiaAtual,
+      data,
+      status,
+      obs,
+      editado:true,
+      editadoEm:new Date().toISOString(),
+      statusAnterior:statusAnterior,
+      atualizadoEm:new Date().toISOString()
+    });
+    hideLoading();
+    carregarDisponibilidade();
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+async function confirmarTudo(){
+  const diasPreenchidos=Object.keys(dispMap_global).filter(data=>dispMap_global[data]==='sim'||dispMap_global[data]==='nao');
+  if(!diasPreenchidos.length){alert('Marque pelo menos um dia antes de confirmar.');return}
+  if(!confirm('Confirmar e bloquear '+diasPreenchidos.length+' dia'+(diasPreenchidos.length>1?'s':'')+' preenchido'+(diasPreenchidos.length>1?'s':'')+' ? Você ainda poderá editar depois se precisar.'))return;
+  showLoading();
+  try{
+    const agora=new Date().toISOString();
+    for(const data of diasPreenchidos){
+      const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
+      const snap=await window._getDoc(ref);
+      const atual=snap.exists()?snap.data():{};
+      if(!atual.confirmado){
+        await window._setDoc(ref,{...atual,guia:guiaAtual,data,confirmado:true,confirmadoEm:agora});
+      }
+    }
     hideLoading();
     carregarDisponibilidade();
   }catch(e){hideLoading();alert('Erro: '+e.message)}
