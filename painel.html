@@ -1241,6 +1241,7 @@ async function importarPlanilha(event){
     const COL_SERV_OUT=7, COL_SERV_IN=8, COL_PAX_OUT=9, COL_PAX_IN=10;
 
     const itensImportados=[];
+    const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 
     for(let i=1;i<rows.length;i++){
       const row=rows[i];
@@ -1251,9 +1252,21 @@ async function importarPlanilha(event){
       const guiaNome=guiaRaw.replace(/\s*-\s*GUIA\s*/i,'').trim().toUpperCase();
       if(!guiaNome)continue;
 
-      // Verifica se é um guia da nossa lista
-      const guiaMatch=GUIAS.find(g=>g===guiaNome||guiaNome.startsWith(g)||g.startsWith(guiaNome));
-      if(!guiaMatch)continue;
+      // Verifica se é um guia da nossa lista (match normalizado, ignora acentos)
+      const guiaNomeN=norm(guiaNome);
+      const guiaMatch=GUIAS.find(g=>{
+        const gN=norm(g);
+        return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
+      });
+      if(!guiaMatch){
+        // Tenta também contra GUIAS_FILA (lista completa)
+        const guiaMatchFila=GUIAS_FILA.find(g=>{
+          const gN=norm(g);
+          return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
+        });
+        if(!guiaMatchFila)continue;
+      }
+      const guiaFinal=guiaMatch||(GUIAS_FILA.find(g=>{const gN=norm(g);return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);})||guiaNome);
 
       const motorista=(row[COL_MOT]||'').toString().trim();
       const veiculo=(row[COL_VEI]||'').toString().trim();
@@ -1347,7 +1360,7 @@ async function importarPlanilha(event){
             }
           }
           itensImportados.push({
-            guia:guiaMatch,servico:det.tipo,
+            guia:guiaFinal,servico:det.tipo,
             horario:horApres,hsrv,voo,pax:paxIn,motorista,hotel:hotelIn,obs:''
           });
         }
@@ -1363,7 +1376,7 @@ async function importarPlanilha(event){
             const hsrvOut=voo?(voo+(horVoo?' Nac. '+horVoo:'')):'';
             const horAOut=det.horarioPadrao||horOut;
             itensImportados.push({
-              guia:guiaMatch,servico:det.tipo,
+              guia:guiaFinal,servico:det.tipo,
               horario:horAOut,hsrv:hsrvOut,
               voo,pax:paxOut,motorista,hotel:hotelOut,obs:''
             });
