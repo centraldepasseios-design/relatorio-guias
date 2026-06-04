@@ -845,9 +845,10 @@ async function carregarDisponibilidade(){
       window._where('guia','==',guiaAtual)
     ));
     window.dispMap_global={};
+    window._confirmMap_global={};
     const dispMap=window.dispMap_global;
     const obsMap={};
-    const confirmMap={};
+    const confirmMap=window._confirmMap_global;
     dispSnap.docs.forEach(d=>{
       const dd=d.data();
       if(dd.data>=dias[0]&&dd.data<=dias[13]){
@@ -888,20 +889,20 @@ async function carregarDisponibilidade(){
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <span style="background:${cor};padding:4px 12px;border-radius:99px;font-size:12px;font-weight:500">${statusLabel}</span>
               ${foiEditado?'<span style="background:#fff3cd;color:#856404;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500">✏️ Editado'+editadoEm+'</span>':'<span style="font-size:11px;color:var(--muted)">🔒 Confirmado</span>'}
-              <button onclick="editarDispConfirmado(''+data+'')" style="padding:5px 12px;border-radius:99px;border:1px solid #e67e22;background:#fff8f0;color:#e67e22;font-size:12px;cursor:pointer;font-family:inherit">✏️ Editar</button>
+              <button onclick="editarDispConfirmado('${data}')" style="padding:5px 12px;border-radius:99px;border:1px solid #e67e22;background:#fff8f0;color:#e67e22;font-size:12px;cursor:pointer;font-family:inherit">✏️ Editar</button>
             </div>
           </div>
           ${obs?`<div style="font-size:13px;color:var(--muted);padding:6px 10px;background:var(--bg);border-radius:var(--rsm);border:1px solid var(--border)">📝 ${obs}</div>`:''}
           <div id="edit-disp-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22">
             <div style="font-size:12px;color:#e67e22;font-weight:600">✏️ Editar disponibilidade</div>
             <div class="disp-btns">
-              <button class="btn-disp sim${status==='sim'?' ativo':''} edit-sim-${data}" onclick="marcarDispEdicao(''+data+'','sim',this)">✅ Disponível</button>
-              <button class="btn-disp nao${status==='nao'?' ativo':''} edit-nao-${data}" onclick="marcarDispEdicao(''+data+'','nao',this)">❌ Indisponível</button>
+              <button class="btn-disp sim${status==='sim'?' ativo':''} edit-sim-${data}" onclick="marcarDispEdicao('${data}','sim',this)">✅ Disponível</button>
+              <button class="btn-disp nao${status==='nao'?' ativo':''} edit-nao-${data}" onclick="marcarDispEdicao('${data}','nao',this)">❌ Indisponível</button>
             </div>
             <input type="text" id="obs-edit-${data}" placeholder="Observação (opcional)" value="${obs}" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
             <div style="display:flex;gap:8px">
-              <button onclick="salvarEdicaoDisp(''+data+'')" style="flex:1;padding:9px;background:#27ae60;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar edição</button>
-              <button onclick="cancelarEdicaoDisp(''+data+'')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
+              <button onclick="salvarEdicaoDisp('${data}')" style="flex:1;padding:9px;background:#27ae60;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar edição</button>
+              <button onclick="cancelarEdicaoDisp('${data}')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
             </div>
           </div>
         </div>`;
@@ -931,7 +932,7 @@ async function carregarDisponibilidade(){
       <div class="disp-card">
         <h3>📆 Minha disponibilidade — próximos 14 dias</h3>
         ${diasRows}
-        <div style="margin-top:12px">${btnConfirmarTudo}</div>
+        <div id="btn-confirmar-tudo-container" style="margin-top:12px">${btnConfirmarTudo}</div>
       </div>`;
   }catch(e){hideLoading();el.innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}
 }
@@ -1052,10 +1053,26 @@ async function marcarDisp(data,status,btn){
     const row=btn.closest('.disp-date-row');
     row.querySelectorAll('.btn-disp').forEach(b=>b.classList.remove('ativo'));
     btn.classList.add('ativo');
-    // Mostra botão confirmar (já está no HTML, só garante visibilidade)
-    const btnConf=row.querySelector('.btn-confirmar-dia');
-    if(btnConf)btnConf.style.display='block';
+    // Atualiza botão confirmar tudo
+    atualizarBtnConfirmarTudo();
   }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
+function atualizarBtnConfirmarTudo(){
+  const container=document.getElementById('btn-confirmar-tudo-container');
+  if(!container)return;
+  const confirmados=window._confirmMap_global||{};
+  const preenchidos=Object.keys(window.dispMap_global).filter(data=>{
+    return !confirmados[data]&&(window.dispMap_global[data]==='sim'||window.dispMap_global[data]==='nao');
+  });
+  const jaConf=Object.keys(confirmados).length;
+  if(preenchidos.length>0){
+    container.innerHTML='<button onclick="confirmarTudo()" style="width:100%;padding:14px;background:#534ab7;color:#fff;border:none;border-radius:var(--rsm);font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:4px">🔒 Confirmar e bloquear '+preenchidos.length+' dia'+(preenchidos.length>1?'s':'')+' preenchido'+(preenchidos.length>1?'s':'')+'</button>';
+  } else if(jaConf>0){
+    container.innerHTML='<div style="text-align:center;padding:12px;font-size:13px;color:#0f6e56;background:#e1f5ee;border-radius:var(--rsm);font-weight:500">✅ Disponibilidade confirmada para '+jaConf+' dia'+(jaConf>1?'s':'')+'</div>';
+  } else {
+    container.innerHTML='';
+  }
 }
 
 async function confirmarEscala(){
