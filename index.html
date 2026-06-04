@@ -239,7 +239,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore,collection,addDoc,query,where,orderBy,getDocs,doc,getDoc,setDoc,serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore,collection,addDoc,query,where,orderBy,getDocs,doc,getDoc,setDoc,serverTimestamp,deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getMessaging,getToken,onMessage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 const app = initializeApp({
@@ -264,6 +264,7 @@ window._addDoc=addDoc;window._collection=collection;
 window._query=query;window._where=where;window._orderBy=orderBy;
 window._getDocs=getDocs;window._doc=doc;window._getDoc=getDoc;
 window._setDoc=setDoc;window._serverTimestamp=serverTimestamp;
+window._deleteDoc=deleteDoc;
 
 // Notificações push
 async function registrarPush(guia) {
@@ -817,6 +818,25 @@ async function buscarStatusVoo(numeroVoo, elId){
 // ---- DISPONIBILIDADE ----
 const IDIOMAS=['Português','Inglês','Espanhol','Francês','Italiano','Alemão'];
 
+async function apagarDisponibilidade(){
+  if(!confirm('Apagar toda a sua disponibilidade dos próximos 14 dias? Você poderá preencher novamente.'))return;
+  showLoading();
+  try{
+    const dias=[];
+    for(let i=0;i<14;i++){const d=new Date();d.setDate(d.getDate()+i);dias.push(d.toISOString().slice(0,10));}
+    const snap=await window._getDocs(window._query(
+      window._collection(window._db,'disponibilidades'),
+      window._where('guia','==',guiaAtual)
+    ));
+    const apagar=snap.docs.filter(d=>dias.includes(d.data().data));
+    for(const d of apagar)await window._deleteDoc(d.ref);
+    window.dispMap_global={};
+    window._confirmMap_global={};
+    hideLoading();
+    carregarDisponibilidade();
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
 async function carregarDisponibilidade(){
   const el=document.getElementById('disp-conteudo');
   if(!window._fbReady||!guiaAtual)return;
@@ -928,7 +948,10 @@ async function carregarDisponibilidade(){
       :(jaConfirmados>0?'<div style="text-align:center;padding:12px;font-size:13px;color:#0f6e56;background:#e1f5ee;border-radius:var(--rsm);font-weight:500">✅ Disponibilidade confirmada para '+jaConfirmados+' dia'+(jaConfirmados>1?'s':'')+'</div>':'');
     el.innerHTML=`
       <div class="disp-card">
-        <h3>📆 Minha disponibilidade — próximos 14 dias</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <h3 style="margin:0">📆 Minha disponibilidade — próximos 14 dias</h3>
+          <button onclick="apagarDisponibilidade()" style="padding:5px 12px;border-radius:99px;border:1px solid #e74c3c;background:#fff5f5;color:#e74c3c;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap">🗑️ Apagar tudo</button>
+        </div>
         ${diasRows}
         <div id="btn-confirmar-tudo-container" style="margin-top:12px">${btnConfirmarTudo}</div>
       </div>`;
