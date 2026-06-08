@@ -645,7 +645,7 @@ async function salvarEditarRelatorio(){
   showLoading();
   try{
     const ref=window._doc(window._db,'relatorios',r.id);
-    const dataOriginal=r.data!==novaData?r.data:r.dataOriginal;
+    const dataOriginal=r.data!==novaData?r.data:(r.dataOriginal||r.data||'');
     await window._setDoc(ref,{...r,data:novaData,motorista,itens,
       dataEditada:true,dataOriginal,
       editadoPor:guiaAtual,editadoEm:new Date().toISOString()
@@ -679,7 +679,7 @@ async function salvarEditData(){
     const snap=await window._getDoc(ref);
     if(!snap.exists()){throw new Error('Relatório não encontrado')}
     const dados=snap.data();
-    await window._setDoc(ref,{...dados,data:novaData,dataEditada:true,dataOriginal:_editRelDataAtual,editadoPor:guiaAtual,editadoEm:new Date().toISOString()});
+    await window._setDoc(ref,{...dados,data:novaData,dataEditada:true,dataOriginal:dados.dataOriginal||_editRelDataAtual||dados.data||'',editadoPor:guiaAtual,editadoEm:new Date().toISOString()});
     hideLoading();
     fecharEditData();
     alert('✅ Data corrigida para '+new Date(novaData+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+'!');
