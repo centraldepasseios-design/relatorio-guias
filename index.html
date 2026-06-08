@@ -582,6 +582,81 @@ async function carregarPaxPhoenix(guia, data, itens){
 
 let _editRelId='', _editRelDataAtual='';
 
+let _editRelCompleto=null;
+
+async function abrirEditarRelatorio(id){
+  showLoading();
+  try{
+    const snap=await window._getDoc(window._doc(window._db,'relatorios',id));
+    if(!snap.exists())throw new Error('Não encontrado');
+    _editRelCompleto={id,...snap.data()};
+    const r=_editRelCompleto;
+    const el=document.getElementById('modal-edit-rel-body');
+    let html='<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted)">Data</label><input type="date" id="er-data" value="'+(r.data||'')+'" style="width:100%;padding:8px;font-size:14px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg)"/></div>';
+    html+='<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted)">Motorista</label><input type="text" id="er-motorista" value="'+(r.motorista||'')+'" style="width:100%;padding:8px;font-size:14px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg)"/></div>';
+    (r.itens||[]).forEach((it,i)=>{
+      const lbl=LABELS[it.servico]||it.servico;
+      html+='<div style="background:var(--bg);border-radius:var(--rsm);padding:12px;margin-bottom:10px;border:1px solid var(--border)">';
+      html+='<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px">Serviço '+(i+1)+' — '+lbl+'</div>';
+      if(isChegada(it.servico)){
+        html+='<div class="row2" style="gap:8px;margin-bottom:8px"><div><label style="font-size:11px;margin-top:0">Voo</label><input type="text" id="er-voo-'+i+'" value="'+(it.voo||'')+'" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div><div><label style="font-size:11px;margin-top:0">Pax</label><input type="number" id="er-pax-'+i+'" value="'+(it.pax||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div></div>';
+        html+='<div class="row2" style="gap:8px;margin-bottom:8px"><div><label style="font-size:11px;margin-top:0">Chd</label><input type="number" id="er-chd-'+i+'" value="'+(it.chd||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div><div><label style="font-size:11px;margin-top:0">No-show</label><input type="number" id="er-noshow-'+i+'" value="'+(it.noshow||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div></div>';
+        html+='<div style="margin-bottom:8px"><label style="font-size:11px;margin-top:0">Vendas (R$)</label><input type="text" id="er-vendas-'+i+'" value="'+(it.vendas?'R$ '+it.vendas.toLocaleString('pt-BR',{minimumFractionDigits:2}):'')+'" oninput="onMoeda(this)" inputmode="numeric" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div>';
+      } else if(isSaida(it.servico)){
+        html+='<div class="row2" style="gap:8px;margin-bottom:8px"><div><label style="font-size:11px;margin-top:0">Pax</label><input type="number" id="er-pax-'+i+'" value="'+(it.pax||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div><div><label style="font-size:11px;margin-top:0">No-show</label><input type="number" id="er-noshow-'+i+'" value="'+(it.noshow||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div></div>';
+      } else {
+        html+='<div class="row2" style="gap:8px;margin-bottom:8px"><div><label style="font-size:11px;margin-top:0">Vendas (R$)</label><input type="text" id="er-vendas-'+i+'" value="'+(it.vendas?'R$ '+it.vendas.toLocaleString('pt-BR',{minimumFractionDigits:2}):'')+'" oninput="onMoeda(this)" inputmode="numeric" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div><div><label style="font-size:11px;margin-top:0">No-show</label><input type="number" id="er-noshow-'+i+'" value="'+(it.noshow||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div></div>';
+      }
+      html+='<div><label style="font-size:11px;margin-top:0">Desc. no-show</label><input type="text" id="er-noshow-obs-'+i+'" value="'+(it.noshow_obs||'')+'" placeholder="Nome, motivo..." style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div>';
+      html+='<div style="margin-top:8px"><label style="font-size:11px;margin-top:0">Observações</label><input type="text" id="er-obs-'+i+'" value="'+(it.obs||'')+'" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div>';
+      html+='</div>';
+    });
+    el.innerHTML=html;
+    hideLoading();
+    document.getElementById('modal-edit-rel').style.display='flex';
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
+async function salvarEditarRelatorio(){
+  if(!_editRelCompleto)return;
+  const r=_editRelCompleto;
+  const novaData=document.getElementById('er-data').value;
+  const motorista=document.getElementById('er-motorista').value.trim();
+  if(!novaData){alert('Informe a data.');return}
+  const itens=(r.itens||[]).map((it,i)=>{
+    const novo={...it};
+    if(isChegada(it.servico)||isSaida(it.servico)){
+      novo.pax=parseInt(document.getElementById('er-pax-'+i).value)||0;
+      novo.noshow=parseInt(document.getElementById('er-noshow-'+i).value)||0;
+    }
+    if(isChegada(it.servico)){
+      novo.voo=document.getElementById('er-voo-'+i).value.trim().toUpperCase();
+      novo.chd=parseInt(document.getElementById('er-chd-'+i).value)||0;
+      novo.vendas=parseMoeda(document.getElementById('er-vendas-'+i).value);
+    }
+    if(!isChegada(it.servico)&&!isSaida(it.servico)&&it.servico!=='so-vendas'){
+      novo.vendas=parseMoeda(document.getElementById('er-vendas-'+i).value);
+      novo.noshow=parseInt(document.getElementById('er-noshow-'+i).value)||0;
+    }
+    novo.noshow_obs=(document.getElementById('er-noshow-obs-'+i)||{}).value||it.noshow_obs||'';
+    novo.obs=(document.getElementById('er-obs-'+i)||{}).value||'';
+    return novo;
+  });
+  showLoading();
+  try{
+    const ref=window._doc(window._db,'relatorios',r.id);
+    const dataOriginal=r.data!==novaData?r.data:r.dataOriginal;
+    await window._setDoc(ref,{...r,data:novaData,motorista,itens,
+      dataEditada:true,dataOriginal,
+      editadoPor:guiaAtual,editadoEm:new Date().toISOString()
+    });
+    hideLoading();
+    document.getElementById('modal-edit-rel').style.display='none';
+    _editRelCompleto=null;
+    renderHistorico();
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
 function editarDataRelatorio(id, dataAtual){
   _editRelId=id;
   _editRelDataAtual=dataAtual;
@@ -604,7 +679,7 @@ async function salvarEditData(){
     const snap=await window._getDoc(ref);
     if(!snap.exists()){throw new Error('Relatório não encontrado')}
     const dados=snap.data();
-    await window._setDoc(ref,{...dados,data:novaData,dataEditada:true,dataOriginal:_editRelDataAtual,editadoEm:new Date().toISOString()});
+    await window._setDoc(ref,{...dados,data:novaData,dataEditada:true,dataOriginal:_editRelDataAtual,editadoPor:guiaAtual,editadoEm:new Date().toISOString()});
     hideLoading();
     fecharEditData();
     alert('✅ Data corrigida para '+new Date(novaData+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+'!');
@@ -1207,7 +1282,7 @@ function adicionarServicoEscala(escala){
   const resumoEsc='📅 Escala: '+(LABELS[s]||s)+(escala.horario?' · ⏰ '+escala.horario:'')+(escala.motorista?' · 🚐 '+escala.motorista:'')+(vooVal?' · ✈️ '+vooVal:'')+(paxVal?' · 👥 '+paxVal+' pax':'');
   const descNoShow='<div style="margin-top:10px"><label style="margin-top:0">Descrição no-show</label><textarea id="noshow-obs-'+id+'" placeholder="Nome do passageiro, motivo, voo..." rows="2" style="width:100%;padding:8px;font-size:13px;font-family:DM Sans,sans-serif;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);resize:vertical;min-height:54px"></textarea></div>';
   const camposCh=isCh?('<div class="row2"><div><label style="margin-top:0">Voo</label><input type="text" id="voo-'+id+'" value="'+vooVal+'" placeholder="ex: AD4310" style="text-transform:uppercase"/></div><div><label style="margin-top:0">Pax</label><input type="number" id="pax-'+id+'" value="'+paxVal+'" min="0"/></div></div><div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Chd</label><input type="number" id="chd-'+id+'" placeholder="0" min="0"/></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-'+id+'" placeholder="0" min="0"/></div></div><div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-'+id+'" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div><div></div></div>'+descNoShow):'';
-  const camposSa=isSa?('<div style="margin-top:10px"><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-'+id+'" placeholder="0" min="0"/></div>'+descNoShow):'';
+  const camposSa=isSa?('<div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Pax</label><input type="number" id="pax-s-'+id+'" placeholder="0" min="0"/></div><div><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-'+id+'" placeholder="0" min="0"/></div></div>'+descNoShow):'';
   const camposOutro=(!isCh&&!isSa)?('<div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-o-'+id+'" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-o-'+id+'" placeholder="0" min="0"/></div></div>'+descNoShow):'';
   div.innerHTML=
     '<div class="servico-card-header">'+
@@ -1377,7 +1452,7 @@ async function enviarRelatorio(){
     if(!motItem&&!_apenasVendas){alert('Informe o motorista no serviço '+(servicosAtivos.indexOf(id)+1)+'.');return}
     let item={servico:s,motorista:motItem};
     if(isChegada(s)){item.voo=document.getElementById('voo-'+id).value.trim().toUpperCase();item.pax=parseInt(document.getElementById('pax-'+id).value)||0;item.chd=parseInt(document.getElementById('chd-'+id).value)||0;item.vendas=parseMoeda(document.getElementById('vendas-'+id).value);item.noshow=parseInt(document.getElementById('noshow-'+id).value)||0}
-    else if(isSaida(s)){item.noshow=parseInt(document.getElementById('noshow-s-'+id).value)||0}
+    else if(isSaida(s)){item.pax=parseInt(document.getElementById('pax-s-'+id).value)||0;item.noshow=parseInt(document.getElementById('noshow-s-'+id).value)||0}
     else{item.vendas=parseMoeda(document.getElementById('vendas-o-'+id).value);item.noshow=parseInt(document.getElementById('noshow-o-'+id).value)||0}
     item.obs=document.getElementById('obs-'+id).value.trim();
     const noshowObsEl=document.getElementById('noshow-obs-'+id);
@@ -1493,7 +1568,7 @@ async function renderHistorico(){
       const itensHtml=r.itens.map(it=>{
         let campos='';
         if(isChegada(it.servico))campos=`<div class="sub-item"><label>Voo</label><p>${it.voo||'—'}</p></div><div class="sub-item"><label>Pax</label><p>${it.pax??0}</p></div><div class="sub-item"><label>Chd</label><p>${it.chd??0}</p></div><div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div><div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax${it.noshow_obs?' — '+it.noshow_obs:''}</p></div>`;
-        else if(isSaida(it.servico))campos=`<div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
+        else if(isSaida(it.servico))campos=`<div class="sub-item"><label>Pax</label><p>${it.pax??0}</p></div><div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax${it.noshow_obs?' — '+it.noshow_obs:''}</p></div>`;
         else campos=`<div class="sub-item"><label>Vendas</label><p>R$ ${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p></div><div class="sub-item"><label>No-show</label><p>${it.noshow??0} pax</p></div>`;
         const noshowEscTag=it.noshow_escala?'<span style="background:#fde8e8;color:#c0392b;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px">🚫 No-show escala</span>':'';
         if(it.servico==='so-vendas'){
@@ -1517,6 +1592,21 @@ async function renderHistorico(){
     <div style="display:flex;gap:8px">
       <button onclick="fecharRecusa()" class="btn-ciente" style="background:var(--muted)">Voltar</button>
       <button onclick="confirmarRecusa()" class="btn-ciente" style="background:#c0392b">❌ Confirmar recusa</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR RELATORIO COMPLETO -->
+<div class="loading-overlay" id="modal-edit-rel" style="display:none;z-index:200;align-items:flex-start;padding-top:2rem">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:440px;margin:1rem;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h3 style="font-size:16px;font-weight:600;margin:0">✏️ Editar relatório</h3>
+      <button onclick="document.getElementById('modal-edit-rel').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>
+    </div>
+    <div id="modal-edit-rel-body"></div>
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button onclick="document.getElementById('modal-edit-rel').style.display='none'" class="btn-ciente" style="background:var(--muted)">Cancelar</button>
+      <button onclick="salvarEditarRelatorio()" class="btn-ciente">💾 Salvar alterações</button>
     </div>
   </div>
 </div>
