@@ -401,6 +401,34 @@ async function publicarEscala(){
   try{
     // Verifica disponibilidade antes de publicar
     const guiasNovos=[...new Set(itens.map(i=>i.guia))];
+    // Verifica guias marcados como "não convidar"
+    const guiasSnapNC=await window._gds(window._col(window._db,'guias'));
+    const naoConvidarPub=[];
+    guiasSnapNC.docs.forEach(d=>{
+      const dd=d.data();
+      if(dd.nao_convidar_ate&&dd.nao_convidar_ate>=data&&guiasNovos.includes(d.id))
+        naoConvidarPub.push(d.id+' (até '+new Date(dd.nao_convidar_ate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+')');
+    });
+    if(naoConvidarPub.length){
+      hideLoad();
+      if(!confirm('⚠️ Atenção! Os guias abaixo estão marcados como NÃO CONVIDAR:\n\n'+naoConvidarPub.join('\n')+'\n\nPublicar mesmo assim?'))return;
+      showLoad();
+    }
+    // Verifica bloqueios de agenda na data
+    const bloqSnapPub=await window._gds(window._col(window._db,'bloqueios'));
+    const guiasComBloqueio=[];
+    bloqSnapPub.docs.forEach(d=>{
+      const dd=d.data();
+      if(dd.tipo==='passeio')return;
+      if(data>=dd.inicio&&data<=dd.fim&&guiasNovos.includes(dd.guia))
+        if(!guiasComBloqueio.find(x=>x.guia===dd.guia))
+          guiasComBloqueio.push({guia:dd.guia,desc:dd.descricao});
+    });
+    if(guiasComBloqueio.length){
+      hideLoad();
+      alert('🚫 Não é possível publicar!\n\nOs guias abaixo têm AGENDA BLOQUEADA no dia '+data+':\n\n'+guiasComBloqueio.map(x=>x.guia+' — '+x.desc).join('\n')+'\n\nRemova-os da escala ou desbloqueie a agenda.');
+      return;
+    }
     // Verifica passeios do dia — impede publicação
     const passeioSnapPub=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
     const guiasEmPasseioPub=[];
@@ -438,6 +466,8 @@ async function publicarEscala(){
     linhas=[];contL=0;
     carregarEscalaPublicada();
     setTimeout(carregarConfirmacoes,300);
+    // Atualiza disponibilidade se aba estiver ativa
+    if(document.getElementById('sec-disp')&&document.getElementById('sec-disp').classList.contains('active'))carregarDisp();
     // Envia push para os guias escalados
     await enviarPushEscala(itens,data);
   }catch(e){hideLoad();alert('Erro: '+e.message)}
@@ -1407,7 +1437,23 @@ async function confirmarBloqueio(){
 }
 
 // ===== DISPONIBILIDADE ADMIN =====
-const TODOS_GUIAS_DISP=["ADIANES", "ADRIANE", "ALBERTO", "ALEX", "ALICE", "ALVARO", "AMAURY", "ANA FLAVIA", "ANDRE", "ANTONIO", "ARLENE", "ARLINDO", "ARTHUR", "BRENO", "BRUNO", "BRUNO M", "CAMILA", "CAMILLA", "CARLA", "CARLOS", "CHICO DINIZ", "CHICO LIMA", "DANIEL", "DEYVISON", "DRIELLY", "EDMILTON", "EDSON", "ELISIO", "ENEZIANE", "ERLON", "EUGENIO", "EVILAZIO", "FABIO GOMES", "FABIO COZZI", "FELIPE", "FRANCA", "FRANCINALDO", "FREITAS", "GEORGE", "GERARDO", "GESSYCA", "GIL", "GLORINHA", "GONCALVES", "GUILHERME", "HENRIQUE FARIAS", "HENRIQUE JR", "HUGO", "HUMBERTO", "IANNE", "ISADORA", "JACIANE", "JOEL", "JOELMA", "JUAN", "JULIANA", "JUNIOR", "KATARINA", "LIDIANE", "LUCIA V", "LUCIENE", "LUIZ CARLOS", "LUIZ FELIPE", "MADALENA", "MADSON", "MARCOS", "MARILANDE", "MATHEUS", "NATALIA", "NEIDE", "OLIVEIRA", "POLLY", "RAFAEL", "RAISSA", "REBECA", "RENATINHA", "RODRIGO", "RUTH", "SANTIAGO", "SERGIO", "SIDNEI", "TALES", "TATIANA", "TAVARES", "TOM", "VALTER", "VITOR", "WIRON", "XIMENES", "ZENA"];
+const GUIAS_PORTO=[
+  "JUNIOR","POLLY","NATALIA","GEORGE","KATARINA","EDMILTON","EVILAZIO","LUCIENE",
+  "VITOR","ERLON","HENRIQUE JR","FELIPE","EDSON","TATIANA","TOM","ADRIANE",
+  "GUILHERME","FABIO GOMES","DANIEL","NEIDE","JUAN","EUGENIO","VALTER","GONCALVES",
+  "ANTONIO","GERARDO","HUGO","JOEL","HENRIQUE FARIAS","CHICO DINIZ","MARILANDE",
+  "WIRON","IANNE","ADIANES","MADSON","CAMILLA","ANDRE","ANA FLAVIA","RENATA",
+  "GESSYCA","TAVARES","MATHEUS","ALICE","LIDIANE","CARLA","ALBERTO","XIMENES",
+  "SIDNEI","DRIELLY","RAISSA","ISADORA","SANTIAGO","ARTHUR","GIL","HUMBERTO",
+  "FABIO COZZI","BRENO","LUIZ CARLOS","RODRIGO","JOELMA","OLIVEIRA","BRUNO M",
+  "TALES","FRANCINALDO","AMAURY","ARLENE","JACIANE","FRANCA","FREITAS",
+  "LUIZ FELIPE","RAFAEL","JULIANA","DEYVISON","ALEX","RUTH","CAMILA"
+];
+const GUIAS_RECIFE=[
+  "GLORIA","ELISIO","REBECA","ENEZIANE","BRUNO S","ALVARO","ZENA","CARLOS M",
+  "CHICO LIMA","SERGIO","LUCIA V","MARCOS F","MADALENA","ARLINDO"
+];
+const TODOS_GUIAS_DISP=[...GUIAS_PORTO,...GUIAS_RECIFE];
 const FLAG_IDIOMA={'Português':'🇧🇷','Inglês':'🇺🇸','Espanhol':'🇪🇸','Francês':'🇫🇷','Italiano':'🇮🇹','Alemão':'🇩🇪'};
 
 async function carregarDisp(){
@@ -1438,10 +1484,16 @@ async function carregarDisp(){
       }
     });
 
-    // Carrega dados dos guias (idiomas, obs)
+    // Carrega dados dos guias (idiomas, obs, nao_convidar)
     const guiasSnap=await window._gds(window._col(window._db,'guias'));
     const guiasData={};
-    guiasSnap.docs.forEach(d=>{guiasData[d.id]=d.data()});
+    const naoConvidarMap={};
+    const hoje2=hoje();
+    guiasSnap.docs.forEach(d=>{
+      guiasData[d.id]=d.data();
+      const nc=d.data().nao_convidar_ate;
+      if(nc&&nc>=hoje2)naoConvidarMap[d.id]={ate:nc};
+    });
 
     // Carrega última escala de cada guia
     const escSnap=await window._gds(window._col(window._db,'escalas'));
@@ -1453,7 +1505,7 @@ async function carregarDisp(){
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
-    // Carrega passeios do dia para marcar como trabalhando
+    // Carrega passeios e bloqueios do dia
     const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio'),window._w('inicio','==',data)));
     const guiasEmPasseio=new Set();
     passeioSnap.docs.forEach(d=>{
@@ -1461,6 +1513,19 @@ async function carregarDisp(){
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
       guiasEmPasseio.add(guiaKey);
+    });
+    // Bloqueios de agenda (não-passeio) ativos na data selecionada
+    const bloqSnap=await window._gds(window._col(window._db,'bloqueios'));
+    const bloqMap={};
+    bloqSnap.docs.forEach(d=>{
+      const dd=d.data();
+      if(dd.tipo==='passeio')return;
+      if(data>=dd.inicio&&data<=dd.fim){
+        const guiaN=_normDisp(dd.guia);
+        const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
+        if(!bloqMap[guiaKey])bloqMap[guiaKey]=[];
+        bloqMap[guiaKey].push(dd.descricao);
+      }
     });
 
     hideLoad();
@@ -1479,67 +1544,85 @@ async function carregarDisp(){
       return true;
     });
 
-    // Resumo
-    const total=TODOS_GUIAS_DISP.length;
-    const dispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='sim').length;
+    // Resumo — só Indisponíveis, Trabalhando, Não convidar
     const indispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='nao'||dispMap[g]==='passeio').length;
-    const semResp=total-dispCount-indispCount;
     const trabCount=TODOS_GUIAS_DISP.filter(g=>ultimaEscala[g]===data||guiasEmPasseio.has(g)).length;
-    document.getElementById('disp-resumo').innerHTML=`
-      <div class="resumo-card" style="border-left:3px solid #0f6e56"><div class="num" style="color:#0f6e56">${dispCount}</div><div class="lbl">Disponíveis</div></div>
-      <div class="resumo-card" style="border-left:3px solid #c0392b"><div class="num" style="color:#c0392b">${indispCount}</div><div class="lbl">Indisponíveis</div></div>
-      <div class="resumo-card" style="border-left:3px solid #9a9a96"><div class="num">${semResp}</div><div class="lbl">Sem resposta</div></div>
-      <div class="resumo-card" style="border-left:3px solid #e67e22;cursor:pointer" onclick="document.getElementById('disp-status').value='trabalhando';carregarDisp()"><div class="num" style="color:#e67e22">${trabCount}</div><div class="lbl">Trabalhando</div></div>`;
+    const naoConvidarCount=TODOS_GUIAS_DISP.filter(g=>naoConvidarMap[g]).length;
+    document.getElementById('disp-resumo').innerHTML=
+      '<div class="resumo-card" style="border-left:3px solid #c0392b"><div class="num" style="color:#c0392b">'+indispCount+'</div><div class="lbl">Indisponíveis</div></div>'
+      +'<div class="resumo-card" style="border-left:3px solid #e67e22;cursor:pointer" onclick="filtrarTrabalhando()"><div class="num" style="color:#e67e22">'+trabCount+'</div><div class="lbl">Trabalhando</div></div>'
+      +'<div class="resumo-card" style="border-left:3px solid #7f0000"><div class="num" style="color:#7f0000">'+naoConvidarCount+'</div><div class="lbl">Não convidar</div></div>';
 
-    // Ordena: 1º trabalhando hoje, 2º por mais tempo sem ser escalado
-    guiasFiltrados.sort((a,b)=>{
-      const aTrab=ultimaEscala[a]===data||guiasEmPasseio.has(a);
-      const bTrab=ultimaEscala[b]===data||guiasEmPasseio.has(b);
-      if(aTrab&&!bTrab)return -1;
-      if(!aTrab&&bTrab)return 1;
-      // Entre iguais, ordena por quem está há mais tempo sem ser escalado
-      const aUlt=ultimaEscala[a]||'0000-00-00';
-      const bUlt=ultimaEscala[b]||'0000-00-00';
-      return aUlt.localeCompare(bUlt);
-    });
+    // Aviso obs do guia
+    const avisoObs=TODOS_GUIAS_DISP.filter(g=>dispObs[g]).length;
+    const avisoEl=document.getElementById('disp-aviso-obs');
+    if(avisoEl)avisoEl.innerHTML=avisoObs?'<div style="background:#fff3cd;border:1px solid #f0c040;border-radius:var(--rsm);padding:10px 16px;font-size:13px;color:#7c5c00;display:flex;align-items:center;gap:8px;margin-bottom:12px">⚠️ <strong>'+avisoObs+' guia'+(avisoObs>1?'s têm':' tem')+'</strong> observação pendente — verifique abaixo.</div>':'';
 
-    // Lista
-    if(!guiasFiltrados.length){document.getElementById('disp-lista').innerHTML='<p class="empty">Nenhum guia encontrado.</p>';}
-    else{
-      const rows=guiasFiltrados.map(g=>{
-        const status=dispMap[g]||'sem';
-        const gData=guiasData[g]||{};
-        const idiomas=(gData.idiomas||[]).map(id=>FLAG_IDIOMA[id]||id).join(' ');
-        const obs=dispObs[g]||'';
-        const ultima=ultimaEscala[g]?new Date(ultimaEscala[g]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'Nunca';
-        const trabalhando=ultimaEscala[g]===data;
-        const statusBadge=status==='sim'?'<span style="background:#e1f5ee;color:#0f6e56;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">✅ Disponível</span>':status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">❌ Indisponível</span>':status==='passeio'?'<span style="background:#fff3e0;color:#e67e22;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500">🏖️ Passeio</span>':'<span style="background:#f0f0f0;color:#9a9a96;padding:3px 10px;border-radius:99px;font-size:12px">⬜ Sem resposta</span>';
-        const foiEditado=dispEditado[g]||false;
-        const editadoEmStr=dispEditadoEm[g]?new Date(dispEditadoEm[g]).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
-        const antLabel=dispStatusAnterior[g]==="sim"?"Disponivel":dispStatusAnterior[g]==="nao"?"Indisponivel":"";
-        const editadoBadge=foiEditado?"<span style=\"background:#fff3cd;color:#856404;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600\">✏️ Editado"+(editadoEmStr?" "+editadoEmStr:"")+"</span>"+(antLabel?"<span style=\"background:#f0f0f0;color:#9a9a96;padding:3px 8px;border-radius:99px;font-size:10px\">Antes: "+antLabel+"</span>":""):"";
-        return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
-          <div>
-            <div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px">
-              ${g} <span style="font-size:14px">${idiomas}</span>
-              ${trabalhando?'<span style="background:#e67e22;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap">🔧 Trabalhando hoje</span>':''}
-            </div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">Último serviço: ${ultima}</div>
-            <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
-              ${gData['obs_admin']?('<div style="font-size:13px;font-weight:600;color:#fff;background:#2c3e50;padding:6px 12px;border-radius:var(--rsm);margin-bottom:6px;display:flex;align-items:center;gap:6px">📌 '+gData['obs_admin']+'</div>'):''}
-              ${obs?('<div style="font-size:12px;font-weight:500;color:#854f0b;background:#faeeda;padding:6px 10px;border-radius:6px;margin-bottom:4px;border-left:3px solid #e67e22">📝 Guia: '+obs+'</div>'):'<div style="font-size:11px;color:var(--hint);margin-bottom:4px">Sem observação do guia</div>'}
-              <input type="text" placeholder="📌 Observação do admin..." value="${gData['obs_admin']||''}" onchange="salvarObsGuia('${g}',this.value)" style="font-size:13px;font-weight:500;padding:7px 10px;border:2px solid ${gData['obs_admin']?'#2c3e50':'var(--border)'};border-radius:var(--rsm);background:${gData['obs_admin']?'#eaf0f6':'var(--bg)'};color:${gData['obs_admin']?'#2c3e50':'var(--text)'};width:240px"/>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-            ${statusBadge}
-            ${editadoBadge}
-            <button onclick="abrirModalBloqueio('${g}')" style="padding:3px 10px;font-size:11px;font-family:'DM Sans',sans-serif;background:#2c3e50;color:#fff;border:none;border-radius:99px;cursor:pointer;white-space:nowrap">🔒 Bloquear dias</button>
-          </div>
-        </div>`;
-      }).join('');
-      document.getElementById('disp-lista').innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">${rows}</div>`;
-    }
+    // Renderização em seções Porto / Recife
+    const renderLinhaGuia=(g,i)=>{
+      const status=dispMap[g]||'sem';
+      const gData=guiasData[g]||{};
+      const obsGuia=dispObs[g]||'';
+      const ultima=ultimaEscala[g]?new Date(ultimaEscala[g]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'—';
+      const foiEditado=dispEditado[g]||false;
+      const editadoEmStr=dispEditadoEm[g]?new Date(dispEditadoEm[g]).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+      const bloqs=bloqMap[g]||[];
+      const naoConvidar=naoConvidarMap[g]||null;
+      const editBadge=foiEditado?'<span title="Editado '+editadoEmStr+'" style="background:#fff3cd;color:#856404;padding:1px 5px;border-radius:99px;font-size:10px;cursor:help;margin-left:3px">✏️</span>':'';
+
+      // Badges no nome
+      const statusBadge=naoConvidar
+        ?'<span style="background:#7f0000;color:#fff;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;margin-left:5px" title="Não convidar até '+new Date(naoConvidar.ate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+'">✖ Não convidar</span>'
+        :status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:2px 7px;border-radius:99px;font-size:11px;font-weight:600;margin-left:5px">❌ Indisp</span>'
+        :status==='passeio'?'<span style="background:#fff3e0;color:#e67e22;padding:2px 7px;border-radius:99px;font-size:11px;font-weight:600;margin-left:5px">🏖️ Passeio</span>'
+        :'';
+      const bloqBadge=bloqs.length?'<div style="font-size:10px;background:#fde8e8;color:#c0392b;padding:2px 7px;border-radius:99px;margin-top:3px;font-weight:600">🔒 '+bloqs.join(' · ')+'</div>':'';
+      const obsGuiaHTML=obsGuia?'<div style="background:#fff3cd;border-left:3px solid #f0a500;padding:4px 8px;border-radius:0 var(--rsm) var(--rsm) 0;font-size:12px;font-weight:600;color:#7c5c00;margin-top:3px">⚠️ '+obsGuia+'</div>':'';
+
+      // Cor da data
+      const dataColor=ultima==='—'?'var(--muted)':'#185fa5';
+      const dataDisplay=ultima==='—'?'—':'🗓️ '+ultima;
+
+      const rowBg=naoConvidar?'#fff0f0':bloqs.length?'#fff5f5':obsGuia?'#fffef0':'';
+
+      return '<tr style="'+(rowBg?'background:'+rowBg+';':'')+';border-bottom:1px solid var(--border)">'
+        +'<td style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:center;width:28px">'+(i+1)+'</td>'
+        +'<td style="padding:7px 8px;width:33%">'
+          +'<span style="font-size:13px;font-weight:600">'+g+'</span>'+editBadge+statusBadge
+          +bloqBadge+obsGuiaHTML
+        +'</td>'
+        +'<td style="padding:7px 8px;width:15%;text-align:center;font-size:13px;font-weight:600;color:'+dataColor+'">'+dataDisplay+'</td>'
+        +'<td style="padding:4px 6px;width:40%">'
+          +'<input type="text" data-guia="'+g+'" placeholder="Observação admin..." value="'+(gData['obs_admin']||'')+'" onblur="salvarObsGuia(this.dataset.guia,this.value)" style="font-size:12px;padding:5px 8px;border:1px solid '+(gData['obs_admin']?'#2c3e50':'var(--border)')+';border-radius:var(--rsm);background:'+(gData['obs_admin']?'#eaf0f6':'var(--bg)')+';color:'+(gData['obs_admin']?'#2c3e50':'var(--text)')+';width:100%"/>'
+        +'</td>'
+        +'<td style="padding:4px 4px;text-align:center;white-space:nowrap">'
+          +'<button data-guia="'+g+'" onclick="abrirModalBloqueio(this.dataset.guia)" title="Bloquear dias" style="padding:2px 7px;font-size:11px;background:#2c3e50;color:#fff;border:none;border-radius:99px;cursor:pointer;margin-right:3px">🔒</button>'
+          +'<button data-guia="'+g+'" onclick="toggleNaoConvidar(this.dataset.guia)" title="Não convidar" style="padding:2px 7px;font-size:11px;background:'+(naoConvidar?'#7f0000':'#e0e0e0')+';color:'+(naoConvidar?'#fff':'#555')+';border:none;border-radius:99px;cursor:pointer">✖</button>'
+        +'</td>'
+        +'</tr>';
+    };
+
+
+    const cabecalhoTabela='<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--bg);border-bottom:2px solid var(--border)"><th style="padding:6px;font-size:11px;color:var(--muted);font-weight:500;width:28px">#</th><th style="padding:6px 8px;font-size:11px;color:var(--muted);font-weight:500;text-align:left;width:33%">GUIA</th><th style="padding:6px;font-size:11px;color:var(--muted);font-weight:500;width:15%">ÚLT. SERVIÇO</th><th style="padding:6px 8px;font-size:11px;color:var(--muted);font-weight:500;text-align:left;width:40%">OBSERVAÇÃO ADMIN</th><th style="padding:6px;width:70px"></th></tr></thead><tbody>';
+
+    const renderSecao=(titulo,lista,cor)=>{
+      const filtroNome=(document.getElementById('disp-filtro-nome')||{}).value||'';
+      const fn=filtroNome.toUpperCase().trim();
+      const listFiltrada=lista.filter(g=>{
+        if(fn&&!g.includes(fn))return false;
+        if(!guiasFiltrados.includes(g))return false;
+        return true;
+      });
+      if(!listFiltrada.length)return '';
+      const rows=listFiltrada.map((g,i)=>renderLinhaGuia(g,i)).join('');
+      return '<div style="margin-bottom:1.5rem">'
+        +'<div style="background:'+cor+';color:#fff;padding:10px 16px;font-size:14px;font-weight:700;border-radius:var(--radius) var(--radius) 0 0">'+titulo+' <span style="font-size:12px;font-weight:400;opacity:0.85">('+listFiltrada.length+' guias)</span></div>'
+        +'<div style="overflow-x:auto;border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)">'+cabecalhoTabela+rows+'</tbody></table></div></div>';
+    };
+
+    const htmlPorto=renderSecao('🚢 Guias Porto',GUIAS_PORTO,'#1a6b9a');
+    const htmlRecife=renderSecao('🌆 Guias Recife',GUIAS_RECIFE,'#2c3e50');
+    document.getElementById('disp-lista').innerHTML=(htmlPorto+htmlRecife)||'<p class="empty">Nenhum guia encontrado.</p>';
 
     // Guias há mais tempo sem ser escalados
     const rankSemEscala=TODOS_GUIAS_DISP
@@ -1553,6 +1636,35 @@ async function carregarDisp(){
     document.getElementById('disp-sem-convite').innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden"><div style="background:#faeeda;padding:.75rem 1rem;font-size:13px;font-weight:500;color:#854f0b">⏳ Guias há mais tempo sem ser escalados</div>${rankRows}</div>`;
 
   }catch(e){hideLoad();console.error(e);document.getElementById('disp-lista').innerHTML='<p class="empty">Erro: '+e.message+'</p>';}
+}
+
+function filtrarTrabalhando(){document.getElementById('disp-status').value='trabalhando';carregarDisp();}
+
+async function toggleNaoConvidar(guia){
+  const ref=window._doc(window._db,'guias',guia);
+  const snap=await window._gd(ref);
+  const dados=snap.exists()?snap.data():{};
+  const hoje2=hoje();
+  if(dados.nao_convidar_ate&&dados.nao_convidar_ate>=hoje2){
+    // Já está bloqueado — remover
+    if(!confirm('Remover restrição de "Não convidar" para '+guia+'?'))return;
+    await window._sd(ref,{...dados,nao_convidar_ate:null});
+  } else {
+    // Adicionar — padrão 7 dias
+    const ate=document.getElementById('nc-data-'+guia.replace(/ /g,'_'));
+    let dataAte='';
+    if(ate){dataAte=ate.value;}
+    if(!dataAte){
+      // Pede data pelo prompt simples
+      const d=new Date();d.setDate(d.getDate()+7);
+      dataAte=d.toISOString().slice(0,10);
+      const resp=prompt('Não convidar '+guia+' até quando?',dataAte);
+      if(!resp)return;
+      dataAte=resp;
+    }
+    await window._sd(ref,{...dados,nao_convidar_ate:dataAte});
+  }
+  carregarDisp();
 }
 
 async function salvarObsGuia(guia,obs){
@@ -2575,6 +2687,7 @@ async function confirmarReset(){
   <div id="sec-disp" class="section">
     <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
       <div><label>Data</label><input type="date" id="disp-data" style="padding:7px 10px;font-size:13px;width:auto"/></div>
+      <div><label>Buscar guia</label><input type="text" id="disp-filtro-nome" placeholder="Nome do guia..." oninput="carregarDisp()" style="padding:7px 10px;font-size:13px;width:160px"/></div>
       <div><label>Idioma</label>
         <select id="disp-idioma" style="padding:7px 10px;font-size:13px;width:auto">
           <option value="">Todos idiomas</option>
@@ -2595,6 +2708,7 @@ async function confirmarReset(){
       <button class="btn-sm" onclick="carregarDisp()">🔍 Buscar</button>
     </div>
     <div id="disp-resumo" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem"></div>
+    <div id="disp-aviso-obs"></div>
     <div id="disp-lista"></div>
     <div id="disp-sem-convite" style="margin-top:1rem"></div>
   </div>
