@@ -1362,8 +1362,11 @@ function adicionarServico(){
       <div style="margin-top:10px"><label style="margin-top:0">Descrição no-show</label><textarea id="noshow-obs-${id}" placeholder="Nome do passageiro, motivo, voo..." rows="2" style="width:100%;padding:8px;font-size:13px;font-family:DM Sans,sans-serif;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);resize:vertical;min-height:54px"></textarea></div>
       <div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric" /></div><div></div></div>
     </div>
-    <div id="f-saida-${id}" class="hidden" style="margin-top:14px"><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-${id}" placeholder="0" min="0" /></div>
-    <div style="margin-top:10px"><label style="margin-top:0">Descrição no-show</label><textarea id="noshow-obs-${id}" placeholder="Nome do passageiro, motivo..." rows="2" style="width:100%;padding:8px;font-size:13px;font-family:DM Sans,sans-serif;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);resize:vertical;min-height:54px"></textarea></div>
+    <div id="f-saida-${id}" class="hidden" style="margin-top:14px">
+      <div class="row2"><div><label style="margin-top:0">Pax</label><input type="number" id="pax-s-${id}" placeholder="0" min="0" /></div><div><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-${id}" placeholder="0" min="0" /></div></div>
+      <div style="margin-top:10px"><label style="margin-top:0">Descrição no-show</label><textarea id="noshow-obs-${id}" placeholder="Nome do passageiro, motivo..." rows="2" style="width:100%;padding:8px;font-size:13px;font-family:DM Sans,sans-serif;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);resize:vertical;min-height:54px"></textarea></div>
+      <div style="margin-top:10px"><label style="margin-top:0">Observações</label><input type="text" id="obs-${id}" placeholder="opcional" style="width:100%"/></div>
+    </div>
     <div id="f-outro-${id}" class="hidden" style="margin-top:14px">
       <div class="row2"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-o-${id}" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric" /></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-o-${id}" placeholder="0" min="0" /></div></div>
     </div>
@@ -1578,7 +1581,7 @@ async function renderHistorico(){
         }
         return`<div class="sub-card"><div class="sub-header"><span class="badge ${BADGE[it.servico]||''}">${LABELS[it.servico]||it.servico}</span>${noshowEscTag}</div>${it.noshow_escala?`<div style="font-size:12px;color:#c0392b;padding:4px 0">${it.motivo_noshow||'Serviço não realizado'}</div>`:`<div class="sub-body">${campos}</div>`}${it.obs?`<p class="obs-text">📝 ${it.obs}</p>`:''}</div>`;
       }).join('');
-      return`<div class="rel-card"><div class="rel-dia"><span>${dataFmt} · ${r.motorista}</span><div style="display:flex;align-items:center;gap:8px"><span>${r.itens.length} serviço${r.itens.length>1?'s':''}</span><button onclick="editarDataRelatorio('${r.id}','${r.data}')" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);padding:2px 8px;font-size:11px;color:var(--muted);cursor:pointer;font-family:DM Sans,sans-serif">✏️ Data</button></div></div>${itensHtml}</div>`;
+      return`<div class="rel-card"><div class="rel-dia"><span>${dataFmt} · ${r.motorista}</span><div style="display:flex;align-items:center;gap:8px"><span>${r.itens.length} serviço${r.itens.length>1?'s':''}</span><button onclick="abrirEditarRelatorio('${r.id}')" style="background:none;border:1px solid #534ab7;border-radius:var(--rsm);padding:2px 8px;font-size:11px;color:#534ab7;cursor:pointer;font-family:DM Sans,sans-serif">✏️ Editar</button></div></div>${itensHtml}</div>`;
     }).join('');
   }catch(e){document.getElementById('lista-relatorios').innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}finally{hideLoading()}
 }
