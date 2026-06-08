@@ -143,6 +143,7 @@ const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
 
 function hoje(){return new Date().toISOString().slice(0,10)}
+function normNome(n){return(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();}
 function amanha(){const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10)}
 function inicioMes(){const d=new Date();d.setDate(1);return d.toISOString().slice(0,10)}
 function setQuinzena(q,prefixo){
@@ -287,7 +288,7 @@ function coletarItensRascunho(){
   const data=document.getElementById('escala-data').value||hoje();
   const itens=[];
   for(const id of linhas){
-    const guia=(document.getElementById('eg-'+id)||{}).value||'';
+    const guia=normNome((document.getElementById('eg-'+id)||{}).value||'');
     const srv=(document.getElementById('es-'+id)||{}).value||'';
     const srv_el=document.getElementById('es-'+id);
     const isCS=srv.startsWith('chegada')||srv.startsWith('saida');
@@ -375,7 +376,7 @@ async function publicarEscala(){
   if(!linhas.length){alert('Adicione pelo menos um serviço.');return}
   const itens=[];
   for(const id of linhas){
-    const guia=document.getElementById('eg-'+id).value;
+    const guia=normNome(document.getElementById('eg-'+id).value);
     const srv=document.getElementById('es-'+id).value;
     if(!guia||!srv){alert('Preencha guia e tipo em todas as linhas.');return}
     const isCS=srv.startsWith('chegada')||srv.startsWith('saida');
@@ -1647,7 +1648,7 @@ async function importarPlanilha(event){
         });
         if(!guiaMatchFila)continue;
       }
-      const guiaFinal=guiaMatch||(GUIAS_FILA.find(g=>{const gN=norm(g);return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);})||guiaNome);
+      const guiaFinal=normNome(guiaMatch||(GUIAS_FILA.find(g=>{const gN=norm(g);return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);})||guiaNome));
 
       const motorista=(row[COL_MOT]||'').toString().trim();
       const veiculo=(row[COL_VEI]||'').toString().trim();
