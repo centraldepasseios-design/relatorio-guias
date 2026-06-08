@@ -1295,6 +1295,32 @@ async function apagarPasseioGrupo(ids){
   }catch(e){hideLoad();alert('Erro: '+e.message)}
 }
 
+// ===== MIGRAÇÃO DE NOMES =====
+async function migrarNomes(){
+  if(!confirm('Isso vai normalizar todos os nomes de guias no Firestore (remover acentos). Continuar?'))return;
+  showLoad();
+  const norm=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  let total=0,erros=0;
+  try{
+    for(const colecao of ['escalas','relatorios','disponibilidades','confirmacoes','bloqueios']){
+      const snap=await window._gds(window._col(window._db,colecao));
+      for(const d of snap.docs){
+        const dd=d.data();
+        if(!dd.guia)continue;
+        const normalizado=norm(dd.guia);
+        if(normalizado!==dd.guia){
+          try{
+            await window._sd(window._doc(window._db,colecao,d.id),{...dd,guia:normalizado});
+            total++;
+          }catch(e){erros++;}
+        }
+      }
+    }
+    hideLoad();
+    alert('✅ Migração concluída!\n\n'+total+' documentos corrigidos.'+(erros?' ⚠️ '+erros+' erros.':''));
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
 async function abrirModalBloqueio(guia){
   _guiaBloqueio=guia;
   document.getElementById('bloqueio-desc').textContent='Bloquear agenda de '+guia;
@@ -2558,6 +2584,11 @@ async function confirmarReset(){
   <div id="sec-senhas" class="section">
     <div class="search-bar"><input type="text" id="busca-guia" placeholder="🔍 Buscar guia..." oninput="filtrarGuias()"/></div>
     <div class="guia-lista" id="guia-lista"></div>
+    <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">🛠️ Ferramentas de manutenção</div>
+      <button onclick="migrarNomes()" style="padding:8px 16px;background:#e74c3c;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif">🔧 Corrigir nomes com acento no Firebase</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Remove acentos de todos os nomes de guias nas coleções escalas, relatórios, disponibilidades, confirmações e bloqueios.</div>
+    </div>
   </div>
 </div>
 
