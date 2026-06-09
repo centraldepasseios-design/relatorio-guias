@@ -205,7 +205,7 @@
     <hr class="divider" />
     <div id="lista-servicos"></div>
     <div style="display:flex;gap:8px;margin-bottom:4px">
-      <button class="btn-add" style="flex:1" onclick="adicionarServico()">+ Adicionar serviço</button>
+      <button class="btn-add" style="flex:1;background:#2980b9;color:#fff" onclick="adicionarServico()">+ Adicionar serviço</button>
       <button class="btn-add" style="flex:1;background:#0f6e56;color:#fff" onclick="adicionarSoVendas()">💰 Pós Venda / Venda em Passeio</button>
     </div>
     <div class="resumo-envio hidden" id="resumo-envio">
@@ -288,7 +288,7 @@ window._registrarPush = registrarPush;
 </script>
 
 <script>
-const LABELS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF','passeio':'🏖️ Passeio'};
+const LABELS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF','passeio':'🏖️ Passeio','veiculo-disposicao':'🚗 Veículo a Disposição','evento':'🎤 Evento'};
 const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf','passeio':'badge-apoio'};
 let guiaAtual='',contador=0,servicosAtivos=[];
 function formatMoeda(val){
@@ -1285,10 +1285,14 @@ async function carregarEscalaNoRelatorio(){
       window._where('data','==',data)
     ));
     const itens=snap.docs.map(d=>d.data()).filter(d=>d.guia===guiaAtual).sort((a,b)=>a.horario.localeCompare(b.horario));
+    // Sempre limpa o banner e os serviços ao trocar data
+    const banner=document.getElementById('banner-escala');
+    if(banner){banner.style.display='none';banner.textContent='';}
+    document.getElementById('lista-servicos').innerHTML='';
+    servicosAtivos=[];contador=0;atualizarResumo();
+
     if(!itens.length){
-      // Sem escala — deixa o guia adicionar manualmente
-      if(servicosAtivos.length===0)adicionarServico();
-      return;
+      return; // Sem escala — guia adiciona manualmente
     }
     // Limpa e recria os serviços baseado na escala
     document.getElementById('lista-servicos').innerHTML='';
@@ -1298,13 +1302,13 @@ async function carregarEscalaNoRelatorio(){
     itens.forEach(it=>adicionarServicoEscala(it));
     atualizarResumo();
     // Banner informativo
-    const banner=document.getElementById('banner-escala');
-    if(banner){
-      banner.textContent='📋 Escala do dia carregada ('+itens.length+' serviço'+( itens.length>1?'s':'')+') — confirme ou corrija os valores';
-      banner.style.display='block';
+    const bannerEl=document.getElementById('banner-escala');
+    if(bannerEl){
+      bannerEl.textContent='📋 Escala do dia carregada ('+itens.length+' serviço'+(itens.length>1?'s':'')+') — confirme ou corrija os valores';
+      bannerEl.style.display='block';
     }
   }catch(e){
-    if(servicosAtivos.length===0)adicionarServico();
+    // Não adiciona automaticamente
     console.error(e);
   }
 }
@@ -1392,6 +1396,8 @@ function adicionarServico(){
       <optgroup label="Saída"><option value="saida-porto">Saída Porto</option><option value="saida-cabo">Saída Cabo</option><option value="saida-maragogi">Saída Maragogi</option><option value="saida-recife">Saída Recife</option></optgroup>
       <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option></optgroup>
       <option value="trf">TRF</option>
+      <option value="veiculo-disposicao">🚗 Veículo a Disposição</option>
+      <option value="evento">🎤 Evento</option>
     </select>
     <div id="f-chegada-${id}" class="hidden" style="margin-top:14px">
       <div class="row2"><div><label style="margin-top:0">Voo</label><input type="text" id="voo-${id}" placeholder="ex: LA3456" style="text-transform:uppercase" /></div><div><label style="margin-top:0">Pax</label><input type="number" id="pax-${id}" placeholder="0" min="0" /></div></div>
@@ -1445,14 +1451,19 @@ function adicionarServico(){
 function onTipoChange(id){
   const s=document.getElementById('srv-'+id).value;
   const ch=isChegada(s),sa=isSaida(s),pas=s==='passeio';
+  const vd=s==='veiculo-disposicao',ev=s==='evento';
   document.getElementById('f-chegada-'+id).classList.toggle('hidden',!ch);
   document.getElementById('f-saida-'+id).classList.toggle('hidden',!sa);
-  document.getElementById('f-outro-'+id).classList.toggle('hidden',ch||sa||pas||!s);
+  document.getElementById('f-outro-'+id).classList.toggle('hidden',ch||sa||pas||vd||ev||!s);
   document.getElementById('f-obs-wrap-'+id).classList.toggle('hidden',!s);
   const motWrap=document.getElementById('f-mot-wrap-'+id);
-  if(motWrap)motWrap.classList.toggle('hidden',!s||pas);
+  if(motWrap)motWrap.classList.toggle('hidden',!s||pas||ev);
   const pasWrap=document.getElementById('f-passeio-'+id);
   if(pasWrap)pasWrap.classList.toggle('hidden',!pas);
+  const vdWrap=document.getElementById('f-vd-'+id);
+  if(vdWrap)vdWrap.classList.toggle('hidden',!vd);
+  const evWrap=document.getElementById('f-ev-'+id);
+  if(evWrap)evWrap.classList.toggle('hidden',!ev);
   atualizarResumo();
 }
 
