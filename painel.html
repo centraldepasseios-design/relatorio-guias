@@ -335,7 +335,7 @@ function verificarRascunho(){
     if(!r||!r.itens||!r.itens.length)return;
     // Só mostra se a data do rascunho bater com a data selecionada
     if(r.data&&r.data!==dataAtual)return;
-    const salvoEm=r.salvoEm?new Date(r.salvoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    const salvoEm=r.salvoEm?new Date(r.salvoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Recife'}):'';
     const banner=document.createElement('div');
     banner.id='banner-rascunho';
     banner.style.cssText='background:#fff8e1;border:1px solid #f0c040;border-radius:var(--rsm);padding:12px 16px;font-size:13px;color:#7c5c00;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px';
@@ -739,7 +739,7 @@ function aplicarFiltros(){
   if(!linhasF.length){document.getElementById('tabela-wrap').innerHTML='<p class="empty">Nenhum resultado.</p>';return}
   const rows=linhasF.map(({r,it})=>{
     const dt=new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
-    const editadoEm=r.editadoEm?new Date(r.editadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    const editadoEm=r.editadoEm?new Date(r.editadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Recife'}):'';
     const editadoPor=r.editadoPor||'';
     const dataOrigFmt=r.dataOriginal?new Date(r.dataOriginal+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
     const editBadge=r.dataEditada?('<br><span style="font-size:10px;background:#faeeda;color:#854f0b;padding:2px 8px;border-radius:99px;font-weight:600">✏️ Editado pelo guia'+(editadoPor?' · '+editadoPor:'')+(editadoEm?' · '+editadoEm:'')+(dataOrigFmt?' (era '+dataOrigFmt+')':'')+'</span>'):'';
@@ -1361,17 +1361,20 @@ async function carregarPasseios(){
           html+='<div style="padding:10px 14px;border-bottom:1px solid '+cfg.borda+'40">';
           html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
           html+='<span style="font-size:13px;font-weight:600;color:'+cfg.cor+'">🏖️ '+destino+'</span>';
-          html+='<button onclick="apagarPasseioGrupo('+idsJson+')" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
+          const apagKey='apag-'+data.replace(/-/g,'')+'-'+base+'-'+destino.replace(/\s/g,'');
+          window['_apagIds_'+apagKey]=grupo.ids;
+          html+='<button data-key="'+apagKey+'" onclick="apagarPasseioGrupo(window[\'_apagIds_\'+this.dataset.key])" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
           html+='</div>';
-          guiasOrdenados.forEach(gu=>{
+          guiasOrdenados.forEach((gu,gi)=>{
             const idiomaB=gu.idioma&&FLAG[gu.idioma]?'<span style="background:rgba(0,0,0,0.08);padding:1px 6px;border-radius:99px;font-size:10px;margin-left:4px">'+FLAG[gu.idioma]+' '+gu.idioma+'</span>':'';
-            const wppJson=JSON.stringify({data:data,destino:destino,base:base,guias:[gu]}).replace(/"/g,'&quot;');
-            const guJson=JSON.stringify({id:gu.id,nome:gu.nome,posicao:gu.posicao,idioma:gu.idioma,data:data,destino:destino}).replace(/"/g,'&quot;');
+            // Store data in hidden spans, use index to retrieve
+            const rowId='gu-'+data.replace(/-/g,'')+'-'+base+'-'+destino.replace(/\s/g,'_')+'-'+gi;
+            window['_passeioData_'+rowId]={wpp:{data:data,destino:destino,base:base,guias:[gu]},gu:{id:gu.id,nome:gu.nome,posicao:gu.posicao,idioma:gu.idioma,base:base,data:data,destino:destino}};
             html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06)">';
             html+='<span style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+gu.posicao+'</span>';
             html+='<span style="flex:1;font-size:13px;font-weight:500">'+gu.nome+idiomaB+'</span>';
-            html+='<button onclick="reenviarWppPasseioGuia('+wppJson+')" title="Reenviar WPP" style="padding:2px 8px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer">📱</button>';
-            html+='<button onclick="editarGuiaPasseio('+guJson+')" title="Editar guia" style="padding:2px 8px;background:none;border:1px solid var(--border);border-radius:99px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button>';
+            html+='<button data-row="'+rowId+'" onclick="_callPasseioWpp(this.dataset.row)" title="Reenviar WPP" style="padding:2px 8px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer">📱</button>';
+            html+='<button data-row="'+rowId+'" onclick="_callPasseioEdit(this.dataset.row)" title="Editar guia" style="padding:2px 8px;background:none;border:1px solid var(--border);border-radius:99px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button>';
             html+='</div>';
           });
           html+='</div>';
@@ -1385,6 +1388,75 @@ async function carregarPasseios(){
   }catch(e){lista.innerHTML='<p class="empty">Erro: '+e.message+'</p>'}
 }
 
+
+function _callPasseioWpp(rowId){
+  const d=window['_passeioData_'+rowId];
+  if(!d){alert('Erro: dados não encontrados. Recarregue a página.');return;}
+  reenviarWppPasseioGuia(d.wpp);
+}
+function _callPasseioEdit(rowId){
+  const d=window['_passeioData_'+rowId];
+  if(!d){alert('Erro: dados não encontrados. Recarregue a página.');return;}
+  editarGuiaPasseio(d.gu);
+}
+
+async function enviarWppPasseio(grupo){
+  const data=new Date(grupo.data+'T12:00:00');
+  const dataFmt=data.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',timeZone:'America/Recife'});
+  const flagMap={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
+  let enviados=0,semFone=[];
+  showLoad();
+  for(const gu of grupo.guias){
+    const fone=buscarFoneGuia(gu.nome);
+    if(!fone){semFone.push(gu.nome);continue}
+    const sufixo=gu.posicao===1?'1º carro':gu.posicao+'º carro';
+    const idiomaLinha=gu.idioma?('\n🌍 Idioma: *'+(flagMap[gu.idioma]||'')+' '+gu.idioma+'*'):'';
+    const msg='🏖️ *Passeio confirmado!*\n\nOlá '+gu.nome.split(' ')[0]+'! Você está confirmado no passeio de *'+grupo.destino+'* no dia *'+dataFmt+'*.\n\n📍 Posição: *'+sufixo+'*'+idiomaLinha+'\n\nAguarde a escala com mais detalhes em breve. 🙏';
+    await enviarWhatsApp(fone,msg);
+    enviados++;
+  }
+  hideLoad();
+  let res='✅ Mensagem enviada para '+enviados+' guia'+(enviados>1?'s':'')+'!';
+  if(semFone.length)res+='\n\n⚠️ Sem número cadastrado:\n'+semFone.join(', ');
+  alert(res);
+}
+
+async function reenviarWppPasseioGuia(grupo){
+  await enviarWppPasseio(grupo);
+}
+
+let _editPasseioItem=null;
+function editarGuiaPasseio(gu){
+  _editPasseioItem=gu;
+  document.getElementById('modal-edit-passeio').style.display='flex';
+  // Aguarda modal estar visível para setar valores
+  setTimeout(()=>{
+    const nomeNorm=(gu.nome||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
+    const sel=document.getElementById('edit-passeio-guia');
+    // Tenta match exato primeiro, depois normalizado
+    const opt=[...sel.options].find(o=>o.value===gu.nome||o.value===nomeNorm);
+    if(opt)sel.value=opt.value;
+    else sel.value=gu.nome||'';
+    document.getElementById('edit-passeio-base').value=gu.base||'Porto';
+  },50);
+}
+async function salvarEditPasseio(){
+  if(!_editPasseioItem)return;
+  const novoGuia=normNome(document.getElementById('edit-passeio-guia').value);
+  const novaBase=document.getElementById('edit-passeio-base').value;
+  if(!novoGuia){alert('Informe o nome do guia.');return}
+  showLoad();
+  try{
+    const ref=window._doc(window._db,'bloqueios',_editPasseioItem.id);
+    const snap=await window._gd(ref);
+    const dados=snap.data();
+    await window._sd(ref,{...dados,guia:novoGuia,base:novaBase});
+    hideLoad();
+    document.getElementById('modal-edit-passeio').style.display='none';
+    _editPasseioItem=null;
+    carregarPasseios();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
 
 async function apagarPasseioGrupo(ids){
   if(!confirm('Apagar este passeio para todos os guias?'))return;
@@ -1644,7 +1716,7 @@ async function carregarDisp(){
       const obsGuia=dispObs[g]||'';
       const ultima=ultimaEscala[g]?new Date(ultimaEscala[g]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'—';
       const foiEditado=dispEditado[g]||false;
-      const editadoEmStr=dispEditadoEm[g]?new Date(dispEditadoEm[g]).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+      const editadoEmStr=dispEditadoEm[g]?new Date(dispEditadoEm[g]).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Recife'}):'';
       const bloqs=bloqMap[g]||[];
       const naoConvidar=naoConvidarMap[g]||null;
       const editBadge=foiEditado?'<span title="Editado '+editadoEmStr+'" style="background:#fff3cd;color:#856404;padding:1px 5px;border-radius:99px;font-size:10px;cursor:help;margin-left:3px">✏️</span>':'';
@@ -2987,5 +3059,113 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 </script>
 
 
+
+<!-- Modal editar guia passeio -->
+<div class="loading-overlay" id="modal-edit-passeio" style="display:none;z-index:300">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:360px;margin:1rem">
+    <h3 style="margin:0 0 1rem;font-size:16px">✏️ Editar guia do passeio</h3>
+    <label>Guia</label>
+    <select id="edit-passeio-guia" style="width:100%;margin-bottom:1rem;background:#fff">
+      <option value="JUNIOR">JUNIOR</option>
+<option value="POLLY">POLLY</option>
+<option value="NATALIA">NATALIA</option>
+<option value="GEORGE">GEORGE</option>
+<option value="KATARINA">KATARINA</option>
+<option value="EDMILTON">EDMILTON</option>
+<option value="EVILAZIO">EVILAZIO</option>
+<option value="LUCIENE">LUCIENE</option>
+<option value="VITOR">VITOR</option>
+<option value="ERLON">ERLON</option>
+<option value="HENRIQUE JR">HENRIQUE JR</option>
+<option value="FELIPE">FELIPE</option>
+<option value="EDSON">EDSON</option>
+<option value="TATIANA">TATIANA</option>
+<option value="TOM">TOM</option>
+<option value="ADRIANE">ADRIANE</option>
+<option value="GUILHERME">GUILHERME</option>
+<option value="FABIO GOMES">FABIO GOMES</option>
+<option value="DANIEL">DANIEL</option>
+<option value="NEIDE">NEIDE</option>
+<option value="JUAN">JUAN</option>
+<option value="EUGENIO">EUGENIO</option>
+<option value="VALTER">VALTER</option>
+<option value="GONCALVES">GONCALVES</option>
+<option value="ANTONIO">ANTONIO</option>
+<option value="GERARDO">GERARDO</option>
+<option value="HUGO">HUGO</option>
+<option value="JOEL">JOEL</option>
+<option value="HENRIQUE FARIAS">HENRIQUE FARIAS</option>
+<option value="CHICO DINIZ">CHICO DINIZ</option>
+<option value="MARILANDE">MARILANDE</option>
+<option value="WIRON">WIRON</option>
+<option value="IANNE">IANNE</option>
+<option value="ADIANES">ADIANES</option>
+<option value="MADSON">MADSON</option>
+<option value="CAMILLA">CAMILLA</option>
+<option value="ANDRE">ANDRE</option>
+<option value="ANA FLAVIA">ANA FLAVIA</option>
+<option value="RENATA">RENATA</option>
+<option value="GESSYCA">GESSYCA</option>
+<option value="TAVARES">TAVARES</option>
+<option value="MATHEUS">MATHEUS</option>
+<option value="ALICE">ALICE</option>
+<option value="LIDIANE">LIDIANE</option>
+<option value="CARLA">CARLA</option>
+<option value="ALBERTO">ALBERTO</option>
+<option value="XIMENES">XIMENES</option>
+<option value="SIDNEI">SIDNEI</option>
+<option value="DRIELLY">DRIELLY</option>
+<option value="RAISSA">RAISSA</option>
+<option value="ISADORA">ISADORA</option>
+<option value="SANTIAGO">SANTIAGO</option>
+<option value="ARTHUR">ARTHUR</option>
+<option value="GIL">GIL</option>
+<option value="HUMBERTO">HUMBERTO</option>
+<option value="FABIO COZZI">FABIO COZZI</option>
+<option value="BRENO">BRENO</option>
+<option value="LUIZ CARLOS">LUIZ CARLOS</option>
+<option value="RODRIGO">RODRIGO</option>
+<option value="JOELMA">JOELMA</option>
+<option value="OLIVEIRA">OLIVEIRA</option>
+<option value="BRUNO M">BRUNO M</option>
+<option value="TALES">TALES</option>
+<option value="FRANCINALDO">FRANCINALDO</option>
+<option value="AMAURY">AMAURY</option>
+<option value="ARLENE">ARLENE</option>
+<option value="JACIANE">JACIANE</option>
+<option value="FRANCA">FRANCA</option>
+<option value="FREITAS">FREITAS</option>
+<option value="LUIZ FELIPE">LUIZ FELIPE</option>
+<option value="RAFAEL">RAFAEL</option>
+<option value="JULIANA">JULIANA</option>
+<option value="DEYVISON">DEYVISON</option>
+<option value="ALEX">ALEX</option>
+<option value="RUTH">RUTH</option>
+<option value="CAMILA">CAMILA</option>
+<option value="GLORIA">GLORIA</option>
+<option value="ELISIO">ELISIO</option>
+<option value="REBECA">REBECA</option>
+<option value="ENEZIANE">ENEZIANE</option>
+<option value="ALVARO">ALVARO</option>
+<option value="ZENA">ZENA</option>
+<option value="CARLOS M">CARLOS M</option>
+<option value="CHICO LIMA">CHICO LIMA</option>
+<option value="SERGIO">SERGIO</option>
+<option value="LUCIA V">LUCIA V</option>
+<option value="MARCOS F">MARCOS F</option>
+<option value="MADALENA">MADALENA</option>
+<option value="ARLINDO">ARLINDO</option>
+    </select>
+    <label>Base de saída</label>
+    <select id="edit-passeio-base" style="width:100%;margin-bottom:1.5rem;background:#fff">
+      <option value="Porto">🚢 Porto</option>
+      <option value="Recife">🌆 Recife</option>
+    </select>
+    <div style="display:flex;gap:8px">
+      <button onclick="salvarEditPasseio()" style="flex:1;padding:10px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:14px;cursor:pointer;font-weight:600">💾 Salvar</button>
+      <button onclick="document.getElementById('modal-edit-passeio').style.display='none'" style="padding:10px 16px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:14px;cursor:pointer">Cancelar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
