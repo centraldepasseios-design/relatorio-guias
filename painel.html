@@ -189,13 +189,14 @@ function entrar(){
 function sair(){localStorage.removeItem('luck_admin');document.getElementById('login-wrap').style.display='flex';document.getElementById('painel').style.display='none';document.getElementById('senha-input').value=''}
 
 function trocarAba(aba){
-  ['escala','relatorios','disp','senhas'].forEach((a,i)=>{
+  ['escala','passeios','relatorios','disp','senhas'].forEach((a,i)=>{
     document.querySelectorAll('.tab')[i].classList.toggle('active',aba===a);
     document.getElementById('sec-'+a).classList.toggle('active',aba===a);
   });
   if(aba==='senhas')carregarSenhas();
   if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();verificarPendentes();setTimeout(verificarRascunho,400);}
   if(aba==='disp')carregarDisp();
+  if(aba==='passeios'){carregarPasseios();document.getElementById('passeio-filtro-data').value=amanha();}
 }
 
 // ===== ESCALA =====
@@ -1195,6 +1196,7 @@ function moverOrdem(btn,dir){
 async function salvarPasseio(){
   const data=document.getElementById('passeio-data').value;
   const destino=getDestinoPasseio();
+  const base=document.getElementById('passeio-base').value||'Porto';
   const ordenados=[...document.querySelectorAll('#passeio-ordem-lista .ordem-item')].map(el=>el.dataset.guia);
   if(!data){alert('Informe a data.');return}
   if(!destino){alert('Informe o destino.');return}
@@ -1237,13 +1239,14 @@ async function salvarPasseio(){
       const idiomaPas=idiomaEl?idiomaEl.value:'';
       await window._ad(window._col(window._db,'bloqueios'),{
         guia,inicio:data,fim:data,descricao:destino,tipo:'passeio',
-        posicao,idioma:idiomaPas,criadoEm:new Date().toISOString()
+        base,posicao,idioma:idiomaPas,criadoEm:new Date().toISOString()
       });
     }
     hideLoad();
     // Limpa tudo para o próximo passeio
     window._passeioSelecionados=[];
     document.getElementById('passeio-nome-sel').value='';
+    document.getElementById('passeio-base').value='Porto';
     document.getElementById('passeio-nome').value='';
     document.getElementById('passeio-nome').style.display='none';
     document.getElementById('passeio-busca').value='';
@@ -1255,65 +1258,102 @@ async function salvarPasseio(){
   }catch(e){hideLoad();alert('Erro: '+e.message)}
 }
 
+function setFiltroPasseioQuinzena(q){
+  document.getElementById('passeio-filtro-data').value='';
+  carregarPasseios();
+}
+
 async function carregarPasseios(){
   const lista=document.getElementById('passeio-lista');
   if(!lista)return;
   try{
     const snap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
     if(!snap.docs.length){lista.innerHTML='<p class="empty">Nenhum passeio cadastrado.</p>';return}
-    const grupos={};
+
+    const filtroData=(document.getElementById('passeio-filtro-data')||{}).value||'';
+    const FLAG={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
+
+    // Agrupa por data → base → destino
+    const porData={};
     snap.docs.forEach(d=>{
       const dd=d.data();
-      const key=dd.inicio+'__'+dd.descricao;
-      if(!grupos[key])grupos[key]={data:dd.inicio,destino:dd.descricao,idioma:dd.idioma||'',guias:[],ids:[]};
-      grupos[key].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id});
-      grupos[key].ids.push(d.id);
+      if(filtroData&&dd.inicio!==filtroData)return;
+      if(!porData[dd.inicio])porData[dd.inicio]={};
+      const base=dd.base||'Porto';
+      if(!porData[dd.inicio][base])porData[dd.inicio][base]={};
+      const destino=dd.descricao;
+      if(!porData[dd.inicio][base][destino])porData[dd.inicio][base][destino]={guias:[],ids:[]};
+      porData[dd.inicio][base][destino].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id});
+      porData[dd.inicio][base][destino].ids.push(d.id);
     });
-    lista.innerHTML=Object.values(grupos).sort((a,b)=>b.data.localeCompare(a.data)).map(g=>{
-      const guiasOrdenados=g.guias.slice().sort((a,b)=>a.posicao-b.posicao);
-      const d=new Date(g.data+'T12:00:00');
-      const fmt=d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
-      const idsJson=JSON.stringify(g.ids).replace(/"/g,'&quot;');
-      const grupoJson=JSON.stringify({data:g.data,destino:g.destino,guias:guiasOrdenados}).replace(/"/g,'&quot;');
-      const FLAG={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
-      const idiomasUnicos=[...new Set(guiasOrdenados.map(gu=>gu.idioma).filter(Boolean))];
-      const idiomaBadge=idiomasUnicos.map(id=>'<span style="background:#e8f4fd;color:#185fa5;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;margin-left:4px">'+(FLAG[id]||'')+' '+id+'</span>').join('');
-      return'<div style="padding:12px 0;border-bottom:1px solid var(--border)">'
-        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">'
-        +'<div>'
-        +'<span style="font-size:14px;font-weight:600">🏖️ '+g.destino+'</span>'
-        +'<span style="font-size:12px;color:var(--muted);margin-left:8px">'+fmt+'</span>'
-        +'<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">'
-        +guiasOrdenados.map(gu=>'<span style="font-size:12px"><span style="background:#e67e22;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;margin-right:5px">'+gu.posicao+'º</span>'+gu.nome+(gu.idioma&&FLAG[gu.idioma]?' <span style="background:#e8f4fd;color:#185fa5;padding:1px 6px;border-radius:99px;font-size:10px">'+FLAG[gu.idioma]+' '+gu.idioma+'</span>':'')+'</span>').join('')
-        +'</div></div>'
-        +'<div style="display:flex;gap:6px;align-items:flex-start">'
-        +'<button onclick="enviarWppPasseio('+grupoJson+')" style="padding:5px 12px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:12px;cursor:pointer;font-weight:600">📱 Enviar WPP</button>'
-        +'<button onclick="apagarPasseioGrupo('+idsJson+')" style="padding:5px 10px;background:#fde8e8;color:#c0392b;border:1px solid #f5c6c6;border-radius:99px;font-size:11px;cursor:pointer">🗑️</button>'
-        +'</div></div></div>';
-    }).join('');
-  }catch(e){lista.innerHTML='<p class="empty">Erro ao carregar.</p>'}
+
+    const BASES={
+      'Porto': {cor:'#1a6b9a', fundo:'#e8f4fd', borda:'#1a6b9a', emoji:'🚢'},
+      'Recife': {cor:'#1a6b40', fundo:'#e8f5ec', borda:'#1a6b40', emoji:'🌆'}
+    };
+
+    let html='';
+    Object.keys(porData).sort().forEach(data=>{
+      const d=new Date(data+'T12:00:00');
+      const dataFmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
+      const basesNoDia=porData[data];
+      const todosIdsNoDia=Object.values(basesNoDia).flatMap(b=>Object.values(b).flatMap(g=>g.ids));
+
+      html+='<div style="margin-bottom:2rem">';
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+      html+='<h4 style="margin:0;font-size:15px;font-weight:700;text-transform:capitalize">'+dataFmt+'</h4>';
+      html+='<div style="display:flex;gap:6px">';
+      html+='<button data-date="'+data+'" data-base="Porto" onclick="enviarWppTodosPasseiosDia(this.dataset.date,this.dataset.base)" style="padding:6px 12px;background:#1a6b9a;color:#fff;border:none;border-radius:99px;font-size:12px;cursor:pointer;font-weight:600">📱 WPP 🚢 Porto</button>';
+      html+='<button data-date="'+data+'" data-base="Recife" onclick="enviarWppTodosPasseiosDia(this.dataset.date,this.dataset.base)" style="padding:6px 12px;background:#1a6b40;color:#fff;border:none;border-radius:99px;font-size:12px;cursor:pointer;font-weight:600">📱 WPP 🌆 Recife</button>';
+      html+='</div>';
+      html+='</div>';
+
+      ['Porto','Recife'].forEach(base=>{
+        if(!basesNoDia[base])return;
+        const cfg=BASES[base];
+        const destinos=basesNoDia[base];
+        const idsBase=Object.values(destinos).flatMap(g=>g.ids);
+        const todosGuiasBase=Object.entries(destinos).flatMap(([dest,g])=>
+          g.guias.slice().sort((a,b)=>a.posicao-b.posicao).map(gu=>({...gu,destino:dest}))
+        );
+
+        html+='<div style="background:'+cfg.fundo+';border:2px solid '+cfg.borda+';border-radius:var(--radius);overflow:hidden;margin-bottom:12px">';
+        html+='<div style="background:'+cfg.cor+';color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center">';
+        html+='<span style="font-weight:700;font-size:14px">'+cfg.emoji+' '+base+'</span>';
+        html+='<span style="font-size:12px;opacity:0.9">'+Object.keys(destinos).length+' passeio'+(Object.keys(destinos).length>1?'s':'')+'</span>';
+        html+='</div>';
+
+        // Destinos dentro da base
+        Object.entries(destinos).forEach(([destino, grupo])=>{
+          const guiasOrdenados=grupo.guias.slice().sort((a,b)=>a.posicao-b.posicao);
+          const idsJson=JSON.stringify(grupo.ids).replace(/"/g,'&quot;');
+          html+='<div style="padding:10px 14px;border-bottom:1px solid '+cfg.borda+'40">';
+          html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+          html+='<span style="font-size:13px;font-weight:600;color:'+cfg.cor+'">🏖️ '+destino+'</span>';
+          html+='<button onclick="apagarPasseioGrupo('+idsJson+')" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
+          html+='</div>';
+          guiasOrdenados.forEach(gu=>{
+            const idiomaB=gu.idioma&&FLAG[gu.idioma]?'<span style="background:rgba(0,0,0,0.08);padding:1px 6px;border-radius:99px;font-size:10px;margin-left:4px">'+FLAG[gu.idioma]+' '+gu.idioma+'</span>':'';
+            const wppJson=JSON.stringify({data:data,destino:destino,base:base,guias:[gu]}).replace(/"/g,'&quot;');
+            const guJson=JSON.stringify({id:gu.id,nome:gu.nome,posicao:gu.posicao,idioma:gu.idioma,data:data,destino:destino}).replace(/"/g,'&quot;');
+            html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06)">';
+            html+='<span style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+gu.posicao+'</span>';
+            html+='<span style="flex:1;font-size:13px;font-weight:500">'+gu.nome+idiomaB+'</span>';
+            html+='<button onclick="reenviarWppPasseioGuia('+wppJson+')" title="Reenviar WPP" style="padding:2px 8px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer">📱</button>';
+            html+='<button onclick="editarGuiaPasseio('+guJson+')" title="Editar guia" style="padding:2px 8px;background:none;border:1px solid var(--border);border-radius:99px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button>';
+            html+='</div>';
+          });
+          html+='</div>';
+        });
+        html+='</div>';
+      });
+      html+='</div>';
+    });
+
+    lista.innerHTML=html||'<p class="empty">Nenhum passeio encontrado.</p>';
+  }catch(e){lista.innerHTML='<p class="empty">Erro: '+e.message+'</p>'}
 }
 
-async function enviarWppPasseio(grupo){
-  const data=new Date(grupo.data+'T12:00:00');
-  const dataFmt=data.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
-  let enviados=0,semFone=[];
-  showLoad();
-  for(const gu of grupo.guias){
-    const fone=buscarFoneGuia(gu.nome);
-    if(!fone){semFone.push(gu.nome);continue}
-    const sufixo=gu.posicao===1?'1º carro':gu.posicao+'º carro';
-    const flagMap={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
-    const idiomaLinha=gu.idioma?('\n🌍 Idioma: *'+(flagMap[gu.idioma]||'')+' '+gu.idioma+'*'):'';
-    const msg='🏖️ *Passeio confirmado!*\n\nOlá '+gu.nome.split(' ')[0]+'! Você está confirmado no passeio de *'+grupo.destino+'* no dia *'+dataFmt+'*.\n\n📍 Posição: *'+sufixo+'*'+idiomaLinha+'\n\nAguarde a escala com mais detalhes em breve. 🙏';
-    await enviarWhatsApp(fone,msg);
-    enviados++;
-  }
-  hideLoad();
-  let res='✅ Mensagem enviada para '+enviados+' guia'+(enviados>1?'s':'')+'!';
-  if(semFone.length)res+='\n\n⚠️ Sem número cadastrado:\n'+semFone.join(', ');
-  alert(res);
-}
 
 async function apagarPasseioGrupo(ids){
   if(!confirm('Apagar este passeio para todos os guias?'))return;
@@ -1505,7 +1545,15 @@ async function carregarDisp(){
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
-    // Carrega passeios e bloqueios do dia
+    // Carrega passeios — conta como último serviço também
+    const todosPasseiosSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    todosPasseiosSnap.docs.forEach(d=>{
+      const dd=d.data();
+      const guiaN=_normDisp(dd.guia);
+      const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
+      if(!ultimaEscala[guiaKey]||dd.inicio>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dd.inicio;
+    });
+    // Passeios do dia selecionado
     const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio'),window._w('inicio','==',data)));
     const guiasEmPasseio=new Set();
     passeioSnap.docs.forEach(d=>{
@@ -1571,6 +1619,13 @@ async function carregarDisp(){
       const editBadge=foiEditado?'<span title="Editado '+editadoEmStr+'" style="background:#fff3cd;color:#856404;padding:1px 5px;border-radius:99px;font-size:10px;cursor:help;margin-left:3px">✏️</span>':'';
 
       // Badges no nome
+      // Passeio do guia neste dia
+      const passeioHoje=passeioSnap.docs.map(d=>d.data()).find(p=>{
+        const gN=_normDisp(p.guia);
+        return _normDisp(g)===gN;
+      });
+      const passeioBadge=passeioHoje?'<span style="background:#fff3e0;color:#e67e22;padding:2px 7px;border-radius:99px;font-size:11px;font-weight:600;margin-left:5px">🏖️ '+passeioHoje.descricao+'</span>':'';
+
       const statusBadge=naoConvidar
         ?'<span style="background:#7f0000;color:#fff;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;margin-left:5px" title="Não convidar até '+new Date(naoConvidar.ate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+'">✖ Não convidar</span>'
         :status==='nao'?'<span style="background:#fde8e8;color:#c0392b;padding:2px 7px;border-radius:99px;font-size:11px;font-weight:600;margin-left:5px">❌ Indisp</span>'
@@ -1588,7 +1643,7 @@ async function carregarDisp(){
       return '<tr style="'+(rowBg?'background:'+rowBg+';':'')+';border-bottom:1px solid var(--border)">'
         +'<td style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:center;width:28px">'+(i+1)+'</td>'
         +'<td style="padding:7px 8px;width:33%">'
-          +'<span style="font-size:13px;font-weight:600">'+g+'</span>'+editBadge+statusBadge
+          +'<span style="font-size:13px;font-weight:600">'+g+'</span>'+editBadge+statusBadge+passeioBadge
           +bloqBadge+obsGuiaHTML
         +'</td>'
         +'<td style="padding:7px 8px;width:15%;text-align:center;font-size:13px;font-weight:600;color:'+dataColor+'">'+dataDisplay+'</td>'
@@ -2537,6 +2592,7 @@ async function confirmarReset(){
 
   <div class="tabs">
     <button class="tab active" onclick="trocarAba('escala')">📅 Escala</button>
+    <button class="tab" onclick="trocarAba('passeios')">🏖️ Passeios</button>
     <button class="tab" onclick="trocarAba('relatorios')">📋 Relatórios</button>
     <button class="tab" onclick="trocarAba('disp')">👥 Disponibilidade</button>
     <button class="tab" onclick="trocarAba('senhas')">🔑 Senhas</button>
@@ -2571,47 +2627,6 @@ async function confirmarReset(){
     <div id="escala-linhas"></div>
     <div id="escala-publicada"></div>
 
-    <!-- Seção Passeios -->
-    <div style="margin-top:2rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-      <div style="background:#e67e22;color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-weight:600;font-size:14px">🏖️ Passeios</span>
-        <button onclick="togglePasseioForm()" id="btn-toggle-passeio" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:4px 12px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer">+ Adicionar passeio</button>
-      </div>
-      <div id="passeio-form" style="display:none;padding:16px;border-bottom:1px solid var(--border)">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          <div><label>Data</label><input type="date" id="passeio-data" style="background:#fff"/></div>
-          <div>
-            <label>Destino</label>
-            <select id="passeio-nome-sel" onchange="onDestinoChange()" style="background:#fff;margin-bottom:4px">
-              <option value="">Selecione o destino...</option>
-              <option value="Carneiros">🏖️ Carneiros</option>
-              <option value="Maragogi">🏖️ Maragogi</option>
-              <option value="Cabo de Santo Agostinho">🏖️ Cabo de Santo Agostinho</option>
-              <option value="Litoral Norte">🏖️ Litoral Norte</option>
-              <option value="City Tour Recife e Olinda">🏛️ City Tour Recife e Olinda</option>
-              <option value="São José da Coroa Grande">🏖️ São José da Coroa Grande</option>
-              <option value="outro">✏️ Outro destino...</option>
-            </select>
-            <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
-          </div>
-
-        </div>
-        <div style="margin-bottom:10px">
-          <label>Guias e posição no carro</label>
-          <input type="text" id="passeio-busca" placeholder="🔍 Buscar guia..." oninput="filtrarGuiasPasseio()" style="background:#fff;margin-bottom:6px"/>
-          <div id="passeio-guias-wrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);max-height:160px;overflow-y:auto"></div>
-        </div>
-        <div id="passeio-ordem-wrap" style="display:none;margin-bottom:10px">
-          <label>Ordem dos guias <span style="font-size:11px;color:var(--muted)">(1º = 1º carro)</span></label>
-          <div id="passeio-ordem-lista" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm)"></div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="salvarPasseio()" style="padding:9px 18px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">💾 Salvar passeio</button>
-          <button onclick="togglePasseioForm()" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer">Cancelar</button>
-        </div>
-      </div>
-      <div id="passeio-lista" style="padding:12px 16px"><p class="empty">Nenhum passeio cadastrado.</p></div>
-    </div>
     <div id="escala-filtros" style="display:none;margin-bottom:10px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label>Filtrar por guia</label><input type="text" id="f-pub-guia" placeholder="Nome do guia..." oninput="filtrarPublicada()" style="background:#fff"/></div>
@@ -2622,6 +2637,63 @@ async function confirmarReset(){
   </div>
 
   <!-- RELATÓRIOS -->
+  <div id="sec-passeios" class="section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h3 style="margin:0">🏖️ Passeios</h3>
+      <button onclick="togglePasseioForm()" id="btn-toggle-passeio" style="padding:8px 16px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">+ Adicionar passeio</button>
+    </div>
+    <div id="passeio-form" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:1rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label>Data</label><input type="date" id="passeio-data" style="background:#fff"/></div>
+        <div><label>Base de saída</label>
+          <select id="passeio-base" style="background:#fff">
+            <option value="Porto">🚢 Porto</option>
+            <option value="Recife">🌆 Recife</option>
+          </select>
+        </div>
+        <div>
+          <label>Destino</label>
+          <select id="passeio-nome-sel" onchange="onDestinoChange()" style="background:#fff;margin-bottom:4px">
+            <option value="">Selecione o destino...</option>
+            <option value="Carneiros">🏖️ Carneiros</option>
+            <option value="Maragogi">🏖️ Maragogi</option>
+            <option value="Cabo de Santo Agostinho">🏖️ Cabo de Santo Agostinho</option>
+            <option value="Litoral Norte">🏖️ Litoral Norte</option>
+            <option value="City Tour Recife e Olinda">🏛️ City Tour Recife e Olinda</option>
+            <option value="São José da Coroa Grande">🏖️ São José da Coroa Grande</option>
+            <option value="outro">✏️ Outro destino...</option>
+          </select>
+          <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label>Guias e posição no carro</label>
+        <input type="text" id="passeio-busca" placeholder="🔍 Buscar guia..." oninput="filtrarGuiasPasseio()" style="background:#fff;margin-bottom:6px"/>
+        <div id="passeio-guias-wrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);max-height:160px;overflow-y:auto"></div>
+      </div>
+      <div id="passeio-ordem-wrap" style="display:none;margin-bottom:10px">
+        <label>Ordem dos guias <span style="font-size:11px;color:var(--muted)">(1º = 1º carro)</span></label>
+        <div id="passeio-ordem-lista" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm)"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="salvarPasseio()" style="padding:9px 18px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">💾 Salvar passeio</button>
+        <button onclick="togglePasseioForm()" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Lista de passeios por data e base -->
+    <div style="display:flex;gap:10px;margin-bottom:1rem;align-items:flex-end;flex-wrap:wrap">
+      <div><label>Data</label><input type="date" id="passeio-filtro-data" style="padding:7px 10px;font-size:13px" onchange="carregarPasseios()"/></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-sm" style="background:#27ae60;font-size:12px" onclick="setFiltroPasseioQuinzena(1)">1ª (01–15)</button>
+        <button class="btn-sm" style="background:#2980b9;font-size:12px" onclick="setFiltroPasseioQuinzena(2)">2ª (16–31)</button>
+        <button class="btn-sm" onclick="document.getElementById('passeio-filtro-data').value='';carregarPasseios()">Todos</button>
+      </div>
+
+    </div>
+    <div id="passeio-lista"></div>
+  </div>
+
   <div id="sec-relatorios" class="section">
     <!-- RESUMO POR GUIA -->
     <div style="margin-bottom:1rem">
