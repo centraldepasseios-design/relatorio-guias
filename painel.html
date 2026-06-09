@@ -1955,10 +1955,9 @@ async function importarPlanilha(event){
             const baseHor=horVoo||horIn;
             horApres=subtrairMinutos(baseHor,30,'no aero');
           }
-          const motChegada=det.comMotorista?motorista:'';
           itensImportados.push({
             guia:guiaFinal,servico:det.tipo,
-            horario:horApres,hsrv,voo,pax:paxIn,motorista:motChegada,hotel:hotelIn,obs:''
+            horario:horApres,hsrv,voo,pax:paxIn,motorista,hotel:hotelIn,obs:''
           });
         }
       }
@@ -1979,7 +1978,6 @@ async function importarPlanilha(event){
             } else if(!det.horarioPadrao){
               horAOut=horOut;
             }
-            const motSaida=det.comMotorista?motorista:motorista;
             itensImportados.push({
               guia:guiaFinal,servico:det.tipo,
               horario:horAOut,hsrv:hsrvOut,
