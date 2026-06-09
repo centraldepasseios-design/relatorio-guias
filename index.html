@@ -96,8 +96,8 @@
     .disp-card h3{font-size:15px;font-weight:600;margin-bottom:1rem}
     .disp-date-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
     .disp-date-row:last-child{border-bottom:none}
-    .disp-date{font-size:14px;font-weight:500}
-    .disp-date small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+    .disp-date{font-size:17px;font-weight:700;display:flex;align-items:center;gap:6px}
+    .disp-date small{font-size:13px;color:var(--muted);font-weight:500}
     .disp-btns{display:flex;gap:6px}
     .btn-disp{padding:6px 14px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;border-radius:99px;cursor:pointer;border:1.5px solid transparent;transition:all .15s}
     .btn-disp.sim{background:#e1f5ee;color:#0f6e56;border-color:#b2dfdb}
@@ -171,7 +171,7 @@
     </div>
   </div>
   <div class="tabs">
-    <button class="tab active" onclick="trocarAba('escala')">📅 Escala</button>
+    <button class="tab active" onclick="trocarAba('escala')">🗺️ Escala</button>
     <button class="tab" onclick="trocarAba('disp')">📆 Disponibilidade</button>
     <button class="tab" onclick="trocarAba('form')">📋 Relatório</button>
     <button class="tab" onclick="trocarAba('hist')">↩ Histórico</button>
@@ -947,37 +947,23 @@ async function carregarDisponibilidade(){
   if(!window._fbReady||!guiaAtual)return;
   showLoading();
   try{
-    // Carrega idiomas salvos
-    const guiaDoc=await window._getDoc(window._doc(window._db,'guias',guiaAtual));
-    const idiomasSalvos=guiaDoc.exists()&&guiaDoc.data().idiomas?guiaDoc.data().idiomas:[];
     // Gera próximos 14 dias
     const dias=[];
-    for(let i=0;i<14;i++){
-      const d=new Date();d.setDate(d.getDate()+i);
-      dias.push(d.toISOString().slice(0,10));
-    }
+    for(let i=0;i<14;i++){const d=new Date();d.setDate(d.getDate()+i);dias.push(d.toISOString().slice(0,10));}
     // Carrega bloqueios do admin
-    const bloqSnap=await window._getDocs(window._query(
-      window._collection(window._db,'bloqueios'),
-      window._where('guia','==',guiaAtual)
-    ));
+    const bloqSnap=await window._getDocs(window._query(window._collection(window._db,'bloqueios'),window._where('guia','==',guiaAtual)));
     const bloqueios=bloqSnap.docs.map(d=>d.data());
-    // Carrega disponibilidades já salvas (busca por guia, filtra datas no cliente)
-    const dispSnap=await window._getDocs(window._query(
-      window._collection(window._db,'disponibilidades'),
-      window._where('guia','==',guiaAtual)
-    ));
+    // Carrega restrições já salvas
+    const dispSnap=await window._getDocs(window._query(window._collection(window._db,'disponibilidades'),window._where('guia','==',guiaAtual)));
     window.dispMap_global={};
-    window._confirmMap_global={};
-    const dispMap=window.dispMap_global;
     const obsMap={};
-    const confirmMap=window._confirmMap_global;
+    const editadoMap={};
     dispSnap.docs.forEach(d=>{
       const dd=d.data();
       if(dd.data>=dias[0]&&dd.data<=dias[13]){
-        dispMap[dd.data]=dd.status;
+        window.dispMap_global[dd.data]=dd.status||'';
         if(dd.obs)obsMap[dd.data]=dd.obs;
-        if(dd.confirmado)confirmMap[dd.data]=true;
+        if(dd.editado)editadoMap[dd.data]={em:dd.editadoEm};
       }
     });
     hideLoading();
@@ -985,100 +971,151 @@ async function carregarDisponibilidade(){
     const diasRows=dias.map(data=>{
       const d=new Date(data+'T12:00:00');
       const fmt=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-      const diaSem=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'][d.getDay()];
-      const status=dispMap[data]||'';
+      const diaSem=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
+
+      const status=window.dispMap_global[data]||'';
       const obs=obsMap[data]||'';
-      const confirmado=confirmMap[data]||false;
       const bloqueio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim&&b.tipo!=='passeio')||null;
       const passeio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim&&b.tipo==='passeio')||null;
+
+      // Passeio do admin
       if(passeio){
         const FLAG_PAS={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
-        const idiomaPasLabel=passeio.idioma?(FLAG_PAS[passeio.idioma]||'')+' '+passeio.idioma:'';
-        return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:6px;background:#fff8f0;border-radius:var(--rsm);padding:10px;border:1px solid #f0a500">
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-            <div class="disp-date">${diaSem}<small>${fmt}</small></div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <span style="background:#e67e22;color:#fff;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:500">🏖️ Passeio</span>
-              ${idiomaPasLabel?'<span style="background:#e8f4fd;color:#185fa5;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:500">'+idiomaPasLabel+'</span>':''}
-            </div>
-          </div>
-          <div style="font-size:13px;color:#e67e22;background:#fff;border-radius:var(--rsm);padding:8px 10px;border-left:3px solid #e67e22">🏖️ ${passeio.descricao}</div>
-        </div>`;
-      }
-      if(bloqueio){
-        return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:6px;background:#f0f0f0;border-radius:var(--rsm);padding:10px">
+        const idiomaBadge=passeio.idioma?'<span style="background:#e8f4fd;color:#185fa5;padding:3px 8px;border-radius:99px;font-size:11px;margin-left:5px">'+(FLAG_PAS[passeio.idioma]||'')+' '+passeio.idioma+'</span>':'';
+        return`<div class="disp-date-row" style="background:#fff8f0;border:1px solid #f0a500;border-radius:var(--rsm);padding:10px;flex-direction:column;gap:4px">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="disp-date">${diaSem}<small>${fmt}</small></div>
-            <span style="background:#2c3e50;color:#fff;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:500">🔒 Bloqueado</span>
+            <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
+            <span style="background:#e67e22;color:#fff;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600">🏖️ Passeio${idiomaBadge}</span>
           </div>
-          <div style="font-size:13px;color:#2c3e50;background:#fff;border-radius:var(--rsm);padding:8px 10px;border-left:3px solid #2c3e50">📋 ${bloqueio.descricao}</div>
+          <div style="font-size:13px;color:#e67e22">🏖️ ${passeio.descricao}</div>
         </div>`;
       }
-      if(confirmado){
-        const statusLabel=status==='sim'?'✅ Disponível':status==='nao'?'❌ Indisponível':status==='passeio'?'🏖️ Passeio':'⬜ Não informado';
-        const cor=status==='sim'?'#e1f5ee;color:#0f6e56':status==='nao'?'#fde8e8;color:#c0392b':status==='passeio'?'#fff3e0;color:#e67e22':'#f0f0f0;color:#9a9a96';
-        const dd=dispSnap.docs.find(d=>d.data().data===data);
-        const ddData=dd?dd.data():{};
-        const foiEditado=ddData.editado||false;
-        const editadoEm=ddData.editadoEm?' em '+new Date(ddData.editadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-        return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:6px">
+
+      // Bloqueio do admin
+      if(bloqueio){
+        return`<div class="disp-date-row" style="background:#f0f0f0;border-radius:var(--rsm);padding:10px;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
+            <span style="background:#2c3e50;color:#fff;padding:3px 10px;border-radius:99px;font-size:12px">🔒 Bloqueado</span>
+          </div>
+          <div style="font-size:13px;color:#2c3e50">📋 ${bloqueio.descricao}</div>
+        </div>`;
+      }
+
+      // Tem restrição marcada
+      const temRestricao=status==='nao'||status==='passeio'||obs;
+      const foiEditado=editadoMap[data];
+      const editadoEmStr=foiEditado&&foiEditado.em?' (editado '+new Date(foiEditado.em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+')':'';
+
+      if(temRestricao){
+        const label=status==='nao'?'❌ Indisponível':status==='passeio'?'🏖️ Passeio':'⚠️ Restrição';
+        const cor=status==='nao'?'#fde8e8;color:#c0392b':status==='passeio'?'#fff3e0;color:#e67e22':'#fff3cd;color:#856404';
+        return`<div class="disp-date-row" style="flex-direction:column;gap:6px;border-left:3px solid #e74c3c;padding-left:10px" id="row-${data}">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-            <div class="disp-date">${diaSem}<small>${fmt}</small></div>
+            <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <span style="background:${cor};padding:4px 12px;border-radius:99px;font-size:12px;font-weight:500">${statusLabel}</span>
-              ${foiEditado?'<span style="background:#fff3cd;color:#856404;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500">✏️ Editado'+editadoEm+'</span>':'<span style="font-size:11px;color:var(--muted)">🔒 Confirmado</span>'}
-              <button onclick="editarDispConfirmado('${data}')" style="padding:5px 12px;border-radius:99px;border:1px solid #e67e22;background:#fff8f0;color:#e67e22;font-size:12px;cursor:pointer;font-family:inherit">✏️ Editar</button>
+              <span style="background:${cor};padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600">${label}</span>
+              ${foiEditado?'<span style="font-size:10px;color:var(--muted)">✏️'+editadoEmStr+'</span>':''}
+              <button onclick="abrirEdicaoDisp('${data}')" style="padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;cursor:pointer">✏️</button>
             </div>
           </div>
           ${obs?`<div style="font-size:13px;color:var(--muted);padding:6px 10px;background:var(--bg);border-radius:var(--rsm);border:1px solid var(--border)">📝 ${obs}</div>`:''}
-          <div id="edit-disp-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22">
-            <div style="font-size:12px;color:#e67e22;font-weight:600">✏️ Editar disponibilidade</div>
+          <div id="edit-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22">
             <div class="disp-btns">
-              <button class="btn-disp sim${status==='sim'?' ativo':''} edit-sim-${data}" onclick="marcarDispEdicao('${data}','sim',this)">✅ Disponível</button>
-              <button class="btn-disp nao${status==='nao'?' ativo':''} edit-nao-${data}" onclick="marcarDispEdicao('${data}','nao',this)">❌ Indisponível</button>
-              <button class="btn-disp${status==='passeio'?' ativo':''} edit-pas-${data}" style="background:#fff3e0;color:#e67e22;border-color:#f0a500" onclick="marcarDispEdicao('${data}','passeio',this)">🏖️ Passeio</button>
+              <button class="btn-disp nao${status==='nao'?' ativo':''}" onclick="marcarDispSimples('${data}','nao',this)">❌ Indisponível</button>
+              <button class="btn-disp${status===''?' ativo':''}" style="background:#e1f5ee;color:#0f6e56;border-color:#27ae60" onclick="limparRestricao('${data}')">✅ Remover restrição</button>
             </div>
             <input type="text" id="obs-edit-${data}" placeholder="Observação (opcional)" value="${obs}" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
             <div style="display:flex;gap:8px">
-              <button onclick="salvarEdicaoDisp('${data}')" style="flex:1;padding:9px;background:#27ae60;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar edição</button>
-              <button onclick="cancelarEdicaoDisp('${data}')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
+              <button onclick="salvarEdicaoDispSimples('${data}')" style="flex:1;padding:9px;background:#27ae60;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar</button>
+              <button onclick="fecharEdicaoDisp('${data}')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
             </div>
           </div>
         </div>`;
       }
-      return`<div class="disp-date-row" style="flex-direction:column;align-items:stretch;gap:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-          <div class="disp-date">${diaSem}<small>${fmt}</small></div>
+
+      // Dia livre — botão para marcar restrição
+      return`<div class="disp-date-row" style="flex-direction:row;justify-content:space-between;align-items:center" id="row-${data}">
+        <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
+        <button onclick="abrirRestricao('${data}')" style="padding:5px 14px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit">+ Restrição</button>
+        <div id="edit-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22;width:100%;margin-top:8px">
           <div class="disp-btns">
-            <button class="btn-disp sim${status==='sim'?' ativo':''}" onclick="marcarDisp('${data}','sim',this)">✅ Disponível</button>
-            <button class="btn-disp nao${status==='nao'?' ativo':''}" onclick="marcarDisp('${data}','nao',this)">❌ Indisponível</button>
-            <button class="btn-disp${status==='passeio'?' ativo':''}" style="background:#fff3e0;color:#e67e22;border-color:#f0a500" onclick="marcarDisp('${data}','passeio',this)">🏖️ Passeio</button>
+            <button class="btn-disp nao" onclick="marcarDispSimples('${data}','nao',this)">❌ Indisponível</button>
+          </div>
+          <input type="text" id="obs-edit-${data}" placeholder="Observação / restrição de horário..." style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
+          <div style="display:flex;gap:8px">
+            <button onclick="salvarEdicaoDispSimples('${data}')" style="flex:1;padding:9px;background:#e74c3c;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar restrição</button>
+            <button onclick="fecharEdicaoDisp('${data}')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
           </div>
         </div>
-        <input type="text" placeholder="Restrição de horário ou observação (opcional)" value="${obs}" onblur="salvarObsDisp('${data}',this.value)" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);width:100%"/>
       </div>`;
     }).join('');
 
-    // Conta dias preenchidos mas ainda não confirmados
-    const diasParaConfirmar=dias.filter(data=>{
-      const bloqueio=bloqueios.find(b=>data>=b.inicio&&data<=b.fim)||null;
-      return !bloqueio && !confirmMap[data] && (dispMap[data]==='sim'||dispMap[data]==='nao');
-    }).filter(data=>!bloqueios.find(b=>data>=b.inicio&&data<=b.fim&&b.tipo==='passeio'));
-    const jaConfirmados=dias.filter(data=>confirmMap[data]).length;
-    const btnConfirmarTudo=diasParaConfirmar.length>0
-      ?'<button onclick="confirmarTudo()" style="width:100%;padding:14px;background:#534ab7;color:#fff;border:none;border-radius:var(--rsm);font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:4px">🔒 Confirmar e bloquear '+diasParaConfirmar.length+' dia'+(diasParaConfirmar.length>1?'s':'')+' preenchido'+(diasParaConfirmar.length>1?'s':'')+'</button>'
-      :(jaConfirmados>0?'<div style="text-align:center;padding:12px;font-size:13px;color:#0f6e56;background:#e1f5ee;border-radius:var(--rsm);font-weight:500">✅ Disponibilidade confirmada para '+jaConfirmados+' dia'+(jaConfirmados>1?'s':'')+'</div>':'');
-    el.innerHTML=`
-      <div class="disp-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <h3 style="margin:0">📆 Minha disponibilidade — próximos 14 dias</h3>
-          <button onclick="apagarDisponibilidade()" style="padding:5px 12px;border-radius:99px;border:1px solid #e74c3c;background:#fff5f5;color:#e74c3c;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap">🗑️ Apagar tudo</button>
-        </div>
-        ${diasRows}
-        <div id="btn-confirmar-tudo-container" style="margin-top:12px">${btnConfirmarTudo}</div>
-      </div>`;
+    el.innerHTML=`<div class="disp-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <h3 style="margin:0">📆 Próximos 14 dias</h3>
+        <button onclick="apagarDisponibilidade()" style="padding:5px 12px;border-radius:99px;border:1px solid #e74c3c;background:#fff5f5;color:#e74c3c;font-size:12px;cursor:pointer;font-family:inherit">🗑️ Limpar</button>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Marque só os dias com restrição. Os demais estão disponíveis.</p>
+      ${diasRows}
+    </div>`;
   }catch(e){hideLoading();el.innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}
 }
+
+function abrirRestricao(data){
+  const el=document.getElementById('edit-'+data);
+  if(el){el.style.display='flex';el.scrollIntoView({behavior:'smooth',block:'nearest'});}
+}
+function abrirEdicaoDisp(data){abrirRestricao(data);}
+function fecharEdicaoDisp(data){
+  const el=document.getElementById('edit-'+data);
+  if(el)el.style.display='none';
+}
+async function marcarDispSimples(data,status,btn){
+  const obsEl=document.getElementById('obs-edit-'+data);
+  const obs=obsEl?obsEl.value.trim():'';
+  showLoading();
+  try{
+    const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
+    await window._setDoc(ref,{guia:guiaAtual,data,status,obs,atualizadoEm:new Date().toISOString()});
+    window.dispMap_global[data]=status;
+    hideLoading();
+    fecharEdicaoDisp(data);
+    carregarDisponibilidade();
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+async function salvarEdicaoDispSimples(data){
+  const status=window.dispMap_global[data]||'nao';
+  const obsEl=document.getElementById('obs-edit-'+data);
+  const obs=obsEl?obsEl.value.trim():'';
+  if(!status&&!obs){alert('Selecione indisponível ou adicione uma observação.');return}
+  showLoading();
+  try{
+    const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
+    const snap=await window._getDoc(ref);
+    const atual=snap.exists()?snap.data():{};
+    await window._setDoc(ref,{...atual,guia:guiaAtual,data,status:status||'nao',obs,
+      editado:snap.exists()?true:false,
+      editadoEm:snap.exists()?new Date().toISOString():atual.editadoEm,
+      atualizadoEm:new Date().toISOString()
+    });
+    hideLoading();
+    fecharEdicaoDisp(data);
+    carregarDisponibilidade();
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+async function limparRestricao(data){
+  if(!confirm('Remover restrição deste dia?'))return;
+  showLoading();
+  try{
+    const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
+    await window._deleteDoc(ref);
+    delete window.dispMap_global[data];
+    hideLoading();
+    carregarDisponibilidade();
+  }catch(e){hideLoading();alert('Erro: '+e.message)}
+}
+
 
 function _flagIdioma(id){return{'Português':'🇧🇷','Inglês':'🇺🇸','Espanhol':'🇪🇸','Francês':'🇫🇷','Italiano':'🇮🇹','Alemão':'🇩🇪'}[id]||'🌍'}
 
@@ -1279,7 +1316,7 @@ function adicionarServicoEscala(escala){
   const isCh=isChegada(s),isSa=isSaida(s);
   const vooVal=escala.hsrv||escala.voo||'';
   const paxVal=escala.pax||0;
-  const resumoEsc='📅 Escala: '+(LABELS[s]||s)+(escala.horario?' · ⏰ '+escala.horario:'')+(escala.motorista?' · 🚐 '+escala.motorista:'')+(vooVal?' · ✈️ '+vooVal:'')+(paxVal?' · 👥 '+paxVal+' pax':'');
+  const resumoEsc='🗺️ Escala: '+(LABELS[s]||s)+(escala.horario?' · ⏰ '+escala.horario:'')+(escala.motorista?' · 🚐 '+escala.motorista:'')+(vooVal?' · ✈️ '+vooVal:'')+(paxVal?' · 👥 '+paxVal+' pax':'');
   const descNoShow='<div style="margin-top:10px"><label style="margin-top:0">Descrição no-show</label><textarea id="noshow-obs-'+id+'" placeholder="Nome do passageiro, motivo, voo..." rows="2" style="width:100%;padding:8px;font-size:13px;font-family:DM Sans,sans-serif;border:1px solid var(--border);border-radius:var(--rsm);background:var(--bg);resize:vertical;min-height:54px"></textarea></div>';
   const camposCh=isCh?('<div class="row2"><div><label style="margin-top:0">Voo</label><input type="text" id="voo-'+id+'" value="'+vooVal+'" placeholder="ex: AD4310" style="text-transform:uppercase"/></div><div><label style="margin-top:0">Pax</label><input type="number" id="pax-'+id+'" value="'+paxVal+'" min="0"/></div></div><div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Chd</label><input type="number" id="chd-'+id+'" placeholder="0" min="0"/></div><div><label style="margin-top:0">No-show</label><input type="number" id="noshow-'+id+'" placeholder="0" min="0"/></div></div><div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Vendas (R$)</label><input type="text" id="vendas-'+id+'" placeholder="R$ 0,00" oninput="onMoeda(this)" inputmode="numeric"/></div><div></div></div>'+descNoShow):'';
   const camposSa=isSa?('<div class="row2" style="margin-top:10px"><div><label style="margin-top:0">Pax</label><input type="number" id="pax-s-'+id+'" placeholder="0" min="0"/></div><div><label style="margin-top:0">No-show (pax)</label><input type="number" id="noshow-s-'+id+'" placeholder="0" min="0"/></div></div>'+descNoShow):'';
