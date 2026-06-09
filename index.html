@@ -104,6 +104,8 @@
     .btn-disp.sim.ativo{background:#0f6e56;color:#fff}
     .btn-disp.nao{background:#fde8e8;color:#c0392b;border-color:#f5c6c6}
     .btn-disp.nao.ativo{background:#c0392b;color:#fff}
+    .btn-disp.restricao{background:#fff3cd;color:#856404;border-color:#f0c040}
+    .btn-disp.restricao.ativo{background:#f0a500;color:#fff;font-weight:700;box-shadow:0 0 0 3px #fff3cd}
     .idioma-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
     .idioma-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;cursor:pointer;transition:all .15s}
     .idioma-chip.ativo{background:#e6f1fb;border-color:#185fa5;color:#185fa5;font-weight:500}
@@ -1008,7 +1010,7 @@ async function carregarDisponibilidade(){
       const editadoEmStr=foiEditado&&foiEditado.em?' (editado '+new Date(foiEditado.em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+')':'';
 
       if(temRestricao){
-        const label=status==='nao'?'❌ Indisponível':status==='passeio'?'🏖️ Passeio':'⚠️ Restrição';
+        const label=status==='nao'?'❌ Indisponível':status==='passeio'?'🏖️ Passeio':status==='restricao'?'⚠️ Restrição de horário':'⚠️ Restrição';
         const cor=status==='nao'?'#fde8e8;color:#c0392b':status==='passeio'?'#fff3e0;color:#e67e22':'#fff3cd;color:#856404';
         return`<div class="disp-date-row" style="flex-direction:column;gap:6px;border-left:3px solid #e74c3c;padding-left:10px" id="row-${data}">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
@@ -1023,6 +1025,7 @@ async function carregarDisponibilidade(){
           <div id="edit-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22">
             <div class="disp-btns">
               <button class="btn-disp nao${status==='nao'?' ativo':''}" onclick="marcarDispSimples('${data}','nao',this)">❌ Indisponível</button>
+              <button class="btn-disp restricao${status==='restricao'?' ativo':''}" onclick="marcarDispSimples('${data}','restricao',this)">⚠️ Restrição de horário</button>
               <button class="btn-disp${status===''?' ativo':''}" style="background:#e1f5ee;color:#0f6e56;border-color:#27ae60" onclick="limparRestricao('${data}')">✅ Remover restrição</button>
             </div>
             <input type="text" id="obs-edit-${data}" placeholder="Observação (opcional)" value="${obs}" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
@@ -1041,8 +1044,9 @@ async function carregarDisponibilidade(){
         <div id="edit-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22;width:100%;margin-top:8px">
           <div class="disp-btns">
             <button class="btn-disp nao" onclick="marcarDispSimples('${data}','nao',this)">❌ Indisponível</button>
+            <button class="btn-disp restricao" onclick="marcarDispSimples('${data}','restricao',this)">⚠️ Restrição de horário</button>
           </div>
-          <input type="text" id="obs-edit-${data}" placeholder="Observação / restrição de horário..." style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
+          <input type="text" id="obs-edit-${data}" placeholder="Descreva a restrição (ex: até 13h no aero)..." style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
           <div style="display:flex;gap:8px">
             <button onclick="salvarEdicaoDispSimples('${data}')" style="flex:1;padding:9px;background:#e74c3c;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar restrição</button>
             <button onclick="fecharEdicaoDisp('${data}')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
@@ -1072,17 +1076,23 @@ function fecharEdicaoDisp(data){
   if(el)el.style.display='none';
 }
 async function marcarDispSimples(data,status,btn){
-  const obsEl=document.getElementById('obs-edit-'+data);
-  const obs=obsEl?obsEl.value.trim():'';
-  showLoading();
-  try{
-    const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
-    await window._setDoc(ref,{guia:guiaAtual,data,status,obs,atualizadoEm:new Date().toISOString()});
-    window.dispMap_global[data]=status;
-    hideLoading();
-    fecharEdicaoDisp(data);
-    carregarDisponibilidade();
-  }catch(e){hideLoading();alert('Erro: '+e.message)}
+  window.dispMap_global[data]=status;
+  const painel=document.getElementById('edit-'+data);
+  if(painel){
+    painel.querySelectorAll('.btn-disp').forEach(b=>b.classList.remove('ativo'));
+    if(btn)btn.classList.add('ativo');
+  }
+  // Indisponível salva imediatamente; restrição espera o usuário preencher obs e salvar
+  if(status==='nao'){
+    showLoading();
+    try{
+      const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
+      await window._setDoc(ref,{guia:guiaAtual,data,status:'nao',obs:'',atualizadoEm:new Date().toISOString()});
+      hideLoading();
+      fecharEdicaoDisp(data);
+      carregarDisponibilidade();
+    }catch(e){hideLoading();alert('Erro: '+e.message)}
+  }
 }
 async function salvarEdicaoDispSimples(data){
   const status=window.dispMap_global[data]||'nao';
