@@ -1969,19 +1969,27 @@ async function importarPlanilha(event){
           if(det){
             const voo=extrairVoo(servOut);
             const horVoo=extrairHorarioVoo(servOut);
-            const hsrvOut=voo?(voo+(horVoo?' Nac. '+horVoo:'')):'';
+            // Horário do serviço na saída = horário de recolha no hotel (col0)
+            const matchHorRecolha=horOut.match(/(\d{1,2}:\d{2})/);
+            const horRecolha=matchHorRecolha?matchHorRecolha[1]:horOut;
+            const hsrvOut=horRecolha;
+            // Para saídas: horOut (col0) é o horário de recolha no hotel
+            // Horário de apresentação = horOut - antecedência (2h Porto/Cabo, 4h Maragogi, 1h Recife)
             let horAOut=det.horarioPadrao||'';
             if(!det.horarioPadrao&&det.antecedenciaMin){
-              // Usa horário do voo se disponível, senão horOut
-              const baseHorSaida=horVoo||horOut;
-              horAOut=subtrairMinutos(baseHorSaida,det.antecedenciaMin,det.localApres);
+              const matchHorOut=horOut.match(/(\d{1,2}):(\d{2})/);
+              if(matchHorOut){
+                horAOut=subtrairMinutos(matchHorOut[1]+':'+matchHorOut[2],det.antecedenciaMin,det.localApres);
+              } else {
+                horAOut=horOut;
+              }
             } else if(!det.horarioPadrao){
               horAOut=horOut;
             }
             itensImportados.push({
               guia:guiaFinal,servico:det.tipo,
               horario:horAOut,hsrv:hsrvOut,
-              voo,pax:paxOut,motorista:motSaida,hotel:hotelOut,obs:''
+              voo,pax:paxOut,motorista,hotel:hotelOut,obs:''
             });
           }
         }
