@@ -1094,11 +1094,15 @@ async function salvarEdicaoDispSimples(data){
     const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
     const snap=await window._getDoc(ref);
     const atual=snap.exists()?snap.data():{};
-    await window._setDoc(ref,{...atual,guia:guiaAtual,data,status:status||'nao',obs,
-      editado:snap.exists()?true:false,
-      editadoEm:snap.exists()?new Date().toISOString():atual.editadoEm,
+    const isEdicao=snap.exists();
+    const docData={...atual,guia:guiaAtual,data,status:status||'nao',obs,
+      editado:isEdicao,
       atualizadoEm:new Date().toISOString()
-    });
+    };
+    if(isEdicao)docData.editadoEm=new Date().toISOString();
+    // Remove campos undefined
+    Object.keys(docData).forEach(k=>{if(docData[k]===undefined)delete docData[k];});
+    await window._setDoc(ref,docData);
     hideLoading();
     fecharEdicaoDisp(data);
     carregarDisponibilidade();
