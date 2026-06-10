@@ -606,14 +606,26 @@ async function abrirEditarRelatorio(id){
         html+='<div style="margin-bottom:8px"><label style="font-size:11px;margin-top:0">Vendas (R$)</label><input type="text" id="er-vendas-'+i+'" value="'+(it.vendas?'R$ '+it.vendas.toLocaleString('pt-BR',{minimumFractionDigits:2}):'')+'" oninput="onMoeda(this)" inputmode="numeric" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div>';
       } else if(isSaida(it.servico)){
         html+='<div class="row2" style="gap:8px;margin-bottom:8px"><div><label style="font-size:11px;margin-top:0">Pax</label><input type="number" id="er-pax-'+i+'" value="'+(it.pax||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div><div><label style="font-size:11px;margin-top:0">No-show</label><input type="number" id="er-noshow-'+i+'" value="'+(it.noshow||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div></div>';
+        html+='<div style="margin-bottom:8px"><label style="font-size:11px;margin-top:0">Vendas (R$)</label><input type="text" id="er-vendas-'+i+'" value="'+(it.vendas?'R$ '+it.vendas.toLocaleString('pt-BR',{minimumFractionDigits:2}):'')+'" oninput="onMoeda(this)" inputmode="numeric" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div>';
       } else {
         html+='<div class="row2" style="gap:8px;margin-bottom:8px"><div><label style="font-size:11px;margin-top:0">Vendas (R$)</label><input type="text" id="er-vendas-'+i+'" value="'+(it.vendas?'R$ '+it.vendas.toLocaleString('pt-BR',{minimumFractionDigits:2}):'')+'" oninput="onMoeda(this)" inputmode="numeric" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div><div><label style="font-size:11px;margin-top:0">No-show</label><input type="number" id="er-noshow-'+i+'" value="'+(it.noshow||0)+'" min="0" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div></div>';
       }
       html+='<div><label style="font-size:11px;margin-top:0">Desc. no-show</label><input type="text" id="er-noshow-obs-'+i+'" value="'+(it.noshow_obs||'')+'" placeholder="Nome, motivo..." style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div>';
+      html+='<div style="margin-top:8px;display:flex;align-items:center;gap:8px">';
+      html+='<input type="checkbox" id="er-noshow-esc-'+i+'" '+(it.noshow_escala?'checked':'')+' style="cursor:pointer"/>';
+      html+='<label for="er-noshow-esc-'+i+'" style="font-size:12px;color:#c0392b;cursor:pointer;margin:0">🚫 No-show de escala (voo cancelado / serviço não realizado)</label>';
+      html+='</div>';
+      html+='<div id="er-motivo-esc-wrap-'+i+'" style="margin-top:6px;'+(it.noshow_escala?'':'display:none')+'"><input type="text" id="er-motivo-esc-'+i+'" value="'+(it.motivo_noshow||'')+'" placeholder="Motivo..." style="padding:6px;font-size:13px;border:1px solid #f5c6c6;border-radius:var(--rsm);background:#fde8e8;width:100%"/></div>';
       html+='<div style="margin-top:8px"><label style="font-size:11px;margin-top:0">Observações</label><input type="text" id="er-obs-'+i+'" value="'+(it.obs||'')+'" style="padding:6px;font-size:13px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/></div>';
       html+='</div>';
     });
     el.innerHTML=html;
+    // Add toggle listeners for noshow_escala checkboxes
+    r.itens.forEach((_,i)=>{
+      const cb=document.getElementById('er-noshow-esc-'+i);
+      const wrap=document.getElementById('er-motivo-esc-wrap-'+i);
+      if(cb&&wrap)cb.onchange=()=>{wrap.style.display=cb.checked?'block':'none';};
+    });
     hideLoading();
     document.getElementById('modal-edit-rel').style.display='flex';
   }catch(e){hideLoading();alert('Erro: '+e.message)}
@@ -631,6 +643,8 @@ async function salvarEditarRelatorio(){
       novo.pax=parseInt(document.getElementById('er-pax-'+i).value)||0;
       novo.noshow=parseInt(document.getElementById('er-noshow-'+i).value)||0;
     }
+    const erVendasEl=document.getElementById('er-vendas-'+i);
+    if(erVendasEl)novo.vendas=parseMoeda(erVendasEl.value);
     if(isChegada(it.servico)){
       novo.voo=document.getElementById('er-voo-'+i).value.trim().toUpperCase();
       novo.chd=parseInt(document.getElementById('er-chd-'+i).value)||0;
@@ -641,6 +655,14 @@ async function salvarEditarRelatorio(){
       novo.noshow=parseInt(document.getElementById('er-noshow-'+i).value)||0;
     }
     novo.noshow_obs=(document.getElementById('er-noshow-obs-'+i)||{}).value||it.noshow_obs||'';
+    const noshowEscCb=document.getElementById('er-noshow-esc-'+i);
+    if(noshowEscCb){
+      novo.noshow_escala=noshowEscCb.checked;
+      if(noshowEscCb.checked){
+        const motivoEl=document.getElementById('er-motivo-esc-'+i);
+        novo.motivo_noshow=motivoEl?motivoEl.value.trim():'';
+      }
+    }
     novo.obs=(document.getElementById('er-obs-'+i)||{}).value||'';
     return novo;
   });
@@ -1007,7 +1029,7 @@ async function carregarDisponibilidade(){
       // Tem restrição marcada
       const temRestricao=status==='nao'||status==='passeio'||obs;
       const foiEditado=editadoMap[data];
-      const editadoEmStr=foiEditado&&foiEditado.em?' (editado '+new Date(foiEditado.em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+')':'';
+      const editadoEmStr=foiEditado&&foiEditado.em?' (editado '+new Date(foiEditado.em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Recife'})+')':'';
 
       if(temRestricao){
         const label=status==='nao'?'❌ Indisponível':status==='passeio'?'🏖️ Passeio':status==='restricao'?'⚠️ Restrição de horário':'⚠️ Restrição';
