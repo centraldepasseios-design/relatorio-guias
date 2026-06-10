@@ -1433,12 +1433,11 @@ function _callPasseioEdit(rowId){
   editarGuiaPasseio(d.gu);
 }
 
-async function enviarWppPasseio(grupo){
+async function enviarWppPasseio(grupo,silencioso){
   const data=new Date(grupo.data+'T12:00:00');
   const dataFmt=data.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',timeZone:'America/Recife'});
   const flagMap={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
   let enviados=0,semFone=[];
-  showLoad();
   for(const gu of grupo.guias){
     const fone=buscarFoneGuia(gu.nome);
     if(!fone){semFone.push(gu.nome);continue}
@@ -1448,10 +1447,12 @@ async function enviarWppPasseio(grupo){
     await enviarWhatsApp(fone,msg);
     enviados++;
   }
-  hideLoad();
-  let res='✅ Mensagem enviada para '+enviados+' guia'+(enviados>1?'s':'')+'!';
-  if(semFone.length)res+='\n\n⚠️ Sem número cadastrado:\n'+semFone.join(', ');
-  alert(res);
+  if(!silencioso){
+    let res='✅ Mensagem enviada para '+enviados+' guia'+(enviados>1?'s':'')+'!';
+    if(semFone.length)res+='\n\n⚠️ Sem número cadastrado:\n'+semFone.join(', ');
+    alert(res);
+  }
+  return{enviados,semFone};
 }
 
 async function enviarWppTodosPasseiosDia(data,base){
@@ -1468,10 +1469,16 @@ async function enviarWppTodosPasseiosDia(data,base){
   });
   if(!Object.keys(grupos).length){alert('Nenhum passeio de '+base+' nesta data.');return}
   showLoad();
+  let totalEnviados=0,todosSemFone=[];
   for(const g of Object.values(grupos)){
-    await enviarWppPasseio(g);
+    const res=await enviarWppPasseio(g,true);
+    totalEnviados+=res.enviados;
+    todosSemFone.push(...res.semFone);
   }
   hideLoad();
+  let msg='✅ WPP enviado para '+totalEnviados+' guia'+(totalEnviados>1?'s':'')+'!';
+  if(todosSemFone.length)msg+='\n\n⚠️ Sem número:\n'+todosSemFone.join(', ');
+  alert(msg);
 }
 
 async function reenviarWppPasseioGuia(grupo){
