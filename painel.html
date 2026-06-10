@@ -190,6 +190,116 @@ function entrar(){
 }
 function sair(){localStorage.removeItem('luck_admin');document.getElementById('login-wrap').style.display='flex';document.getElementById('painel').style.display='none';document.getElementById('senha-input').value=''}
 
+// ===== AUDITORIA =====
+async function logAuditoria(acao, tipo, detalhe, guia){
+  try{
+    await window._ad(window._col(window._db,'auditoria'),{
+      acao, tipo, detalhe:detalhe||'', guia:guia||'',
+      criadoEm:new Date().toISOString()
+    });
+  }catch(e){console.warn('Auditoria falhou:',e)}
+}
+
+async function carregarDashboard(){
+  const data=document.getElementById('dash-data').value||hoje();
+  document.getElementById('dash-data').value=data;
+  const d=new Date(data+'T12:00:00');
+  const dataFmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'short'});
+  showLoad();
+  try{
+    // Escalas do dia
+    const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
+    const guiasEscalados=new Set(escSnap.docs.map(d=>d.data().guia));
+    const totalServicos=escSnap.docs.length;
+
+    // Confirmações
+    const confSnap=await window._gds(window._q(window._col(window._db,'confirmacoes'),window._w('data','==',data)));
+    const confirmados=confSnap.docs.length;
+    const pendentesConf=guiasEscalados.size-confirmados;
+
+    // Relatórios
+    const relSnap=await window._gds(window._q(window._col(window._db,'relatorios'),window._w('data','==',data)));
+    const comRelatorio=new Set(relSnap.docs.map(d=>d.data().guia));
+    const semRelatorio=guiasEscalados.size-comRelatorio.size;
+
+    // Passeios do dia
+    const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio'),window._w('inicio','==',data)));
+    const totalPasseios=passeioSnap.docs.length;
+
+    // Monta cards
+    const cards=[
+      {n:guiasEscalados.size,lbl:'Guias escalados',cor:'#2980b9',ic:'👥'},
+      {n:totalServicos,lbl:'Serviços',cor:'#8e44ad',ic:'📋'},
+      {n:confirmados,lbl:'Confirmações',cor:'#27ae60',ic:'✅'},
+      {n:pendentesConf,lbl:'Pend. confirmação',cor:pendentesConf>0?'#e67e22':'#27ae60',ic:'⏳'},
+      {n:comRelatorio.size,lbl:'Relatórios',cor:'#27ae60',ic:'📝'},
+      {n:semRelatorio,lbl:'Sem relatório',cor:semRelatorio>0?'#c0392b':'#27ae60',ic:'⚠️'},
+      {n:totalPasseios,lbl:'Guias em passeio',cor:'#e67e22',ic:'🏖️'},
+    ];
+    document.getElementById('dash-cards').innerHTML=cards.map(c=>
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center">'
+      +'<div style="font-size:28px;font-weight:700;color:'+c.cor+'">'+c.n+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-top:4px">'+c.ic+' '+c.lbl+'</div>'
+      +'</div>'
+    ).join('');
+
+    // Passeios do dia
+    if(totalPasseios>0){
+      const grupos={};
+      passeioSnap.docs.forEach(d=>{
+        const dd=d.data();
+        const key=(dd.base||'Porto')+'__'+dd.descricao;
+        if(!grupos[key])grupos[key]={base:dd.base||'Porto',destino:dd.descricao,guias:[]};
+        grupos[key].guias.push({nome:dd.guia,posicao:dd.posicao||1});
+      });
+      const corBase={Porto:'#1a6b9a',Recife:'#1a6b40'};
+      document.getElementById('dash-passeios').innerHTML=
+        '<div style="font-weight:600;font-size:14px;margin-bottom:8px">🏖️ Passeios de '+dataFmt+'</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:10px">'
+        +Object.values(grupos).map(g=>
+          '<div style="background:var(--surface);border:2px solid '+(corBase[g.base]||'#1a6b9a')+';border-radius:var(--rsm);padding:10px 14px;min-width:180px">'
+          +'<div style="font-size:12px;font-weight:700;color:'+(corBase[g.base]||'#1a6b9a')+';margin-bottom:6px">🏖️ '+g.destino+' · '+g.base+'</div>'
+          +g.guias.slice().sort((a,b)=>a.posicao-b.posicao).map(gu=>'<div style="font-size:12px">'+gu.posicao+'º '+gu.nome+'</div>').join('')
+          +'</div>'
+        ).join('')
+        +'</div>';
+    } else {
+      document.getElementById('dash-passeios').innerHTML='';
+    }
+
+    hideLoad();
+    carregarAuditoria();
+  }catch(e){hideLoad();console.error(e)}
+}
+
+async function carregarAuditoria(){
+  const filtro=document.getElementById('dash-audit-filtro').value;
+  const el=document.getElementById('dash-auditoria');
+  el.innerHTML='<div style="padding:12px;text-align:center;color:var(--muted);font-size:13px">Carregando...</div>';
+  try{
+    let q=window._q(window._col(window._db,'auditoria'),window._od('criadoEm','desc'));
+    const snap=await window._gds(q);
+    const ICONES={escala:'📋',relatorio:'📝',disponibilidade:'📅',passeio:'🏖️',senha:'🔑'};
+    const CORES={escala:'#2980b9',relatorio:'#27ae60',disponibilidade:'#8e44ad',passeio:'#e67e22',senha:'#7f8c8d'};
+    let docs=snap.docs.map(d=>d.data());
+    if(filtro)docs=docs.filter(d=>d.tipo===filtro);
+    if(!docs.length){el.innerHTML='<p class="empty">Nenhuma alteração registrada.</p>';return}
+    el.innerHTML=docs.slice(0,100).map(d=>{
+      const dt=new Date(d.criadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Recife'});
+      const ic=ICONES[d.tipo]||'📌';
+      const cor=CORES[d.tipo]||'#7f8c8d';
+      return'<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">'
+        +'<span style="background:'+cor+'20;color:'+cor+';border-radius:99px;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap">'+ic+' '+d.tipo+'</span>'
+        +'<div style="flex:1;min-width:0"><div style="font-size:13px">'+d.acao+'</div>'
+        +(d.detalhe?'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+d.detalhe+'</div>':'')
+        +(d.guia?'<div style="font-size:11px;color:var(--muted)">👤 '+d.guia+'</div>':'')
+        +'</div>'
+        +'<span style="font-size:11px;color:var(--muted);white-space:nowrap">'+dt+'</span>'
+        +'</div>';
+    }).join('');
+  }catch(e){el.innerHTML='<p class="empty">Erro ao carregar.</p>'}
+}
+
 function trocarAba(aba){
   ['escala','passeios','relatorios','disp','senhas'].forEach((a,i)=>{
     document.querySelectorAll('.tab')[i].classList.toggle('active',aba===a);
@@ -469,6 +579,7 @@ async function publicarEscala(){
     for(const item of itens)await window._ad(window._col(window._db,'escalas'),{...item,data,publicadoEm:new Date().toISOString()});
     hideLoad();
     alert(`✅ ${itens.length} serviço(s) adicionados à escala de ${data}!`);
+    logAuditoria('Escala publicada — '+itens.length+' serviço(s) para '+data,'escala','Guias: '+[...new Set(itens.map(i=>i.guia))].join(', '),'admin');
     localStorage.removeItem('escala_rascunho');
     const bRasc=document.getElementById('banner-rascunho');
     if(bRasc)bRasc.remove();
@@ -1061,7 +1172,10 @@ async function apagarItemEscala(id,guia,servico){
   if(!confirm('Apagar serviço de '+guia+' ('+servico+')? Esta ação não pode ser desfeita.'))return;
   showLoad();
   try{
+    const _docDel=await window._gd(window._doc(window._db,'escalas',id));
+    const _ddData=_docDel.data();
     await window._dd(window._doc(window._db,'escalas',id));
+    logAuditoria('Serviço apagado — '+(_ddData.servico||''),'escala','Guia: '+(_ddData.guia||'')+' · Data: '+(_ddData.data||''),'admin');
     hideLoad();
     carregarEscalaPublicada();
     carregarConfirmacoes();
@@ -1319,6 +1433,7 @@ async function salvarPasseio(){
     renderGuiasPasseio('');
     carregarPasseios();
     alert('🏖️ Passeio salvo para '+ordenados.length+' guia'+(ordenados.length>1?'s':'')+'!');
+    logAuditoria('Passeio criado — '+destino+' ('+data+')','passeio','Guias: '+ordenados.join(', '),'admin');
   }catch(e){hideLoad();alert('Erro: '+e.message)}
 }
 
@@ -1406,10 +1521,10 @@ async function carregarPasseios(){
             html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06)">';
             html+='<span style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+gu.posicao+'</span>';
             html+='<span style="flex:1;font-size:13px;font-weight:500">'+gu.nome+idiomaB+'</span>';
+            html+='<button data-row="'+rowId+'" onclick="_callPasseioRemove(this.dataset.row)" title="Remover guia" style="padding:2px 7px;background:#fde8e8;border:none;border-radius:99px;font-size:11px;cursor:pointer;color:#c0392b;font-weight:700">−</button>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioWpp(this.dataset.row)" title="Reenviar WPP" style="padding:2px 8px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer">📱</button>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioEdit(this.dataset.row)" title="Editar guia" style="padding:2px 8px;background:none;border:1px solid var(--border);border-radius:99px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button>';
             html+='</div>';
-            html+='<button data-row="'+rowId+'" onclick="_callPasseioRemove(this.dataset.row)" title="Remover guia" style="padding:2px 8px;background:none;border:1px solid #f5c6c6;border-radius:99px;font-size:11px;cursor:pointer;color:#c0392b">✕</button>';
           });
           html+='</div>';
         });
@@ -1952,6 +2067,7 @@ async function apagarEscalaDia(){
     const confSnap=await window._gds(window._q(window._col(window._db,'confirmacoes'),window._w('data','==',data)));
     for(const d of confSnap.docs)await window._dd(window._doc(window._db,'confirmacoes',d.id));
     alert(`Escala de ${data} apagada.`);
+    logAuditoria('Escala apagada — '+data,'escala','','admin');
     _itensPublicados=[];
     document.getElementById('escala-publicada').innerHTML='<p class="empty">Nenhuma escala publicada para esta data.</p>';
     document.getElementById('escala-filtros').style.display='none';
@@ -2841,6 +2957,37 @@ async function confirmarReset(){
   </div>
 
   <!-- RELATÓRIOS -->
+  <div id="sec-dashboard" class="section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+      <h3 style="margin:0">📊 Dashboard</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="dash-data" style="padding:7px 10px;font-size:13px" onchange="carregarDashboard()"/>
+        <button class="btn-sm" onclick="carregarDashboard()">🔄 Atualizar</button>
+      </div>
+    </div>
+
+    <!-- Cards resumo -->
+    <div id="dash-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:2rem"></div>
+
+    <!-- Passeios do dia -->
+    <div id="dash-passeios" style="margin-bottom:2rem"></div>
+
+    <!-- Histórico de alterações -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div style="padding:12px 16px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600;font-size:14px">🕐 Histórico de alterações</span>
+        <select id="dash-audit-filtro" onchange="carregarAuditoria()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--rsm)">
+          <option value="">Todas as ações</option>
+          <option value="escala">Escala</option>
+          <option value="relatorio">Relatório</option>
+          <option value="disponibilidade">Disponibilidade</option>
+          <option value="passeio">Passeio</option>
+        </select>
+      </div>
+      <div id="dash-auditoria" style="max-height:500px;overflow-y:auto"></div>
+    </div>
+  </div>
+
   <div id="sec-passeios" class="section">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
       <h3 style="margin:0">🏖️ Passeios</h3>
