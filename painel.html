@@ -138,7 +138,7 @@
 const SENHA_ADMIN='luck1960';
 const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','trf':'TRF'};
 const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf'};
-const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM','ADRIANE','GUILHERME','FABIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONCALVES','ANTONIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANES','MADSON','CAMILLA','ANDRE','ANA FLAVIA','RENATA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAISSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FABIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO M','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANCA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLORIA','ELISIO','REBECA','ENEZIANE','BRUNO S','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
+const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM','ADRIANE','GUILHERME','FABIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONCALVES','ANTONIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANES','MADSON','CAMILLA','ANDRE','ANA FLAVIA','RENATA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAISSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FABIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO M','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANCA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLORINHA','ELISIO','REBECA','ENEZIANE','BRUNO S','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
 
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
 
@@ -1617,7 +1617,7 @@ const GUIAS_PORTO=[
   "LUIZ FELIPE","RAFAEL","JULIANA","DEYVISON","ALEX","RUTH","CAMILA"
 ];
 const GUIAS_RECIFE=[
-  "GLORIA","ELISIO","REBECA","ENEZIANE","BRUNO S","ALVARO","ZENA","CARLOS M",
+  "GLORINHA","ELISIO","REBECA","ENEZIANE","BRUNO S","ALVARO","ZENA","CARLOS M",
   "CHICO LIMA","SERGIO","LUCIA V","MARCOS F","MADALENA","ARLINDO"
 ];
 const TODOS_GUIAS_DISP=[...GUIAS_PORTO,...GUIAS_RECIFE];
@@ -2327,10 +2327,19 @@ function buscarFoneGuia(guia){
   if(WHATSAPP_GUIAS[guia])return WHATSAPP_GUIAS[guia];
   const n=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
   const gN=n(guia);
-  // Ordena candidatos pelo mais longo (mais específico) primeiro
+  // 1. Match exato normalizado
+  const exato=Object.keys(WHATSAPP_GUIAS).find(k=>n(k)===gN);
+  if(exato)return WHATSAPP_GUIAS[exato];
+  // 2. Match por palavra completa (evita JOEL bater com JOELMA)
+  const palavras=Object.keys(WHATSAPP_GUIAS)
+    .map(k=>({k,kN:n(k)}))
+    .filter(({kN})=>kN===gN||gN.split(' ').every(p=>kN.includes(p)))
+    .sort((a,b)=>b.kN.length-a.kN.length);
+  if(palavras.length)return WHATSAPP_GUIAS[palavras[0].k];
+  // 3. Fallback startsWith mais longo
   const candidatos=Object.keys(WHATSAPP_GUIAS)
     .map(k=>({k,kN:n(k)}))
-    .filter(({kN})=>kN===gN||gN.startsWith(kN)||kN.startsWith(gN)||gN.includes(kN)||kN.includes(gN))
+    .filter(({kN})=>gN.startsWith(kN)||kN.startsWith(gN))
     .sort((a,b)=>b.kN.length-a.kN.length);
   return candidatos.length?WHATSAPP_GUIAS[candidatos[0].k]:null;
 }
@@ -3170,7 +3179,7 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 <option value="ALEX">ALEX</option>
 <option value="RUTH">RUTH</option>
 <option value="CAMILA">CAMILA</option>
-<option value="GLORIA">GLORIA</option>
+<option value="GLORINHA">GLORIA</option>
 <option value="ELISIO">ELISIO</option>
 <option value="REBECA">REBECA</option>
 <option value="ENEZIANE">ENEZIANE</option>
