@@ -1425,6 +1425,26 @@ async function enviarWppPasseio(grupo){
   alert(res);
 }
 
+async function enviarWppTodosPasseiosDia(data,base){
+  const snap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio'),window._w('inicio','==',data)));
+  if(!snap.docs.length){alert('Nenhum passeio nesta data.');return}
+  const grupos={};
+  snap.docs.forEach(d=>{
+    const dd=d.data();
+    const baseDoc=dd.base||'Porto';
+    if(base&&baseDoc!==base)return;
+    const key=dd.inicio+'__'+baseDoc+'__'+dd.descricao;
+    if(!grupos[key])grupos[key]={data:dd.inicio,destino:dd.descricao,base:baseDoc,guias:[]};
+    grupos[key].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||''});
+  });
+  if(!Object.keys(grupos).length){alert('Nenhum passeio de '+base+' nesta data.');return}
+  showLoad();
+  for(const g of Object.values(grupos)){
+    await enviarWppPasseio(g);
+  }
+  hideLoad();
+}
+
 async function reenviarWppPasseioGuia(grupo){
   await enviarWppPasseio(grupo);
 }
