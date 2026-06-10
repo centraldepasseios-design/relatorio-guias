@@ -536,7 +536,11 @@ function _renderLinhasAgrupadas(itens){
     porGuia[it.guia].push(it);
   });
   return ordemGuia.map(guia=>{
-    const servicos=porGuia[guia];
+    // Ordena por horário de apresentação
+    const servicos=porGuia[guia].slice().sort((a,b)=>{
+      const t=h=>{ const m=h.match(/(\d{1,2}):(\d{2})/); return m?parseInt(m[1])*60+parseInt(m[2]):9999; };
+      return t(a.horario)-t(b.horario);
+    });
     const rows=servicos.map((it,idx)=>{
       const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
       const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
@@ -2352,7 +2356,10 @@ async function enviarEscalaWhatsApp(){
       const fone=buscarFoneGuia(guia);
       if(!fone){semFone.push(guia);continue}
 
-      const servicos=porGuia[guia];
+      const servicos=porGuia[guia].slice().sort((a,b)=>{
+        const t=h=>{ const m=h.match(/(\d{1,2}):(\d{2})/); return m?parseInt(m[1])*60+parseInt(m[2]):9999; };
+        return t(a.horario)-t(b.horario);
+      });
       const linhas=servicos.map(s=>{
         const LBLS2={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
         let linha='⏰ *'+s.horario+'* — '+(LBLS2[s.servico]||s.servico);
