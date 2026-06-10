@@ -1409,6 +1409,7 @@ async function carregarPasseios(){
             html+='<button data-row="'+rowId+'" onclick="_callPasseioWpp(this.dataset.row)" title="Reenviar WPP" style="padding:2px 8px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer">📱</button>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioEdit(this.dataset.row)" title="Editar guia" style="padding:2px 8px;background:none;border:1px solid var(--border);border-radius:99px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button>';
             html+='</div>';
+            html+='<button data-row="'+rowId+'" onclick="_callPasseioRemove(this.dataset.row)" title="Remover guia" style="padding:2px 8px;background:none;border:1px solid #f5c6c6;border-radius:99px;font-size:11px;cursor:pointer;color:#c0392b">✕</button>';
           });
           html+='</div>';
         });
@@ -1421,6 +1422,21 @@ async function carregarPasseios(){
   }catch(e){lista.innerHTML='<p class="empty">Erro: '+e.message+'</p>'}
 }
 
+
+function _callPasseioRemove(rowId){
+  const d=window['_passeioData_'+rowId];
+  if(!d){alert('Erro: dados não encontrados. Recarregue a página.');return;}
+  if(!confirm('Remover '+d.gu.nome+' do passeio '+d.gu.destino+'?'))return;
+  removerGuiaPasseio(d.gu.id,d.gu.nome);
+}
+async function removerGuiaPasseio(id,nome){
+  showLoad();
+  try{
+    await window._dd(window._doc(window._db,'bloqueios',id));
+    hideLoad();
+    carregarPasseios();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
 
 function _callPasseioWpp(rowId){
   const d=window['_passeioData_'+rowId];
