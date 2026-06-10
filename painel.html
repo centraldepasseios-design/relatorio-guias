@@ -136,8 +136,8 @@
 <script>
 
 const SENHA_ADMIN='luck1960';
-const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
-const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf'};
+const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','trf':'TRF'};
+const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf'};
 const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM','ADRIANE','GUILHERME','FABIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONCALVES','ANTONIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANES','MADSON','CAMILLA','ANDRE','ANA FLAVIA','RENATA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAISSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FABIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO M','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANCA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLORIA','ELISIO','REBECA','ENEZIANE','BRUNO S','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
 
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
@@ -225,7 +225,7 @@ function adicionarLinha(dados={}){
           <option value="">— selecionar —</option>
           <optgroup label="Chegada"><option value="chegada-porto"${dados.servico==='chegada-porto'?' selected':''}>Chegada Porto</option><option value="chegada-cabo"${dados.servico==='chegada-cabo'?' selected':''}>Chegada Cabo</option><option value="chegada-maragogi"${dados.servico==='chegada-maragogi'?' selected':''}>Chegada Maragogi</option><option value="chegada-recife"${dados.servico==='chegada-recife'?' selected':''}>Chegada Recife</option></optgroup>
           <optgroup label="Saída"><option value="saida-porto"${dados.servico==='saida-porto'?' selected':''}>Saída Porto</option><option value="saida-cabo"${dados.servico==='saida-cabo'?' selected':''}>Saída Cabo</option><option value="saida-maragogi"${dados.servico==='saida-maragogi'?' selected':''}>Saída Maragogi</option><option value="saida-recife"${dados.servico==='saida-recife'?' selected':''}>Saída Recife</option></optgroup>
-          <optgroup label="Apoio"><option value="apoio-porto"${dados.servico==='apoio-porto'?' selected':''}>Apoio Porto</option><option value="apoio-recife"${dados.servico==='apoio-recife'?' selected':''}>Apoio Recife</option></optgroup>
+          <optgroup label="Apoio"><option value="apoio-porto"${dados.servico==='apoio-porto'?' selected':''}>Apoio Porto</option><option value="apoio-recife"${dados.servico==='apoio-recife'?' selected':''}>Apoio Recife</option><option value="apoio-recife-tarde"${dados.servico==='apoio-recife-tarde'?' selected':''}>Apoio Recife Tarde</option></optgroup>
           <option value="trf"${dados.servico==='trf'?' selected':''}>TRF</option>
         </select>
       </div>
@@ -1903,7 +1903,7 @@ async function enviarPushEscala(itens, data){
     for(const guia of guiasEscalados){
       const servsDia=itens.filter(i=>i.guia===guia);
       const resumo=servsDia.map(s=>{
-        const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
+        const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','trf':'TRF'};
         return`⏰ ${s.horario} — ${LBLS[s.servico]||s.servico}`;
       }).join('\n');
       // Salva no Firestore (app lê ao abrir)
@@ -2361,7 +2361,7 @@ async function enviarEscalaWhatsApp(){
         return t(a.horario)-t(b.horario);
       });
       const linhas=servicos.map(s=>{
-        const LBLS2={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
+        const LBLS2={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','trf':'TRF'};
         let linha='⏰ *'+s.horario+'* — '+(LBLS2[s.servico]||s.servico);
         if(s.hsrv)linha+=' | ✈️ '+s.hsrv;
         if(s.pax)linha+=' | 👥 '+s.pax+' pax';
@@ -2865,7 +2865,7 @@ async function confirmarReset(){
             <option value="">Todos</option>
             <optgroup label="Chegada"><option value="chegada-porto">Chegada Porto</option><option value="chegada-cabo">Chegada Cabo</option><option value="chegada-maragogi">Chegada Maragogi</option><option value="chegada-recife">Chegada Recife</option></optgroup>
             <optgroup label="Saída"><option value="saida-porto">Saída Porto</option><option value="saida-cabo">Saída Cabo</option><option value="saida-maragogi">Saída Maragogi</option><option value="saida-recife">Saída Recife</option></optgroup>
-            <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option></optgroup>
+            <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option><option value="apoio-recife-tarde">Apoio Recife Tarde</option></optgroup>
             <option value="trf">TRF</option>
           </select>
         </div>
@@ -3002,7 +3002,7 @@ async function confirmarReset(){
           <option value="">— selecionar —</option>
           <optgroup label="Chegada"><option value="chegada-porto">Chegada Porto</option><option value="chegada-cabo">Chegada Cabo</option><option value="chegada-maragogi">Chegada Maragogi</option><option value="chegada-recife">Chegada Recife</option></optgroup>
           <optgroup label="Saída"><option value="saida-porto">Saída Porto</option><option value="saida-cabo">Saída Cabo</option><option value="saida-maragogi">Saída Maragogi</option><option value="saida-recife">Saída Recife</option></optgroup>
-          <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option></optgroup>
+          <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option><option value="apoio-recife-tarde">Apoio Recife Tarde</option></optgroup>
           <option value="trf">TRF</option>
         </select>
       </div>

@@ -290,8 +290,8 @@ window._registrarPush = registrarPush;
 </script>
 
 <script>
-const LABELS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF','passeio':'🏖️ Passeio','veiculo-disposicao':'🚗 Veículo a Disposição','evento':'🎤 Evento'};
-const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','trf':'badge-trf','passeio':'badge-apoio'};
+const LABELS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','trf':'TRF','passeio':'🏖️ Passeio','veiculo-disposicao':'🚗 Veículo a Disposição','evento':'🎤 Evento'};
+const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf','passeio':'badge-apoio'};
 let guiaAtual='',contador=0,servicosAtivos=[];
 function formatMoeda(val){
   let v=val.replace(/\D/g,'');
@@ -827,7 +827,7 @@ async function carregarEscalaHoje(){
       const confSnap=await window._getDoc(window._doc(window._db,'confirmacoes',dataEscalaAtual+'_'+guiaAtual));
       jaConfirmou=confSnap.exists();
     }catch(e){}
-    const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','trf':'TRF'};
+    const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','trf':'TRF'};
     const dataFmt=new Date(dataEscalaAtual+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
     let vooIdx=0;
     let rows=itens.map(it=>{
@@ -1430,7 +1430,8 @@ function adicionarServico(){
       <option value="">— selecionar —</option>
       <optgroup label="Chegada"><option value="chegada-porto">Chegada Porto</option><option value="chegada-cabo">Chegada Cabo</option><option value="chegada-maragogi">Chegada Maragogi</option><option value="chegada-recife">Chegada Recife</option></optgroup>
       <optgroup label="Saída"><option value="saida-porto">Saída Porto</option><option value="saida-cabo">Saída Cabo</option><option value="saida-maragogi">Saída Maragogi</option><option value="saida-recife">Saída Recife</option></optgroup>
-      <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option></optgroup>
+      <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option>
+      <option value="apoio-recife-tarde">Apoio Recife Tarde</option></optgroup>
       <option value="trf">TRF</option>
       <option value="veiculo-disposicao">🚗 Veículo a Disposição</option>
       <option value="evento">🎤 Evento</option>
