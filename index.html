@@ -675,6 +675,7 @@ async function salvarEditarRelatorio(){
       editadoPor:guiaAtual,editadoEm:new Date().toISOString()
     });
     hideLoading();
+    logAuditoria('Relatório editado','relatorio','Data: '+novaData);
     document.getElementById('modal-edit-rel').style.display='none';
     _editRelCompleto=null;
     renderHistorico();
@@ -844,7 +845,7 @@ async function carregarEscalaHoje(){
           ${temVooIATA?`<div id="${vooId}" style="margin-top:4px"></div>`:''}
           ${it.pax?`<div class="escala-pax">👥 ${it.pax} pax${it.chd?' + '+it.chd+' chd':''}</div>`:''}
           <div class="escala-motorista">🚐 ${it.motorista||'—'}</div>
-          ${it.hotel?('<div style="margin-top:4px"><button class="btn-hotel" onclick="toggleHotel(this)">🏨 Hotel ▾</button><div class="hotel-detalhe" style="display:none;margin-top:6px;background:var(--bg);border-radius:var(--rsm);padding:8px 10px;font-size:12px;border:1px solid var(--border)">'+it.hotel+'</div></div>'):''}
+          ${(it.hotel&&isChegada(it.servico))?('<div style="margin-top:4px"><button class="btn-hotel" onclick="toggleHotel(this)">🏨 Hotel ▾</button><div class="hotel-detalhe" style="display:none;margin-top:6px;background:var(--bg);border-radius:var(--rsm);padding:8px 10px;font-size:12px;border:1px solid var(--border)">'+it.hotel+'</div></div>'):''}
           ${it.obs?`<div style="font-size:12px;color:var(--muted);margin-top:4px">📝 ${it.obs}</div>`:''}
         </div>
       </div>`;
@@ -1132,9 +1133,9 @@ async function salvarEdicaoDispSimples(data){
       atualizadoEm:new Date().toISOString()
     };
     if(isEdicao)docData.editadoEm=new Date().toISOString();
-    // Remove campos undefined
     Object.keys(docData).forEach(k=>{if(docData[k]===undefined)delete docData[k];});
     await window._setDoc(ref,docData);
+    logAuditoria('Disponibilidade '+(isEdicao?'editada':'marcada')+' — '+status+' ('+data+')','disponibilidade','Obs: '+obs);
     hideLoading();
     fecharEdicaoDisp(data);
     carregarDisponibilidade();
@@ -1516,6 +1517,15 @@ function atualizarResumo(){
   document.getElementById('tags-resumo').innerHTML=tags.join('');
   document.getElementById('resumo-envio').classList.toggle('hidden',tags.length===0);
   document.getElementById('btn-enviar').disabled=tags.length===0;
+}
+
+async function logAuditoria(acao, tipo, detalhe){
+  try{
+    await window._addDoc(window._collection(window._db,'auditoria'),{
+      acao, tipo, detalhe:detalhe||'', guia:guiaAtual||'',
+      criadoEm:new Date().toISOString()
+    });
+  }catch(e){console.warn('Auditoria:',e)}
 }
 
 async function enviarRelatorio(){
