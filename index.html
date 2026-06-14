@@ -1499,12 +1499,11 @@ function adicionarServico(){
 function onTipoChange(id){
   const s=document.getElementById('srv-'+id).value;
   const ch=isChegada(s),sa=isSaida(s),pas=s==='passeio';
-  const vd=s==='veiculo-disposicao',ev=s==='evento';
+  const vd=s==='veiculo-disposicao',ev=s==='evento',moto=s==='motoguia';
   document.getElementById('f-chegada-'+id).classList.toggle('hidden',!ch);
   document.getElementById('f-saida-'+id).classList.toggle('hidden',!sa);
   document.getElementById('f-outro-'+id).classList.toggle('hidden',ch||sa||pas||vd||ev||moto||!s);
   document.getElementById('f-obs-wrap-'+id).classList.toggle('hidden',!s);
-  const moto=s==='motoguia';
   const motWrap=document.getElementById('f-mot-wrap-'+id);
   if(motWrap)motWrap.classList.toggle('hidden',!s||pas||ev||moto);
   const pasWrap=document.getElementById('f-passeio-'+id);
@@ -1558,7 +1557,7 @@ async function enviarRelatorio(){
     // Motorista por serviço
     const motEl=document.getElementById('mot-'+id);
     const motItem=(motEl?motEl.value.trim():'');
-    if(!motItem&&!_apenasVendas){alert('Informe o motorista no serviço '+(servicosAtivos.indexOf(id)+1)+'.');return}
+    if(!motItem&&!_apenasVendas&&s!=='motoguia'&&s!=='evento'){alert('Informe o motorista no serviço '+(servicosAtivos.indexOf(id)+1)+'.');return}
     let item={servico:s,motorista:motItem};
     if(isChegada(s)){item.voo=document.getElementById('voo-'+id).value.trim().toUpperCase();item.pax=parseInt(document.getElementById('pax-'+id).value)||0;item.chd=parseInt(document.getElementById('chd-'+id).value)||0;item.vendas=parseMoeda(document.getElementById('vendas-'+id).value);item.noshow=parseInt(document.getElementById('noshow-'+id).value)||0}
     else if(isSaida(s)){item.pax=parseInt(document.getElementById('pax-s-'+id).value)||0;item.noshow=parseInt(document.getElementById('noshow-s-'+id).value)||0}
