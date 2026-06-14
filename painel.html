@@ -1012,6 +1012,72 @@ function toggleResumoGuia(){
 
 
 // ===== EMAIL RELATORIO =====
+async function enviarResumoDiretora(){
+  const inicio=document.getElementById('f-inicio').value;
+  const fim=document.getElementById('f-fim').value;
+  if(!inicio||!fim){alert('Selecione o período nos filtros antes de enviar.');return}
+  showLoad();
+  try{
+    const d=new Date(inicio+'T12:00:00');
+    const dataFmt=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
+
+    // Escalas do período
+    const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','>=',inicio),window._w('data','<=',fim)));
+    const guiasEscalados=new Set(escSnap.docs.map(d=>d.data().guia));
+    const totalServicos=escSnap.docs.length;
+
+    // Relatórios do período
+    const relSnap=await window._gds(window._q(window._col(window._db,'relatorios'),window._w('data','>=',inicio),window._w('data','<=',fim)));
+    let totalPax=0,totalVendas=0,totalNoshow=0;
+    const guiasComRel=new Set();
+    relSnap.docs.forEach(d=>{
+      const dd=d.data();
+      guiasComRel.add(dd.guia);
+      (dd.itens||[]).forEach(it=>{
+        if(it.servico&&it.servico.startsWith('chegada'))totalPax+=(it.pax||0);
+        totalVendas+=(it.vendas||0);
+        totalNoshow+=(it.noshow||0);
+      });
+    });
+    const comRel=[...guiasComRel].filter(g=>guiasEscalados.has(g)).sort();
+    const semRel=[...guiasEscalados].filter(g=>!guiasComRel.has(g)).sort();
+
+    // Passeios do período — filtra client-side para evitar índice composto
+    const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    const grupos={};
+    passeioSnap.docs.forEach(d=>{
+      const dd=d.data();
+      if(dd.inicio<inicio||dd.inicio>fim)return;
+      const key=(dd.base||'Porto')+'__'+dd.descricao;
+      if(!grupos[key])grupos[key]={base:dd.base||'Porto',destino:dd.descricao,guias:[]};
+      grupos[key].guias.push(dd.guia);
+    });
+
+    // Monta mensagem
+    const periodo=inicio===fim?dataFmt:new Date(inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' a '+new Date(fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    const nl='\n';
+    var msg='';
+    msg+='*Resumo — '+periodo+'*'+nl+nl;
+    msg+='*Escala*'+nl;
+    msg+='- '+guiasEscalados.size+' guias escalados - '+totalServicos+' servicos'+nl+nl;
+    if(comRel.length){msg+='*Relatorios recebidos ('+comRel.length+')*'+nl+comRel.join(', ')+nl+nl;}
+    if(semRel.length){msg+='*Sem relatorio ('+semRel.length+')*'+nl+semRel.join(', ')+nl+nl;}
+    msg+='*Totais do periodo*'+nl;
+    msg+='- Pax chegada: '+totalPax+nl;
+    msg+='- Vendas: R$ '+totalVendas.toLocaleString('pt-BR',{minimumFractionDigits:2})+nl;
+    msg+='- No-show: '+totalNoshow+' pax'+nl;
+    if(Object.keys(grupos).length){
+      msg+=nl+'*Passeios realizados*'+nl;
+      Object.values(grupos).forEach(function(g){
+        msg+='- '+g.destino+' ('+g.base+') -> '+g.guias.join(', ')+nl;
+      });
+    }
+    await enviarWhatsApp('5581999630174',msg);
+    hideLoad();
+    alert('✅ Resumo enviado para a diretora!');
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
 async function enviarEmailRelatorio(){
   const inicio=document.getElementById('f-inicio').value;
   const fim=document.getElementById('f-fim').value;
@@ -3130,7 +3196,8 @@ async function confirmarReset(){
         </div>
         <div><label>Voo</label><input type="text" id="f-voo" placeholder="ex: LA3456" style="text-transform:uppercase"/></div>
         <div></div>
-        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn-sm" style="width:100%" onclick="buscar()">Buscar</button><button class="btn-sm" style="background:#e67e22;white-space:nowrap" onclick="enviarEmailRelatorio()">📧 Enviar por email</button></div>
+        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn-sm" style="width:100%" onclick="buscar()">Buscar</button><button class="btn-sm" style="background:#e67e22;white-space:nowrap" onclick="enviarEmailRelatorio()">📧 Enviar por email</button>
+          <button class="btn-sm" style="background:#25D366;white-space:nowrap" onclick="enviarResumoDiretora()">📱 Resumo diretora</button></div>
       </div>
     </div>
     <div class="resumo-grid" id="resumo-grid"></div>
