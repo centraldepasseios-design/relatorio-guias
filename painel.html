@@ -1316,6 +1316,10 @@ function onDestinoChange(){
   else{inp.style.display='none';inp.value=sel;}
 }
 
+function onPrivativoChange(){
+  // No visual change needed — just affects the saved name
+}
+
 function getDestinoPasseio(){
   const sel=document.getElementById('passeio-nome-sel').value;
   if(sel==='outro'||sel==='')return document.getElementById('passeio-nome').value.trim();
@@ -1347,7 +1351,8 @@ function atualizarOrdemPasseio(){
   });
   lista.innerHTML=ordemFinal.map((g,i)=>{
     const ia=idiomasAtuais[g]||'';
-    return '<div class="ordem-item" data-guia="'+g+'" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm)">'
+    return '<div class="ordem-item" data-guia="'+g+'" draggable="true" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);cursor:grab">'
+    +'<span style="color:var(--muted);font-size:16px;cursor:grab;padding:0 2px" title="Arrastar para reordenar">⠿</span>'
     +'<span style="background:#e67e22;color:#fff;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</span>'
     +'<span style="flex:1;font-size:13px;font-weight:500">'+g+'</span>'
     +'<select onchange="void(0)" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff">'
@@ -1357,12 +1362,26 @@ function atualizarOrdemPasseio(){
     +'<option value="Inglês"'+(ia==='Inglês'?' selected':'')+'>🇺🇸 EN</option>'
     +'<option value="Francês"'+(ia==='Francês'?' selected':'')+'>🇫🇷 FR</option>'
     +'</select>'
-    +'<div style="display:flex;gap:2px">'
-    +(i>0?'<button onclick="moverOrdem(this,-1)" style="padding:2px 7px;font-size:11px;cursor:pointer;border:1px solid var(--border);border-radius:3px;background:var(--surface)">▲</button>':'<span style="display:inline-block;width:26px"></span>')
-    +(i<ordemFinal.length-1?'<button onclick="moverOrdem(this,1)" style="padding:2px 7px;font-size:11px;cursor:pointer;border:1px solid var(--border);border-radius:3px;background:var(--surface)">▼</button>':'<span style="display:inline-block;width:26px"></span>')
-    +'</div>'
     +'</div>';
   }).join('');
+  initDragOrdem();
+}
+
+function initDragOrdem(){
+  const lista=document.getElementById('passeio-ordem-lista');
+  let dragEl=null;
+  lista.querySelectorAll('.ordem-item').forEach(item=>{
+    item.addEventListener('dragstart',e=>{dragEl=item;item.style.opacity='0.4';e.dataTransfer.effectAllowed='move';});
+    item.addEventListener('dragend',()=>{dragEl.style.opacity='';dragEl=null;atualizarNumeracao();});
+    item.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';if(item!==dragEl){const r=item.getBoundingClientRect();const mid=r.top+r.height/2;if(e.clientY<mid)lista.insertBefore(dragEl,item);else lista.insertBefore(dragEl,item.nextSibling);}});
+  });
+}
+
+function atualizarNumeracao(){
+  document.querySelectorAll('#passeio-ordem-lista .ordem-item').forEach((el,i)=>{
+    const span=el.querySelectorAll('span')[1];
+    if(span)span.textContent=i+1;
+  });
 }
 
 function moverOrdem(btn,dir){
@@ -1431,6 +1450,7 @@ async function salvarPasseio(){
     window._passeioSelecionados=[];
     document.getElementById('passeio-nome-sel').value='';
     document.getElementById('passeio-base').value='Porto';
+    const privEl=document.getElementById('passeio-privativo');if(privEl)privEl.checked=false;
     document.getElementById('passeio-nome').value='';
     document.getElementById('passeio-nome').style.display='none';
     document.getElementById('passeio-busca').value='';
@@ -3014,21 +3034,12 @@ async function confirmarReset(){
           <label>Destino</label>
           <select id="passeio-nome-sel" onchange="onDestinoChange()" style="background:#fff;margin-bottom:4px">
             <option value="">Selecione o destino...</option>
-            <optgroup label="Regular">
             <option value="Carneiros">🏖️ Carneiros</option>
             <option value="Maragogi">🏖️ Maragogi</option>
             <option value="Cabo de Santo Agostinho">🏖️ Cabo de Santo Agostinho</option>
             <option value="Litoral Norte">🏖️ Litoral Norte</option>
             <option value="City Tour Recife e Olinda">🏛️ City Tour Recife e Olinda</option>
             <option value="São José da Coroa Grande">🏖️ São José da Coroa Grande</option>
-            </optgroup>
-            <optgroup label="Privativo">
-            <option value="CARNEIROS PRIVATIVO">🔒 Carneiros Privativo</option>
-            <option value="MARAGOGI PRIVATIVO">🔒 Maragogi Privativo</option>
-            <option value="CABO PRIVATIVO">🔒 Cabo Privativo</option>
-            <option value="LITORAL NORTE PRIVATIVO">🔒 Litoral Norte Privativo</option>
-            <option value="CITY TOUR PRIVATIVO">🔒 City Tour Privativo</option>
-            </optgroup>
             <option value="outro">✏️ Outro destino...</option>
           </select>
           <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
