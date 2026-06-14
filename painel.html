@@ -858,11 +858,17 @@ function aplicarFiltros(){
   const fg=document.getElementById('f-guia').value;
   const fs=document.getElementById('f-servico').value;
   const fv=document.getElementById('f-voo').value.trim().toUpperCase();
+  const TRANSFERISTAS=['JUNIOR','GEORGE','KATARINA','DANIEL','FABIO COZZI','FABIO GOMES','EDSON','EDMILTON','RENATINHA','LUCIENE','ARTHUR','GESSYCA','TATIANA','BRUNO M'];
+  const isTransfer=s=>s&&(s.startsWith('chegada')||s.startsWith('saida')||s==='trf'||s.startsWith('apoio'));
+  const isPosVenda=s=>s==='so-vendas'||s==='passeio';
   let linhasF=[];
   todosRel.forEach(r=>{
-    if(fg&&r.guia!==fg)return;
+    if(fg==='__transferistas__'&&!TRANSFERISTAS.includes(r.guia))return;
+    else if(fg&&fg!=='__transferistas__'&&r.guia!==fg)return;
     r.itens.forEach(it=>{
-      if(fs&&it.servico!==fs)return;
+      if(fs==='__transfer__'&&!isTransfer(it.servico))return;
+      else if(fs==='__posvendas__'&&!isPosVenda(it.servico))return;
+      else if(fs&&fs!=='__transfer__'&&fs!=='__posvendas__'&&it.servico!==fs)return;
       if(fv&&(!it.voo||!it.voo.toUpperCase().includes(fv)))return;
       linhasF.push({r,it});
     });
@@ -3008,12 +3014,21 @@ async function confirmarReset(){
           <label>Destino</label>
           <select id="passeio-nome-sel" onchange="onDestinoChange()" style="background:#fff;margin-bottom:4px">
             <option value="">Selecione o destino...</option>
+            <optgroup label="Regular">
             <option value="Carneiros">🏖️ Carneiros</option>
             <option value="Maragogi">🏖️ Maragogi</option>
             <option value="Cabo de Santo Agostinho">🏖️ Cabo de Santo Agostinho</option>
             <option value="Litoral Norte">🏖️ Litoral Norte</option>
             <option value="City Tour Recife e Olinda">🏛️ City Tour Recife e Olinda</option>
             <option value="São José da Coroa Grande">🏖️ São José da Coroa Grande</option>
+            </optgroup>
+            <optgroup label="Privativo">
+            <option value="CARNEIROS PRIVATIVO">🔒 Carneiros Privativo</option>
+            <option value="MARAGOGI PRIVATIVO">🔒 Maragogi Privativo</option>
+            <option value="CABO PRIVATIVO">🔒 Cabo Privativo</option>
+            <option value="LITORAL NORTE PRIVATIVO">🔒 Litoral Norte Privativo</option>
+            <option value="CITY TOUR PRIVATIVO">🔒 City Tour Privativo</option>
+            </optgroup>
             <option value="outro">✏️ Outro destino...</option>
           </select>
           <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
@@ -3085,6 +3100,7 @@ async function confirmarReset(){
         <div><label>Guia</label>
           <select id="f-guia">
             <option value="">Todos</option>
+            <option value="__transferistas__">🚐 Transferistas</option>
             <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO M</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO S</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
           </select>
         </div>
@@ -3093,6 +3109,8 @@ async function confirmarReset(){
         <div><label>Serviço</label>
           <select id="f-servico">
             <option value="">Todos</option>
+            <option value="__transfer__">🚐 Transfer (todas chegadas/saídas)</option>
+            <option value="__posvendas__">💰 Pós Vendas</option>
             <optgroup label="Chegada"><option value="chegada-porto">Chegada Porto</option><option value="chegada-cabo">Chegada Cabo</option><option value="chegada-maragogi">Chegada Maragogi</option><option value="chegada-recife">Chegada Recife</option></optgroup>
             <optgroup label="Saída"><option value="saida-porto">Saída Porto</option><option value="saida-cabo">Saída Cabo</option><option value="saida-maragogi">Saída Maragogi</option><option value="saida-recife">Saída Recife</option></optgroup>
             <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option><option value="apoio-recife-tarde">Apoio Recife Tarde</option><option value="motoguia">🏍️ Motoguia</option></optgroup>
