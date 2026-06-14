@@ -1432,7 +1432,8 @@ function adicionarServico(){
       <optgroup label="Chegada"><option value="chegada-porto">Chegada Porto</option><option value="chegada-cabo">Chegada Cabo</option><option value="chegada-maragogi">Chegada Maragogi</option><option value="chegada-recife">Chegada Recife</option></optgroup>
       <optgroup label="Saída"><option value="saida-porto">Saída Porto</option><option value="saida-cabo">Saída Cabo</option><option value="saida-maragogi">Saída Maragogi</option><option value="saida-recife">Saída Recife</option></optgroup>
       <optgroup label="Apoio"><option value="apoio-porto">Apoio Porto</option><option value="apoio-recife">Apoio Recife</option>
-      <option value="apoio-recife-tarde">Apoio Recife Tarde</option></optgroup>
+      <option value="apoio-recife-tarde">Apoio Recife Tarde</option>
+      <option value="motoguia">🏍️ Motoguia</option></optgroup>
       <option value="trf">TRF</option>
       <option value="veiculo-disposicao">🚗 Veículo a Disposição</option>
       <option value="evento">🎤 Evento</option>
@@ -1501,10 +1502,11 @@ function onTipoChange(id){
   const vd=s==='veiculo-disposicao',ev=s==='evento';
   document.getElementById('f-chegada-'+id).classList.toggle('hidden',!ch);
   document.getElementById('f-saida-'+id).classList.toggle('hidden',!sa);
-  document.getElementById('f-outro-'+id).classList.toggle('hidden',ch||sa||pas||vd||ev||!s);
+  document.getElementById('f-outro-'+id).classList.toggle('hidden',ch||sa||pas||vd||ev||moto||!s);
   document.getElementById('f-obs-wrap-'+id).classList.toggle('hidden',!s);
+  const moto=s==='motoguia';
   const motWrap=document.getElementById('f-mot-wrap-'+id);
-  if(motWrap)motWrap.classList.toggle('hidden',!s||pas||ev);
+  if(motWrap)motWrap.classList.toggle('hidden',!s||pas||ev||moto);
   const pasWrap=document.getElementById('f-passeio-'+id);
   if(pasWrap)pasWrap.classList.toggle('hidden',!pas);
   const vdWrap=document.getElementById('f-vd-'+id);
