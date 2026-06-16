@@ -810,7 +810,8 @@ async function carregarEscalaHoje(){
         window._collection(window._db,'bloqueios'),
         window._where('tipo','==','passeio')
       ));
-      const bloqDia=bloqSnap.docs.map(d=>d.data()).find(b=>dataEscalaAtual>=b.inicio&&dataEscalaAtual<=b.fim);
+      const _nb2=(s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim());
+      const bloqDia=bloqSnap.docs.map(d=>d.data()).find(b=>dataEscalaAtual>=b.inicio&&dataEscalaAtual<=b.fim&&_nb2(b.guia)===_nb2(guiaAtual));
       if(bloqDia)passeioInfo=bloqDia;
     }catch(e){}
 
