@@ -2124,11 +2124,20 @@ async function carregarSenhas(){
   try{
     const snap=await window._gds(window._col(window._db,'guias'));
     guiasSenhas={};snap.docs.forEach(d=>{guiasSenhas[d.id]=d.data()});
-    renderGuias(GUIAS);
+    // Show ALL docs from Firebase, sorted
+    const todosFirebase=snap.docs.map(d=>d.id).sort();
+    // Also include any from GUIAS list not yet in Firebase
+    const todos=[...new Set([...todosFirebase,...GUIAS])].sort();
+    window._todosGuiasSenhas=todos;
+    renderGuias(todos);
   }catch(e){document.getElementById('guia-lista').innerHTML='<p class="empty">Erro.</p>'}
   finally{hideLoad()}
 }
-function filtrarGuias(){renderGuias(GUIAS.filter(g=>g.includes(document.getElementById('busca-guia').value.toUpperCase())))}
+function filtrarGuias(){
+  const busca=document.getElementById('busca-guia').value.toUpperCase();
+  const lista=window._todosGuiasSenhas||GUIAS;
+  renderGuias(lista.filter(g=>g.includes(busca)));
+}
 function renderGuias(lista){
   if(!lista.length){document.getElementById('guia-lista').innerHTML='<p class="empty">Nenhum guia.</p>';return}
   document.getElementById('guia-lista').innerHTML=lista.map(nome=>{
@@ -2164,10 +2173,9 @@ async function salvarRenomear(){
           await window._sd(window._doc(window._db,col,d.id),{...dd,guia:novoNome});
           total++;
         }
-        // guias collection uses name as document ID — copy and delete
+        // guias collection uses name as document ID — copy to new, keep old
         if(col==='guias'&&norm(d.id)===norm(_renomearAntigo)&&d.id!==novoNome){
-          await window._sd(window._doc(window._db,'guias',novoNome),dd);
-          await window._dd(window._doc(window._db,'guias',d.id));
+          await window._sd(window._doc(window._db,'guias',novoNome),{...dd,nomeAnterior:d.id});
           total++;
         }
       }
