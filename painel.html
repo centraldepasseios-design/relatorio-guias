@@ -2142,9 +2142,20 @@ function renderGuias(lista){
   if(!lista.length){document.getElementById('guia-lista').innerHTML='<p class="empty">Nenhum guia.</p>';return}
   document.getElementById('guia-lista').innerHTML=lista.map(nome=>{
     const tem=guiasSenhas[nome]&&guiasSenhas[nome].senha;
-    return`<div class="guia-row"><div><div style="font-size:14px;font-weight:500">${nome}</div><div style="margin-top:2px">${tem?'<span class="badge-ok">✅ Senha cadastrada</span>':'<span class="badge-pend">⏳ Sem senha</span>'}</div></div><div style="display:flex;gap:6px"><button class="btn-sm" style="background:#534ab7" onclick="abrirRenomear('${nome}')">✏️ Nome</button><button class="btn-red" onclick="abrirReset('${nome}')">🔑 Senha</button></div></div>`;
+    return`<div class="guia-row"><div><div style="font-size:14px;font-weight:500">${nome}</div><div style="margin-top:2px">${tem?'<span class="badge-ok">✅ Senha cadastrada</span>':'<span class="badge-pend">⏳ Sem senha</span>'}</div></div><div style="display:flex;gap:6px"><button class="btn-sm" style="background:#534ab7" onclick="abrirRenomear('${nome}')">✏️ Nome</button><button class="btn-red" onclick="abrirReset('${nome}')">🔑 Senha</button><button class="btn-sm" style="background:#c0392b" onclick="excluirGuia('${nome}')">🗑️</button></div></div>`;
   }).join('');
 }
+async function excluirGuia(nome){
+  if(!confirm('Excluir o documento "'+nome+'" do Firebase?\n\nIsso remove o cadastro de senha e idiomas. Os registros de escala e relatório não serão apagados.'))return;
+  showLoad();
+  try{
+    await window._dd(window._doc(window._db,'guias',nome));
+    hideLoad();
+    alert('✅ Documento "'+nome+'" excluído.');
+    carregarSenhas();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
 let _renomearAntigo='';
 function abrirRenomear(nome){
   _renomearAntigo=nome;
