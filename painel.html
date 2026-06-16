@@ -2133,9 +2133,52 @@ function renderGuias(lista){
   if(!lista.length){document.getElementById('guia-lista').innerHTML='<p class="empty">Nenhum guia.</p>';return}
   document.getElementById('guia-lista').innerHTML=lista.map(nome=>{
     const tem=guiasSenhas[nome]&&guiasSenhas[nome].senha;
-    return`<div class="guia-row"><div><div style="font-size:14px;font-weight:500">${nome}</div><div style="margin-top:2px">${tem?'<span class="badge-ok">✅ Senha cadastrada</span>':'<span class="badge-pend">⏳ Sem senha</span>'}</div></div><button class="btn-red" onclick="abrirReset('${nome}')">Redefinir senha</button></div>`;
+    return`<div class="guia-row"><div><div style="font-size:14px;font-weight:500">${nome}</div><div style="margin-top:2px">${tem?'<span class="badge-ok">✅ Senha cadastrada</span>':'<span class="badge-pend">⏳ Sem senha</span>'}</div></div><div style="display:flex;gap:6px"><button class="btn-sm" style="background:#534ab7" onclick="abrirRenomear('${nome}')">✏️ Nome</button><button class="btn-red" onclick="abrirReset('${nome}')">🔑 Senha</button></div></div>`;
   }).join('');
 }
+let _renomearAntigo='';
+function abrirRenomear(nome){
+  _renomearAntigo=nome;
+  document.getElementById('modal-renomear-nome').value=nome;
+  document.getElementById('modal-renomear').style.display='flex';
+  setTimeout(()=>document.getElementById('modal-renomear-nome').focus(),100);
+}
+function fecharRenomear(){document.getElementById('modal-renomear').style.display='none';_renomearAntigo='';}
+
+async function salvarRenomear(){
+  const novoNome=normNome(document.getElementById('modal-renomear-nome').value);
+  if(!novoNome){alert('Informe o novo nome.');return}
+  if(novoNome===_renomearAntigo){fecharRenomear();return}
+  if(!confirm('Renomear "'+_renomearAntigo+'" para "'+novoNome+'" em todos os registros do Firebase?'))return;
+  showLoad();
+  try{
+    const colecoes=['escalas','relatorios','disponibilidades','confirmacoes','bloqueios','guias','push_tokens'];
+    let total=0;
+    for(const col of colecoes){
+      const snap=await window._gds(window._col(window._db,col));
+      for(const d of snap.docs){
+        const dd=d.data();
+        const campoGuia=dd.guia;
+        const norm=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+        if(norm(campoGuia)===norm(_renomearAntigo)){
+          await window._sd(window._doc(window._db,col,d.id),{...dd,guia:novoNome});
+          total++;
+        }
+        // guias collection uses name as document ID — copy and delete
+        if(col==='guias'&&norm(d.id)===norm(_renomearAntigo)&&d.id!==novoNome){
+          await window._sd(window._doc(window._db,'guias',novoNome),dd);
+          await window._dd(window._doc(window._db,'guias',d.id));
+          total++;
+        }
+      }
+    }
+    hideLoad();
+    fecharRenomear();
+    alert('✅ '+_renomearAntigo+' renomeado para '+novoNome+'!\n'+total+' documentos atualizados.');
+    carregarSenhas();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
 function abrirReset(nome){
   guiaReset=nome;
   document.getElementById('modal-desc').textContent='Nova senha para '+nome+'.';
@@ -3393,6 +3436,20 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 </script>
 
 
+
+<!-- Modal renomear guia -->
+<div class="loading-overlay" id="modal-renomear" style="display:none;z-index:300">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:360px;margin:1rem">
+    <h3 style="margin:0 0 1rem;font-size:16px">✏️ Alterar nome do guia</h3>
+    <label>Novo nome</label>
+    <input type="text" id="modal-renomear-nome" style="width:100%;margin-bottom:1.5rem;padding:10px;font-size:14px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff" placeholder="Nome do guia..."/>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 1rem">Isso vai atualizar o nome em todos os registros do Firebase (escalas, relatórios, disponibilidades, etc).</p>
+    <div style="display:flex;gap:8px">
+      <button onclick="salvarRenomear()" style="flex:1;padding:10px;background:#534ab7;color:#fff;border:none;border-radius:var(--rsm);font-size:14px;cursor:pointer;font-weight:600">💾 Salvar</button>
+      <button onclick="fecharRenomear()" style="padding:10px 16px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:14px;cursor:pointer">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal editar guia passeio -->
 <div class="loading-overlay" id="modal-edit-passeio" style="display:none;z-index:300">
