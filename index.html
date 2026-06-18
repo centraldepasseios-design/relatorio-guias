@@ -329,10 +329,10 @@ async function tentarAutoLogin(){
       localStorage.setItem('luck_guia',guiaNorm);
       document.getElementById('login-screen').style.display='none';
       document.getElementById('main-screen').style.display='block';
-      document.getElementById('user-bar-nome').textContent=guiaSalvo;
+      document.getElementById('user-bar-nome').textContent=guiaNorm;
       carregarEscalaHoje();
-      registrarPush(guiaSalvo);
-      verificarNotificacoes(guiaSalvo);
+      registrarPush(guiaNorm);
+      verificarNotificacoes(guiaNorm);
     } else {
       localStorage.removeItem('luck_guia');
     }
@@ -531,7 +531,7 @@ function entrarNoApp(nome){
   servicosAtivos=[];contador=0;
   document.getElementById('lista-servicos').innerHTML='';
   carregarEscalaHoje();
-  registrarPush(nome);
+  registrarPush(nomeNorm);
   verificarNotificacoes(nome);
 }
 
