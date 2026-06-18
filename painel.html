@@ -2214,7 +2214,10 @@ async function salvarRenomear(){
     try{
       const guiaSnap=await window._gd(window._doc(window._db,'guias',_renomearAntigo));
       if(guiaSnap.exists()){
-        await window._sd(window._doc(window._db,'guias',novoNome),{...guiaSnap.data(),nomeAnterior:_renomearAntigo});
+        const dadosGuia={...guiaSnap.data(),nomeAnterior:_renomearAntigo};
+        // Remove campo guia do doc — o ID já é o nome
+        delete dadosGuia.guia;
+        await window._sd(window._doc(window._db,'guias',novoNome),dadosGuia);
         total++;
       }
     }catch(err){console.warn('Erro em guias:',err.message);}
