@@ -1210,7 +1210,8 @@ async function salvarIdiomas(){
   showLoading();
   try{
     const snap=await window._getDoc(window._doc(window._db,'guias',guiaAtual));
-    const dados=snap.exists()?snap.data():{};
+    if(!snap.exists()){hideLoading();fecharIdiomas();return;} // não cria doc novo
+    const dados=snap.data();
     await window._setDoc(window._doc(window._db,'guias',guiaAtual),{...dados,idiomas:selecionados});
     hideLoading();
     fecharIdiomas();
