@@ -2145,6 +2145,25 @@ function renderGuias(lista){
     return`<div class="guia-row"><div><div style="font-size:14px;font-weight:500">${nome}</div><div style="margin-top:2px">${tem?'<span class="badge-ok">✅ Senha cadastrada</span>':'<span class="badge-pend">⏳ Sem senha</span>'}</div></div><div style="display:flex;gap:6px"><button class="btn-sm" style="background:#534ab7" onclick="abrirRenomear('${nome}')">✏️ Nome</button><button class="btn-red" onclick="abrirReset('${nome}')">🔑 Senha</button><button class="btn-sm" style="background:#c0392b" onclick="excluirGuia('${nome}')">🗑️</button></div></div>`;
   }).join('');
 }
+async function corrigirCampoGuia(){
+  if(!confirm('Isso vai corrigir o campo "guia" em todos os documentos da coleção guias para ser igual ao ID do documento. Continuar?'))return;
+  showLoad();
+  try{
+    const snap=await window._gds(window._col(window._db,'guias'));
+    let total=0;
+    for(const d of snap.docs){
+      const dd=d.data();
+      if(dd.guia!==d.id){
+        await window._sd(window._doc(window._db,'guias',d.id),{...dd,guia:d.id});
+        total++;
+      }
+    }
+    hideLoad();
+    alert('✅ Corrigido! '+total+' documentos atualizados.');
+    carregarSenhas();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
 async function excluirGuia(nome){
   if(!confirm('Excluir o documento "'+nome+'" do Firebase?\n\nIsso remove o cadastro de senha e idiomas. Os registros de escala e relatório não serão apagados.'))return;
   showLoad();
@@ -3311,6 +3330,7 @@ async function confirmarReset(){
     <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border)">
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px">🛠️ Ferramentas de manutenção</div>
       <button onclick="migrarNomes()" style="padding:8px 16px;background:#e74c3c;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif">🔧 Corrigir nomes com acento no Firebase</button>
+      <button onclick="corrigirCampoGuia()" style="padding:8px 16px;background:#8e44ad;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:8px">🚨 Corrigir campo guia (emergência)</button>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Remove acentos de todos os nomes de guias nas coleções escalas, relatórios, disponibilidades, confirmações e bloqueios.</div>
     </div>
   </div>
