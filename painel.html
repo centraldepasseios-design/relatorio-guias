@@ -510,6 +510,7 @@ async function publicarEscala(){
     }
     if(isAT){
       horario=document.getElementById('eap-'+id).value.trim();
+      motorista=document.getElementById('em-'+id).value.trim();
       if(!horario){alert('Preencha o horário de apresentação em todas as linhas.');return}
     }
     const pax=srv.startsWith('chegada')?parseInt(document.getElementById('epax-'+id).value)||0:0;
