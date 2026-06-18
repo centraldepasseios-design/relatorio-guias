@@ -1161,8 +1161,24 @@ async function limparRestricao(data){
   if(!confirm('Remover restrição deste dia?'))return;
   showLoading();
   try{
-    const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
-    await window._deleteDoc(ref);
+    // Tenta apagar com nome atual e variações
+    const norm=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    const snap=await window._getDocs(window._query(
+      window._collection(window._db,'disponibilidades'),
+      window._where('data','==',data)
+    ));
+    let apagou=false;
+    for(const d of snap.docs){
+      if(norm(d.data().guia)===norm(guiaAtual)){
+        await window._deleteDoc(d.ref);
+        apagou=true;
+      }
+    }
+    if(!apagou){
+      // Fallback: tenta pelo ID direto
+      const ref=window._doc(window._db,'disponibilidades',data+'_'+guiaAtual);
+      await window._deleteDoc(ref);
+    }
     delete window.dispMap_global[data];
     hideLoading();
     carregarDisponibilidade();
