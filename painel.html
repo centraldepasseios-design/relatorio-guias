@@ -358,6 +358,8 @@ function adicionarLinha(dados={}){
     </div>`;
   const el=document.getElementById('escala-linhas');
   el.insertBefore(div,el.firstChild);
+  // Apply field visibility based on pre-selected service
+  if(dados.servico)onTipo(id);
   if(dados.servico)onTipo(id);
 }
 
