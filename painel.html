@@ -138,7 +138,8 @@
 const SENHA_ADMIN='luck1960';
 const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
 const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf'};
-const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM','ADRIANE','GUILHERME','FABIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONCALVES','ANTONIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANES','MADSON','CAMILLA','ANDRE','ANA FLAVIA','RENATINHA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAISSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FABIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO MICHELOTI','BRUNO','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANCA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLORINHA','ELISIO','REBECA','ENEZIANE','BRUNO','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
+// Listas dinâmicas — preenchidas do Firebase
+let GUIAS=[];
 
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
 
@@ -914,7 +915,7 @@ function aplicarFiltros(){
 
 // ===== PENDENTES / REDISTRIBUIÇÃO =====
 const HORA_LIMITE=20; // 20h do dia anterior
-const GUIAS_FILA=["ADIANES", "ADRIANE", "ALBERTO", "ALEX", "ALICE", "ALVARO", "AMAURY", "ANA FLAVIA", "ANDRE", "ANTONIO", "ARLENE", "ARLINDO", "ARTHUR", "BRENO", "BRUNO", "BRUNO MICHELOTI", "CAMILA", "CAMILLA", "CARLA", "CARLOS", "CHICO DINIZ", "CHICO LIMA", "DANIEL", "DEYVISON", "DRIELLY", "EDMILTON", "EDSON", "ELISIO", "ENEZIANE", "ERLON", "EUGENIO", "EVILAZIO", "FABIO GOMES", "FABIO COZZI", "FELIPE", "FRANCA", "FRANCINALDO", "FREITAS", "GEORGE", "GERARDO", "GESSYCA", "GIL", "GLORINHA", "GONCALVES", "GUILHERME", "HENRIQUE FARIAS", "HENRIQUE JR", "HUGO", "HUMBERTO", "IANNE", "ISADORA", "JACIANE", "JOEL", "JOELMA", "JUAN", "JULIANA", "JUNIOR", "KATARINA", "LIDIANE", "LUCIA V", "LUCIENE", "LUIZ CARLOS", "LUIZ FELIPE", "MADALENA", "MADSON", "MARCOS", "MARILANDE", "MATHEUS", "NATALIA", "NEIDE", "OLIVEIRA", "POLLY", "RAFAEL", "RAISSA", "REBECA", "RENATINHA", "RODRIGO", "RUTH", "SANTIAGO", "SERGIO", "SIDNEI", "TALES", "TATIANA", "TAVARES", "TOM", "VALTER", "VITOR", "WIRON", "XIMENES", "ZENA"];
+let GUIAS_FILA=[];
 
 async function verificarPendentes(){
   const agora=new Date();
@@ -1386,7 +1387,14 @@ function onDestinoChange(){
 }
 
 function onPrivativoChange(){
-  // No visual change needed — just affects the saved name
+  const priv=document.getElementById('passeio-privativo')&&document.getElementById('passeio-privativo').checked;
+  const ordemWrap=document.getElementById('passeio-ordem-wrap');
+  const labelGuias=document.getElementById('label-guias-pos');
+  if(labelGuias)labelGuias.textContent=priv?'Guias do passeio':'Guias e posição no carro';
+  // Atualiza a seção de ordem se já tem guias selecionados
+  if(window._passeioSelecionados&&window._passeioSelecionados.length){
+    atualizarOrdemPasseio();
+  }
 }
 
 function getDestinoPasseio(){
@@ -1418,22 +1426,18 @@ function atualizarOrdemPasseio(){
     const sel=el.querySelector('select');
     if(sel)idiomasAtuais[el.dataset.guia]=sel.value;
   });
+    const priv=document.getElementById('passeio-privativo')&&document.getElementById('passeio-privativo').checked;
+  const ordemLabel=document.getElementById('passeio-ordem-wrap')&&document.getElementById('passeio-ordem-wrap').querySelector('label');
+  if(ordemLabel)ordemLabel.innerHTML=priv?'Guias do passeio':'Ordem dos guias <span style="font-size:11px;color:var(--muted)">(1º = 1º carro)</span>';
   lista.innerHTML=ordemFinal.map((g,i)=>{
     const ia=idiomasAtuais[g]||'';
-    return '<div class="ordem-item" data-guia="'+g+'" draggable="true" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);cursor:grab">'
-    +'<span style="color:var(--muted);font-size:16px;cursor:grab;padding:0 2px" title="Arrastar para reordenar">⠿</span>'
-    +'<span style="background:#e67e22;color:#fff;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</span>'
-    +'<span style="flex:1;font-size:13px;font-weight:500">'+g+'</span>'
-    +'<select onchange="void(0)" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff">'
-    +'<option value=""'+(ia===''?' selected':'')+'>🌍 PT</option>'
-    +'<option value="Espanhol"'+(ia==='Espanhol'?' selected':'')+'>🇪🇸 ES</option>'
-    +'<option value="Bilíngue"'+(ia==='Bilíngue'?' selected':'')+'>🇧🇷🇪🇸 Bil</option>'
-    +'<option value="Inglês"'+(ia==='Inglês'?' selected':'')+'>🇺🇸 EN</option>'
-    +'<option value="Francês"'+(ia==='Francês'?' selected':'')+'>🇫🇷 FR</option>'
-    +'</select>'
-    +'</div>';
+    const numBadge=priv
+      ?'<span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:600;flex-shrink:0">Privativo</span>'
+      :'<span style="background:#e67e22;color:#fff;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</span>';
+    const dragHandle=priv?'':'<span style="color:var(--muted);font-size:16px;cursor:grab;padding:0 2px" title="Arrastar para reordenar">⠿</span>';
+    return '<div class="ordem-item" data-guia="'+g+'" draggable="'+(priv?'false':'true')+'" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);cursor:'+(priv?'default':'grab')+'">'    +dragHandle    +numBadge    +'<span style="flex:1;font-size:13px;font-weight:500">'+g+'</span>'    +'<select onchange="void(0)" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff">'    +'<option value=""'+(ia===''?' selected':'')+'>🌍 PT</option>'    +'<option value="Espanhol"'+(ia==='Espanhol'?' selected':'')+'>🇪🇸 ES</option>'    +'<option value="Bilíngue"'+(ia==='Bilíngue'?' selected':'')+'>🇧🇷🇪🇸 Bil</option>'    +'<option value="Inglês"'+(ia==='Inglês'?' selected':'')+'>🇺🇸 EN</option>'    +'<option value="Francês"'+(ia==='Francês'?' selected':'')+'>🇫🇷 FR</option>'    +'</select>'    +'</div>';
   }).join('');
-  initDragOrdem();
+  if(!priv)initDragOrdem();
 }
 
 function initDragOrdem(){
@@ -1501,17 +1505,18 @@ async function salvarPasseio(){
       if(!confirm('⚠️ Os guias abaixo já estão em outro passeio neste dia:\n\n'+guiasJaEmPasseio.join('\n')+'\n\nAdicionar mesmo assim?')){return}
       showLoad();
     }
+    const privativo=document.getElementById('passeio-privativo')&&document.getElementById('passeio-privativo').checked;
     const ordItems=document.querySelectorAll('#passeio-ordem-lista .ordem-item');
     for(let i=0;i<ordenados.length;i++){
       const guia=ordenados[i];
-      const posicao=i+1;
+      const posicao=privativo?0:i+1;
       // Busca pelo data-guia para garantir o idioma correto mesmo após reordenação
       const ordEl=[...ordItems].find(el=>el.dataset.guia===guia);
       const idiomaEl=ordEl?ordEl.querySelector('select'):null;
       const idiomaPas=idiomaEl?idiomaEl.value:'';
       await window._ad(window._col(window._db,'bloqueios'),{
         guia,inicio:data,fim:data,descricao:destino,tipo:'passeio',
-        base,posicao,idioma:idiomaPas,criadoEm:new Date().toISOString()
+        base,posicao,privativo:privativo?true:false,idioma:idiomaPas,criadoEm:new Date().toISOString()
       });
     }
     hideLoad();
@@ -1556,9 +1561,10 @@ async function carregarPasseios(){
       const base=dd.base||'Porto';
       if(!porData[dd.inicio][base])porData[dd.inicio][base]={};
       const destino=dd.descricao;
-      if(!porData[dd.inicio][base][destino])porData[dd.inicio][base][destino]={guias:[],ids:[]};
-      porData[dd.inicio][base][destino].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id});
-      porData[dd.inicio][base][destino].ids.push(d.id);
+      const chave=destino+'|'+(dd.privativo?'priv':'reg');
+      if(!porData[dd.inicio][base][chave])porData[dd.inicio][base][chave]={guias:[],ids:[],privativo:!!dd.privativo,destino:destino};
+      porData[dd.inicio][base][chave].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id});
+      porData[dd.inicio][base][chave].ids.push(d.id);
     });
 
     const BASES={
@@ -1587,8 +1593,8 @@ async function carregarPasseios(){
         const cfg=BASES[base];
         const destinos=basesNoDia[base];
         const idsBase=Object.values(destinos).flatMap(g=>g.ids);
-        const todosGuiasBase=Object.entries(destinos).flatMap(([dest,g])=>
-          g.guias.slice().sort((a,b)=>a.posicao-b.posicao).map(gu=>({...gu,destino:dest}))
+        const todosGuiasBase=Object.values(destinos).flatMap(g=>
+          g.guias.slice().sort((a,b)=>a.posicao-b.posicao).map(gu=>({...gu,destino:g.destino}))
         );
 
         html+='<div style="background:'+cfg.fundo+';border:2px solid '+cfg.borda+';border-radius:var(--radius);overflow:hidden;margin-bottom:12px">';
@@ -1598,29 +1604,38 @@ async function carregarPasseios(){
         html+='</div>';
 
         // Destinos dentro da base
-        Object.entries(destinos).forEach(([destino, grupo])=>{
+        Object.entries(destinos).forEach(([chave, grupo])=>{
+          const destino=grupo.destino;
           const guiasOrdenados=grupo.guias.slice().sort((a,b)=>a.posicao-b.posicao);
           const idsJson=JSON.stringify(grupo.ids).replace(/"/g,'&quot;');
+          const privativo=grupo.privativo||false;
           html+='<div style="padding:10px 14px;border-bottom:1px solid '+cfg.borda+'40">';
           html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-          html+='<span style="font-size:13px;font-weight:600;color:'+cfg.cor+'">🏖️ '+destino+'</span>';
-          const apagKey='apag-'+data.replace(/-/g,'')+'-'+base+'-'+destino.replace(/\s/g,'');
+          html+='<span style="font-size:13px;font-weight:600;color:'+cfg.cor+'">🏖️ '+destino+(privativo?' <span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:1px 8px;font-size:10px;font-weight:600">🔒 Privativo</span>':'')+'</span>';
+          const apagKey='apag-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'');
           window['_apagIds_'+apagKey]=grupo.ids;
           html+='<button data-key="'+apagKey+'" onclick="apagarPasseioGrupo(window[\'_apagIds_\'+this.dataset.key])" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
           html+='</div>';
+          const dragListId='drag-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'_');
+          // Store all ids for this group for drag reorder
+          window['_dragGuias_'+dragListId]=guiasOrdenados.map(g=>({id:g.id,nome:g.nome,posicao:g.posicao,idioma:g.idioma}));
+          html+='<div id="'+dragListId+'">';
           guiasOrdenados.forEach((gu,gi)=>{
             const idiomaB=gu.idioma&&FLAG[gu.idioma]?'<span style="background:rgba(0,0,0,0.08);padding:1px 6px;border-radius:99px;font-size:10px;margin-left:4px">'+FLAG[gu.idioma]+' '+gu.idioma+'</span>':'';
             // Store data in hidden spans, use index to retrieve
-            const rowId='gu-'+data.replace(/-/g,'')+'-'+base+'-'+destino.replace(/\s/g,'_')+'-'+gi;
+            const rowId='gu-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'_')+'-'+gi;
             window['_passeioData_'+rowId]={wpp:{data:data,destino:destino,base:base,guias:[gu]},gu:{id:gu.id,nome:gu.nome,posicao:gu.posicao,idioma:gu.idioma,base:base,data:data,destino:destino}};
-            html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06)">';
-            html+='<span style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+gu.posicao+'</span>';
+            html+='<div class="ps-drag-row" data-id="'+gu.id+'" data-listid="'+dragListId+'" draggable="'+(privativo?'false':'true')+'" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);cursor:'+(privativo?'default':'grab')+'">';
+            if(!privativo)html+='<span style="color:#bbb;font-size:15px;flex-shrink:0;cursor:grab;user-select:none" title="Arrastar para reordenar">&#8942;&#8942;</span>';
+            if(privativo){html+='<span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600;flex-shrink:0">Priv.</span>';}
+            else{html+='<span class="ps-num" style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+(gi+1)+'</span>';}
             html+='<span style="flex:1;font-size:13px;font-weight:500">'+gu.nome+idiomaB+'</span>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioRemove(this.dataset.row)" title="Remover guia" style="padding:2px 7px;background:#fde8e8;border:none;border-radius:99px;font-size:11px;cursor:pointer;color:#c0392b;font-weight:700">−</button>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioWpp(this.dataset.row)" title="Reenviar WPP" style="padding:3px 10px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer;font-weight:600">WPP</button>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioEdit(this.dataset.row)" title="Editar guia" style="padding:2px 8px;background:none;border:1px solid var(--border);border-radius:99px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button>';
             html+='</div>';
           });
+          html+='</div>';
           html+='</div>';
         });
         html+='</div>';
@@ -1629,9 +1644,48 @@ async function carregarPasseios(){
     });
 
     lista.innerHTML=html||'<p class="empty">Nenhum passeio encontrado.</p>';
+    initDragPasseioLista();
   }catch(e){lista.innerHTML='<p class="empty">Erro: '+e.message+'</p>'}
 }
 
+
+function initDragPasseioLista(){
+  // Group rows by their listId
+  const lists={};
+  document.querySelectorAll('.ps-drag-row[draggable="true"]').forEach(row=>{
+    const lid=row.dataset.listid;
+    if(!lists[lid])lists[lid]=document.getElementById(lid);
+  });
+  Object.values(lists).forEach(lista=>{
+    if(!lista)return;
+    let dragEl=null;
+    lista.querySelectorAll('.ps-drag-row').forEach(item=>{
+      item.addEventListener('dragstart',e=>{dragEl=item;item.style.opacity='0.4';e.dataTransfer.effectAllowed='move';});
+      item.addEventListener('dragend',async()=>{
+        dragEl.style.opacity='';
+        // Renumber badges
+        lista.querySelectorAll('.ps-num').forEach((span,i)=>span.textContent=i+1);
+        // Save new order to Firebase
+        const rows=[...lista.querySelectorAll('.ps-drag-row')];
+        for(let i=0;i<rows.length;i++){
+          const id=rows[i].dataset.id;
+          if(id){
+            try{await window._ud(window._doc(window._db,'bloqueios',id),{posicao:i+1});}catch(e){console.error(e);}
+          }
+        }
+        dragEl=null;
+      });
+      item.addEventListener('dragover',e=>{
+        e.preventDefault();e.dataTransfer.dropEffect='move';
+        if(item!==dragEl){
+          const r=item.getBoundingClientRect();
+          if(e.clientY<r.top+r.height/2)lista.insertBefore(dragEl,item);
+          else lista.insertBefore(dragEl,item.nextSibling);
+        }
+      });
+    });
+  });
+}
 
 function _callPasseioRemove(rowId){
   const d=window['_passeioData_'+rowId];
@@ -1867,23 +1921,9 @@ async function confirmarBloqueio(){
 }
 
 // ===== DISPONIBILIDADE ADMIN =====
-const GUIAS_PORTO=[
-  "JUNIOR","POLLY","NATALIA","GEORGE","KATARINA","EDMILTON","EVILAZIO","LUCIENE",
-  "VITOR","ERLON","HENRIQUE JR","FELIPE","EDSON","TATIANA","TOM","ADRIANE",
-  "GUILHERME","FABIO GOMES","DANIEL","NEIDE","JUAN","EUGENIO","VALTER","GONCALVES",
-  "ANTONIO","GERARDO","HUGO","JOEL","HENRIQUE FARIAS","CHICO DINIZ","MARILANDE",
-  "WIRON","IANNE","ADIANES","MADSON","CAMILLA","ANDRE","ANA FLAVIA","RENATINHA",
-  "GESSYCA","TAVARES","MATHEUS","ALICE","LIDIANE","CARLA","ALBERTO","XIMENES",
-  "SIDNEI","DRIELLY","RAISSA","ISADORA","SANTIAGO","ARTHUR","GIL","HUMBERTO",
-  "FABIO COZZI","BRENO","LUIZ CARLOS","RODRIGO","JOELMA","OLIVEIRA","BRUNO MICHELOTI",
-  "TALES","FRANCINALDO","AMAURY","ARLENE","JACIANE","FRANCA","FREITAS",
-  "LUIZ FELIPE","RAFAEL","JULIANA","DEYVISON","ALEX","RUTH","CAMILA"
-];
-const GUIAS_RECIFE=[
-  "GLORINHA","ELISIO","REBECA","ENEZIANE","BRUNO","ALVARO","ZENA","CARLOS M",
-  "CHICO LIMA","SERGIO","LUCIA V","MARCOS F","MADALENA","ARLINDO"
-];
-const TODOS_GUIAS_DISP=[...GUIAS_PORTO,...GUIAS_RECIFE];
+let GUIAS_PORTO=[];
+let GUIAS_RECIFE=[];
+let TODOS_GUIAS_DISP=[];
 const FLAG_IDIOMA={'Português':'🇧🇷','Inglês':'🇺🇸','Espanhol':'🇪🇸','Francês':'🇫🇷','Italiano':'🇮🇹','Alemão':'🇩🇪'};
 
 async function carregarDisp(){
@@ -1925,14 +1965,16 @@ async function carregarDisp(){
       if(nc&&nc>=hoje2)naoConvidarMap[d.id]={ate:nc};
     });
 
-    // Carrega última escala de cada guia
+    // Carrega última escala de cada guia + quem está na escala do dia selecionado
     const escSnap=await window._gds(window._col(window._db,'escalas'));
     const ultimaEscala={};
+    const guiasNoDia=new Set();
     escSnap.docs.forEach(d=>{
       const it=d.data();
       const guiaN=_normDisp(it.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN||_normDisp(g).startsWith(guiaN)||guiaN.startsWith(_normDisp(g)))||it.guia;
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
+      if(it.data===data)guiasNoDia.add(guiaKey);
     });
 
     // Carrega passeios — conta como último serviço também
@@ -1971,10 +2013,10 @@ async function carregarDisp(){
     // Filtra guias
     let guiasFiltrados=TODOS_GUIAS_DISP.filter(g=>{
       const status=dispMap[g]||'sem';
-      const trabalhando=ultimaEscala[g]===data||guiasEmPasseio.has(g);
+      const trabalhando=guiasNoDia.has(g)||guiasEmPasseio.has(g);
       if(filtStatus==='trabalhando'){
         if(!trabalhando)return false;
-      } else if(filtStatus==='nao'){if(status!=='nao'&&status!=='passeio')return false;} else if(filtStatus&&filtStatus!==status)return false;
+      } else if(filtStatus==='nao'){if(status!=='nao'&&status!=='passeio')return false;} else if(filtStatus==='restricao'){if(status!=='restricao')return false;} else if(filtStatus&&filtStatus!==status)return false;
       if(filtIdioma){
         const idiomas=(guiasData[g]&&guiasData[g].idiomas)||[];
         if(!idiomas.includes(filtIdioma))return false;
@@ -1984,7 +2026,7 @@ async function carregarDisp(){
 
     // Resumo — só Indisponíveis, Trabalhando, Não convidar
     const indispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='nao'||dispMap[g]==='passeio').length;
-    const trabCount=TODOS_GUIAS_DISP.filter(g=>ultimaEscala[g]===data||guiasEmPasseio.has(g)).length;
+    const trabCount=TODOS_GUIAS_DISP.filter(g=>guiasNoDia.has(g)||guiasEmPasseio.has(g)).length;
     const naoConvidarCount=TODOS_GUIAS_DISP.filter(g=>naoConvidarMap[g]).length;
     document.getElementById('disp-resumo').innerHTML=
       '<div class="resumo-card" style="border-left:3px solid #c0392b"><div class="num" style="color:#c0392b">'+indispCount+'</div><div class="lbl">Indisponíveis</div></div>'
@@ -2122,16 +2164,39 @@ async function salvarObsGuia(guia,obs){
 }
 
 // ===== SENHAS =====
+async function carregarListasGuias(){
+  // Ordem fixa da planilha — nomes do Firebase preenchem, ordem é preservada
+  const ORDEM_PORTO=['JUNIOR', 'POLLY', 'NATALIA', 'GEORGE', 'KATARINA', 'EDMILTON', 'EVILAZIO', 'LUCIENE', 'VITOR', 'ERLON', 'HENRIQUE JR', 'FELIPE', 'EDSON', 'TATIANA', 'TOM', 'ADRIANE', 'GUILHERME', 'FABIO', 'DANIEL', 'NEIDE', 'JUAN', 'EUGENIO', 'VALTER', 'GONCALVES', 'ANTONIO', 'GERARDO', 'HUGO', 'JOEL', 'HENRIQUE FARIAS', 'CHICO DINIZ', 'MARILANDE', 'WIRON', 'IANNE', 'ADIANES', 'MADSON', 'CAMILLA', 'ANDRE', 'ANA FLAVIA', 'RENATINHA', 'GESSYCA', 'TAVARES', 'MATHEUS', 'ALICE', 'LIDIANE', 'CARLA', 'ALBERTO', 'XIMENES', 'SIDNEI', 'DRIELLY', 'RAISSA', 'ISADORA', 'SANTIAGO', 'ARTHUR', 'GIL', 'HUMBERTO', 'FABIO COZZI', 'BRENO', 'LUIZ CARLOS', 'RODRIGO', 'JOELMA', 'OLIVEIRA', 'BRUNO MICHELOTI', 'TALES', 'FRANCINALDO', 'AMAURY', 'ARLENE', 'JACIANE', 'FRANCA', 'FREITAS', 'LUIZ FELIPE', 'RAFAEL', 'JULIANA', 'DEYVISON', 'ALEX', 'RUTH', 'CAMILA DOS PRAZERES'];
+  const ORDEM_RECIFE=['GLORINHA', 'ELISIO', 'REBECA', 'ENEZIANE', 'BRUNO', 'ALVARO', 'ZENA', 'CARLOS', 'CHICO LIMA', 'SERGIO', 'LUCIA V', 'MARCOS F', 'MADALENA', 'ARLINDO'];
+  try{
+    const snap=await window._gds(window._col(window._db,'guias'));
+    const nomesFirebase=new Set(snap.docs.map(d=>d.id));
+    const basesMap={};snap.docs.forEach(d=>{basesMap[d.id]=d.data().base||'Porto';});
+    // Porto: ordem fixa, só os que existem no Firebase; novos no final
+    const portoOrdenado=ORDEM_PORTO.filter(n=>nomesFirebase.has(n));
+    const portoNovos=[...nomesFirebase].filter(n=>basesMap[n]!=='Recife'&&!ORDEM_PORTO.includes(n)).sort();
+    // Recife: ordem fixa, só os que existem no Firebase; novos no final
+    const recifeOrdenado=ORDEM_RECIFE.filter(n=>nomesFirebase.has(n));
+    const recifeNovos=[...nomesFirebase].filter(n=>basesMap[n]==='Recife'&&!ORDEM_RECIFE.includes(n)).sort();
+    GUIAS_PORTO=[...portoOrdenado,...portoNovos];
+    GUIAS_RECIFE=[...recifeOrdenado,...recifeNovos];
+    TODOS_GUIAS_DISP=[...GUIAS_PORTO,...GUIAS_RECIFE];
+    GUIAS=[...TODOS_GUIAS_DISP];
+    GUIAS_FILA=[...TODOS_GUIAS_DISP].sort();
+    if(typeof renderLinhas==='function')renderLinhas();
+  }catch(e){console.warn('Erro ao carregar lista de guias:',e);}
+}
+
 async function carregarSenhas(){
   showLoad();
   try{
     const snap=await window._gds(window._col(window._db,'guias'));
     guiasSenhas={};snap.docs.forEach(d=>{guiasSenhas[d.id]=d.data()});
     // Show ALL docs from Firebase, sorted
-    const todosFirebase=snap.docs.map(d=>d.id).sort();
-    // Also include any from GUIAS list not yet in Firebase
-    const todos=[...new Set([...todosFirebase,...GUIAS])].sort();
+    const todos=snap.docs.map(d=>d.id).sort();
     window._todosGuiasSenhas=todos;
+    // Atualiza listas dinâmicas também
+    await carregarListasGuias();
     renderGuias(todos);
   }catch(e){document.getElementById('guia-lista').innerHTML='<p class="empty">Erro.</p>'}
   finally{hideLoad()}
@@ -2145,9 +2210,21 @@ function renderGuias(lista){
   if(!lista.length){document.getElementById('guia-lista').innerHTML='<p class="empty">Nenhum guia.</p>';return}
   document.getElementById('guia-lista').innerHTML=lista.map(nome=>{
     const tem=guiasSenhas[nome]&&guiasSenhas[nome].senha;
-    return`<div class="guia-row"><div><div style="font-size:14px;font-weight:500">${nome}</div><div style="margin-top:2px">${tem?'<span class="badge-ok">✅ Senha cadastrada</span>':'<span class="badge-pend">⏳ Sem senha</span>'}</div></div><div style="display:flex;gap:6px"><button class="btn-sm" style="background:#534ab7" onclick="abrirRenomear('${nome}')">✏️ Nome</button><button class="btn-red" onclick="abrirReset('${nome}')">🔑 Senha</button><button class="btn-sm" style="background:#c0392b" onclick="excluirGuia('${nome}')">🗑️</button></div></div>`;
+    const base=guiasSenhas[nome]?.base||'Porto';
+    const baseBadge=base==='Recife'?'<span style="background:#e8f5ec;color:#1a6b40;padding:1px 6px;border-radius:99px;font-size:10px;margin-left:4px">🐟 Recife</span>':'<span style="background:#e8f4fd;color:#1a6b9a;padding:1px 6px;border-radius:99px;font-size:10px;margin-left:4px">🌴 Porto</span>';
+    return`<div class="guia-row"><div><div style="font-size:14px;font-weight:500">${nome}${baseBadge}<select onchange="salvarBaseGuia('${nome}',this.value)" style="margin-left:8px;font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff"><option value="Porto"${base==='Porto'?' selected':''}>🌴 Porto</option><option value="Recife"${base==='Recife'?' selected':''}>🐟 Recife</option></select></div><div style="margin-top:2px">${tem?'<span class="badge-ok">✅ Senha cadastrada</span>':'<span class="badge-pend">⏳ Sem senha</span>'}</div></div><div style="display:flex;gap:6px"><button class="btn-sm" style="background:#534ab7" onclick="abrirRenomear('${nome}')">✏️ Nome</button><button class="btn-red" onclick="abrirReset('${nome}')">🔑 Senha</button><button class="btn-sm" style="background:#c0392b" onclick="excluirGuia('${nome}')">🗑️</button></div></div>`;
   }).join('');
 }
+async function salvarBaseGuia(nome,base){
+  try{
+    const snap=await window._gd(window._doc(window._db,'guias',nome));
+    const dados=snap.exists()?snap.data():{};
+    await window._sd(window._doc(window._db,'guias',nome),{...dados,base});
+    await carregarListasGuias();
+    carregarSenhas();
+  }catch(e){alert('Erro ao salvar base: '+e.message);}
+}
+
 async function corrigirCampoGuia(){
   if(!confirm('Isso vai corrigir o campo "guia" em todos os documentos da coleção guias para ser igual ao ID do documento. Continuar?'))return;
   showLoad();
@@ -3206,8 +3283,14 @@ async function confirmarReset(){
           <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
         </div>
       </div>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:600;font-size:13px">
+          <input type="checkbox" id="passeio-privativo" onchange="onPrivativoChange()" style="width:16px;height:16px;cursor:pointer;accent-color:#e67e22"/>
+          🔒 Privativo <span style="font-size:11px;font-weight:400;color:var(--muted)">(carro exclusivo para o grupo)</span>
+        </label>
+      </div>
       <div style="margin-bottom:10px">
-        <label>Guias e posição no carro</label>
+        <label id="label-guias-pos">Guias e posição no carro</label>
         <input type="text" id="passeio-busca" placeholder="🔍 Buscar guia..." oninput="filtrarGuiasPasseio()" style="background:#fff;margin-bottom:6px"/>
         <div id="passeio-guias-wrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);max-height:160px;overflow-y:auto"></div>
       </div>
@@ -3316,8 +3399,8 @@ async function confirmarReset(){
           <option value="">Todos</option>
           <option value="sim">✅ Disponíveis</option>
           <option value="nao">❌ Indisponíveis</option>
+          <option value="restricao">⚠️ Restrição de horário</option>
           <option value="passeio">🏖️ Passeio</option>
-          <option value="sem">⬜ Sem resposta</option>
           <option value="trabalhando">🔧 Trabalhando hoje</option>
         </select>
       </div>
@@ -3336,7 +3419,6 @@ async function confirmarReset(){
     <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border)">
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px">🛠️ Ferramentas de manutenção</div>
       <button onclick="migrarNomes()" style="padding:8px 16px;background:#e74c3c;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif">🔧 Corrigir nomes com acento no Firebase</button>
-      <button onclick="corrigirCampoGuia()" style="padding:8px 16px;background:#8e44ad;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:8px">🚨 Corrigir campo guia (emergência)</button>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Remove acentos de todos os nomes de guias nas coleções escalas, relatórios, disponibilidades, confirmações e bloqueios.</div>
     </div>
   </div>
@@ -3483,6 +3565,7 @@ if(localStorage.getItem('luck_admin')==='1'&&typeof entrar==='function'){
   document.getElementById('rg-fim').value=hoje();
 }
 // Dispara carregamento após Firebase pronto
+carregarListasGuias();
 if(typeof carregarEscalaPublicada==='function') carregarEscalaPublicada();
 if(typeof carregarConfirmacoes==='function') setTimeout(carregarConfirmacoes,300);
 if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
