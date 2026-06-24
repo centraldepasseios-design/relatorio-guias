@@ -2268,7 +2268,18 @@ async function excluirGuia(nome){
   if(!confirm('Excluir o documento "'+nome+'" do Firebase?\n\nIsso remove o cadastro de senha e idiomas. Os registros de escala e relatório não serão apagados.'))return;
   showLoad();
   try{
+    // Apaga o documento principal
     await window._dd(window._doc(window._db,'guias',nome));
+    // Apaga também versão com/sem acento se existir
+    const semAcento=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    const comAcento=nome; // já é o nome original
+    const variantes=[semAcento, comAcento].filter(v=>v!==nome);
+    for(const v of variantes){
+      try{
+        const snap=await window._gd(window._doc(window._db,'guias',v));
+        if(snap.exists())await window._dd(window._doc(window._db,'guias',v));
+      }catch(e){}
+    }
     hideLoad();
     alert('✅ Documento "'+nome+'" excluído.');
     carregarSenhas();
