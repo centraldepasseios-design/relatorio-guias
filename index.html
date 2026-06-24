@@ -131,8 +131,9 @@
   <div id="step-nome" class="card">
     <label>Seu nome</label>
     <div style="position:relative">
-      <input type="text" id="login-busca-nome" placeholder="Digite seu nome..." oninput="filtrarNomes()" onkeydown="if(event.key==='Enter')selecionarPrimeiro()" autocomplete="off" style="text-transform:uppercase"/>
+      <input type="text" id="login-busca-nome" placeholder="🔍 Digite para buscar seu nome..." oninput="filtrarNomes()" onkeydown="if(event.key==='Enter')selecionarPrimeiro()" autocomplete="off" style="text-transform:uppercase" spellcheck="false"/>
       <div id="login-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:var(--rsm);max-height:220px;overflow-y:auto;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;text-align:center">Digite seu nome e <strong>toque nele</strong> quando aparecer na lista</div>
     </div>
     <input type="hidden" id="login-guia-select" value=""/>
     <div id="nome-selecionado" style="display:none;margin-top:8px;padding:8px 12px;background:#e1f5ee;border-radius:var(--rsm);font-size:13px;color:#0f6e56;font-weight:500"></div>
@@ -404,7 +405,7 @@ async function registrarPush(guia){
 }
 
 // Lista de nomes carregada do Firebase dinamicamente
-let TODOS_NOMES=["ADIANES","ADRIANE","ALBERTO","ALEX","ALICE","ALVARO","AMAURY","ANA FLAVIA","ANDRE","ANTONIO","ARLENE","ARLINDO","ARTHUR","BRENO","BRUNO MICHELOTI","BRUNO","CAMILA","CAMILLA","CARLA","CARLOS M","CHICO DINIZ","CHICO LIMA","DANIEL","DEYVISON","DRIELLY","EDMILTON","EDSON","ELISIO","ENEZIANE","ERLON","EUGENIO","EVILAZIO","FABIO GOMES","FABIO COZZI","FELIPE","FRANCA","FRANCINALDO","FREITAS","GEORGE","GERARDO","GESSYCA","GIL","GLORINHA","GONCALVES","GUILHERME","HENRIQUE FARIAS","HENRIQUE JR","HUGO","HUMBERTO","IANNE","ISADORA","JACIANE","JOEL","JOELMA","JUAN","JULIANA","JUNIOR","KATARINA","LIDIANE","LUCIA V","LUCIENE","LUIZ CARLOS","LUIZ FELIPE","MADALENA","MADSON","MARCOS F","MARILANDE","MATHEUS","NATALIA","NEIDE","OLIVEIRA","POLLY","RAFAEL","RAISSA","REBECA","RENATINHA","RODRIGO","RUTH","SANTIAGO","SERGIO","SIDNEI","TALES","TATIANA","TAVARES","TOM","VALTER","VITOR","WIRON","XIMENES","ZENA"];
+let TODOS_NOMES=[]; // preenchido do Firebase em carregarNomesFirebase
 async function carregarNomesFirebase(){
   try{
     let t=0;
@@ -453,7 +454,11 @@ document.addEventListener('click',e=>{
 
 async function verificarGuia(){
   const nome=document.getElementById('login-guia-select').value;
-  if(!nome){alert('Digite e selecione seu nome da lista.');return}
+  if(!nome){
+    alert('Selecione seu nome da lista. Digite algumas letras e toque no seu nome quando aparecer.');
+    document.getElementById('login-busca-nome').focus();
+    return;
+  }
   if(!window._fbReady){
     showLoading();
     let t=0;
