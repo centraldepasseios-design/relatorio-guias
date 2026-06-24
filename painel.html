@@ -2185,6 +2185,11 @@ async function carregarListasGuias(){
     GUIAS=[...TODOS_GUIAS_DISP];
     GUIAS_FILA=[...TODOS_GUIAS_DISP].sort();
     if(typeof renderLinhas==='function')renderLinhas();
+    // Atualiza selects de guia já renderizados (eg-*)
+    document.querySelectorAll('[id^="eg-"]').forEach(sel=>{
+      const val=sel.value;
+      sel.innerHTML='<option value="">— selecionar —</option>'+GUIAS.map(g=>'<option'+(val===g?' selected':'')+'>'+g+'</option>').join('');
+    });
     // Popula selects de guia dinamicamente
     const todosOrdem=[...GUIAS_PORTO,...GUIAS_RECIFE];
     ['f-guia','rg-guia'].forEach(selId=>{
