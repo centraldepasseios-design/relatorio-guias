@@ -204,6 +204,7 @@
       <input type="date" id="data-geral" onchange="servicosAtivos=[];contador=0;document.getElementById('lista-servicos').innerHTML='';carregarEscalaNoRelatorio()"/>
     </div>
     <div id="banner-escala" style="display:none;background:#e1f5ee;color:#0f6e56;border-radius:var(--rsm);padding:10px 14px;font-size:13px;margin-bottom:10px;border:1px solid #b2dfdb"></div>
+    <div id="banner-ja-enviado" style="display:none;background:#fff3cd;color:#856404;border-radius:var(--rsm);padding:10px 14px;font-size:13px;margin-bottom:10px;border:1px solid #ffc107;font-weight:600">⚠️ Relatório já enviado para este dia. Para editar, use a aba Histórico ✏️</div>
     <hr class="divider" />
     <div id="lista-servicos"></div>
     <div style="display:flex;gap:8px;margin-bottom:4px">
@@ -1350,16 +1351,28 @@ async function carregarEscalaNoRelatorio(){
   if(!guiaAtual||!window._fbReady)return;
   const data=document.getElementById('data-geral').value||hoje();
   try{
+    // Verifica se já existe relatório para este dia
+    const snapRel=await window._getDocs(window._query(
+      window._collection(window._db,'relatorios'),
+      window._where('guia','==',guiaAtual),
+      window._where('data','==',data)
+    ));
+    const jaEnviado=document.getElementById('banner-ja-enviado');
+    const relExiste=snapRel&&!snapRel.empty;
+    if(jaEnviado) jaEnviado.style.display=relExiste?'block':'none';
+
+    // Se já enviou relatório, não carrega formulário da escala — tela limpa
+    const banner=document.getElementById('banner-escala');
+    if(banner){banner.style.display='none';banner.textContent='';}
+    document.getElementById('lista-servicos').innerHTML='';
+    servicosAtivos=[];contador=0;atualizarResumo();
+    if(relExiste) return;
+
     const snap=await window._getDocs(window._query(
       window._collection(window._db,'escalas'),
       window._where('data','==',data)
     ));
     const itens=snap.docs.map(d=>d.data()).filter(d=>d.guia===guiaAtual).sort((a,b)=>a.horario.localeCompare(b.horario));
-    // Sempre limpa o banner e os serviços ao trocar data
-    const banner=document.getElementById('banner-escala');
-    if(banner){banner.style.display='none';banner.textContent='';}
-    document.getElementById('lista-servicos').innerHTML='';
-    servicosAtivos=[];contador=0;atualizarResumo();
 
     if(!itens.length){
       return; // Sem escala — guia adiciona manualmente
