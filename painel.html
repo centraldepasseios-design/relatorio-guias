@@ -1272,7 +1272,14 @@ async function editarItemEscala(id){
     if(!snap.exists()){hideLoad();alert('Serviço não encontrado.');return}
     const d=snap.data();
     document.getElementById('edit-item-desc').textContent=(LBLS[d.servico]||d.servico)+' · '+d.data+' · '+d.guia;
-    document.getElementById('edit-item-guia').value=d.guia||'';
+    // Popular select de guia dinamicamente
+    const editGuiaSel=document.getElementById('edit-item-guia');
+    editGuiaSel.innerHTML='<option value="">— selecionar —</option>'+GUIAS.map(g=>'<option'+(g===d.guia?' selected':'')+'>'+g+'</option>').join('');
+    if(d.guia&&!GUIAS.includes(d.guia)){
+      // Guia não está na lista — adiciona como opção extra para não perder
+      const extra=document.createElement('option');extra.value=d.guia;extra.textContent=d.guia+' (atual)';extra.selected=true;
+      editGuiaSel.insertBefore(extra,editGuiaSel.options[1]);
+    }
     document.getElementById('edit-item-motorista').value=d.motorista||'';
     document.getElementById('edit-item-horario').value=d.horario||'';
     document.getElementById('edit-item-hsrv').value=d.hsrv||'';
