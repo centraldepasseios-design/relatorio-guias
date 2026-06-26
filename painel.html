@@ -314,6 +314,11 @@ function trocarAba(aba){
 
 // ===== ESCALA =====
 function adicionarLinha(dados={}){
+  if(!GUIAS.length){
+    // Aguarda lista carregar e tenta de novo
+    carregarListasGuias().then(()=>adicionarLinha(dados));
+    return;
+  }
   const id=++contL;
   linhas.push(id);
   const div=document.createElement('div');
