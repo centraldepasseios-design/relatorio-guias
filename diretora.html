@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Painel Diretora — Luck Receptivo</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --primary:#1a6b9a;--accent:#e67e22;--green:#27ae60;--red:#e74c3c;
+    --surface:#fff;--bg:#f4f6f8;--border:#e0e4ea;--muted:#8a96a3;
+    --rsm:8px;--rmd:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#1a2332;min-height:100vh}
+
+  /* LOGIN */
+  #login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a2332 0%,#1a6b9a 100%)}
+  .login-card{background:#fff;border-radius:16px;padding:40px 36px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center}
+  .login-card img{width:100px;margin-bottom:20px}
+  .login-card h2{font-size:18px;color:#1a2332;margin-bottom:6px}
+  .login-card p{font-size:13px;color:var(--muted);margin-bottom:24px}
+  .login-card input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--rsm);font-size:15px;margin-bottom:14px;outline:none;transition:.2s}
+  .login-card input:focus{border-color:var(--primary)}
+  .login-card button{width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:var(--rsm);font-size:15px;font-weight:600;cursor:pointer;transition:.2s}
+  .login-card button:hover{background:#d35400}
+  #login-erro{color:var(--red);font-size:13px;margin-top:8px;display:none}
+
+  /* PAINEL */
+  #painel{display:none}
+  header{background:#1a2332;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+  header .logo-area{display:flex;align-items:center;gap:12px}
+  header img{width:36px;border-radius:6px}
+  header h1{font-size:16px;font-weight:700}
+  header span{font-size:12px;color:#8a9bb0}
+  .btn-sair{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:6px 14px;border-radius:99px;font-size:12px;cursor:pointer}
+  .btn-sair:hover{background:rgba(255,255,255,0.2)}
+
+  .container{max-width:900px;margin:0 auto;padding:20px 16px}
+
+  /* DATA SELECTOR */
+  .date-bar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+  .date-bar label{font-size:13px;font-weight:600;color:var(--muted)}
+  .date-bar input[type=date]{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--rsm);font-size:14px;background:#fff;cursor:pointer}
+  .btn-buscar{padding:8px 20px;background:var(--primary);color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-weight:600;cursor:pointer}
+  .btn-buscar:hover{background:#155a84}
+
+  /* CARDS RESUMO */
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+  .card{background:#fff;border-radius:var(--rmd);padding:16px;border:1px solid var(--border);text-align:center}
+  .card .num{font-size:28px;font-weight:700;line-height:1}
+  .card .lbl{font-size:11px;color:var(--muted);margin-top:4px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .card.verde .num{color:var(--green)}
+  .card.laranja .num{color:var(--accent)}
+  .card.vermelho .num{color:var(--red)}
+  .card.azul .num{color:var(--primary)}
+
+  /* SEÇÕES */
+  .secao{background:#fff;border-radius:var(--rmd);border:1px solid var(--border);margin-bottom:16px;overflow:hidden}
+  .secao-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .secao-header h2{font-size:14px;font-weight:700;color:#1a2332}
+  .secao-body{padding:18px}
+
+  /* PIZZA */
+  .pizza-wrap{display:flex;align-items:center;justify-content:center;gap:32px;flex-wrap:wrap}
+  .pizza-wrap canvas{max-width:220px;max-height:220px}
+  .legenda{display:flex;flex-direction:column;gap:10px}
+  .leg-item{display:flex;align-items:center;gap:10px;font-size:14px}
+  .leg-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+  .leg-pct{font-weight:700;font-size:16px}
+  .leg-sub{font-size:12px;color:var(--muted)}
+
+  /* RANKING */
+  .ranking-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+  .ranking-row:last-child{border-bottom:none}
+  .rank-pos{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .rank-pos.ouro{background:#f1c40f;color:#7d6608}
+  .rank-pos.prata{background:#bdc3c7;color:#5d6d7e}
+  .rank-pos.bronze{background:#ca6f1e;color:#fff}
+  .rank-nome{flex:1;font-size:14px;font-weight:500}
+  .rank-valor{font-size:14px;font-weight:700;color:var(--green)}
+  .rank-bar-wrap{width:120px;height:6px;background:#f0f0f0;border-radius:99px;overflow:hidden}
+  .rank-bar{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green),#2ecc71)}
+
+  /* NÃO VENDERAM */
+  .nao-list{display:flex;flex-wrap:wrap;gap:8px}
+  .nao-badge{background:#fde8e8;color:var(--red);border-radius:99px;padding:4px 12px;font-size:12px;font-weight:500}
+
+  /* LOADING */
+  #loading{display:none;position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+  .spinner{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  #sem-dados{display:none;text-align:center;padding:40px;color:var(--muted)}
+  #sem-dados span{font-size:40px;display:block;margin-bottom:10px}
+
+  /* META MENSAL */
+  .meta-card{background:linear-gradient(135deg,#1a2332 0%,#0d1b2a 100%);border-radius:var(--rmd);padding:22px 24px;margin-bottom:20px;color:#fff;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
+  .meta-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+  .meta-titulo{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#8a9bb0}
+  .meta-badge{border-radius:99px;padding:4px 12px;font-size:11px;font-weight:700;letter-spacing:.3px}
+  .meta-badge.ok{background:rgba(39,174,96,0.2);color:#2ecc71;border:1px solid rgba(39,174,96,0.4)}
+  .meta-badge.atras{background:rgba(231,76,60,0.15);color:#e74c3c;border:1px solid rgba(231,76,60,0.3)}
+  .meta-corpo{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .meta-circulo-wrap{position:relative;width:110px;height:110px;flex-shrink:0}
+  .meta-circulo-wrap svg{width:110px;height:110px}
+  @keyframes pulsar{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  .meta-circulo-wrap{animation:pulsar 2.4s ease-in-out infinite}
+  .meta-circulo-pct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .meta-circulo-pct strong{font-size:20px;font-weight:700;color:#fff;line-height:1}
+  .meta-circulo-pct span{font-size:10px;color:#8a9bb0;margin-top:2px}
+  .meta-info{flex:1;min-width:160px;display:flex;flex-direction:column;gap:10px}
+  .meta-info-row{display:flex;flex-direction:column;gap:2px}
+  .meta-info-row .lbl{font-size:11px;color:#8a9bb0}
+  .meta-info-row .val{font-size:18px;font-weight:700;color:#2ecc71;line-height:1}
+  .meta-info-row .val.branco{color:#fff;font-size:15px}
+  .meta-pct-mes{font-size:11px;color:#8a9bb0;margin-top:4px}
+  @keyframes confete{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(-60px) rotate(360deg);opacity:0}}
+  .confete-dot{position:absolute;width:6px;height:6px;border-radius:50%;animation:confete 1s ease forwards;pointer-events:none}
+
+  @media(max-width:500px){
+    .pizza-wrap{gap:16px}
+    .rank-bar-wrap{display:none}
+    .cards-grid{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-wrap">
+  <div class="login-card">
+    <img src="https://centraldepasseios-design.github.io/relatorio-guias/logo.png" onerror="this.style.display='none'"/>
+    <h2>Painel da Diretora</h2>
+    <p>Luck Receptivo — Acesso restrito</p>
+    <input type="password" id="senha-input" placeholder="Digite a senha" onkeydown="if(event.key==='Enter')entrar()"/>
+    <button onclick="entrar()">Entrar</button>
+    <div id="login-erro">Senha incorreta.</div>
+  </div>
+</div>
+
+<!-- PAINEL -->
+<div id="painel">
+  <header>
+    <div class="logo-area">
+      <img src="https://centraldepasseios-design.github.io/relatorio-guias/logo.png" onerror="this.style.display='none'"/>
+      <div>
+        <h1>👩‍💼 Painel Diretora</h1>
+        <span>Luck Receptivo</span>
+      </div>
+    </div>
+    <button class="btn-sair" onclick="sair()">Sair</button>
+  </header>
+
+  <div class="container">
+    <div class="date-bar">
+      <label>📅 Data</label>
+      <input type="date" id="data-sel"/>
+      <button class="btn-buscar" onclick="carregar()">🔍 Ver desempenho</button>
+    </div>
+
+    <div id="sem-dados">
+      <span>📋</span>
+      Nenhum relatório encontrado para esta data.
+    </div>
+
+    <div id="conteudo" style="display:none">
+      <!-- META MENSAL -->
+      <div class="meta-card" id="meta-card" style="display:none">
+        <div class="meta-top">
+          <div class="meta-titulo">🎯 Meta do mês</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="meta-badge" id="meta-badge"></div>
+            <button onclick="editarMeta()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#8a9bb0;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer">✏️ meta</button>
+          </div>
+        </div>
+        <div class="meta-corpo">
+          <div class="meta-circulo-wrap">
+            <svg viewBox="0 0 110 110">
+              <circle cx="55" cy="55" r="44" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10"/>
+              <circle id="meta-arc" cx="55" cy="55" r="44" fill="none" stroke="#2ecc71" stroke-width="10"
+                stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="276.5"
+                transform="rotate(-90 55 55)" style="transition:stroke-dashoffset 1.8s cubic-bezier(.22,1,.36,1)"/>
+            </svg>
+            <div class="meta-circulo-pct">
+              <strong id="meta-pct-val">0%</strong>
+              <span>da meta</span>
+            </div>
+          </div>
+          <div class="meta-info">
+            <div class="meta-info-row">
+              <span class="lbl">Realizado no mês</span>
+              <span class="val" id="meta-realizado">R$ 0</span>
+            </div>
+            <div class="meta-info-row">
+              <span class="lbl">Meta mensal</span>
+              <span class="val branco" id="meta-valor-display">R$ 750.000,00</span>
+            </div>
+            <div class="meta-info-row">
+              <span class="lbl" id="meta-faltam-lbl">Faltam</span>
+              <span class="val" id="meta-faltam" style="font-size:15px"></span>
+            </div>
+            <span class="meta-pct-mes" id="meta-pct-mes"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARDS -->
+      <div class="cards-grid" id="cards-grid"></div>
+
+      <!-- PIZZA -->
+      <div class="secao">
+        <div class="secao-header"><h2>📊 Desempenho de Vendas</h2><span id="pizza-data" style="font-size:12px;color:var(--muted)"></span></div>
+        <div class="secao-body">
+          <div class="pizza-wrap">
+            <canvas id="pizza-chart"></canvas>
+            <div class="legenda" id="legenda"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RANKING -->
+      <div class="secao">
+        <div class="secao-header"><h2>🏆 Ranking de Vendas</h2></div>
+        <div class="secao-body" id="ranking-body"></div>
+      </div>
+
+      <!-- NÃO VENDERAM -->
+      <div class="secao" id="nao-wrap">
+        <div class="secao-header"><h2>❌ Não venderam</h2></div>
+        <div class="secao-body"><div class="nao-list" id="nao-list"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL META -->
+<div id="modal-meta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:var(--rmd);padding:28px;width:100%;max-width:320px;margin:16px">
+    <h3 style="font-size:16px;margin-bottom:16px">🎯 Definir meta mensal</h3>
+    <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Valor da meta (R$)</label>
+    <input type="number" id="meta-input-valor" placeholder="750000" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--rsm);font-size:16px;margin-bottom:16px"/>
+    <div style="display:flex;gap:8px">
+      <button onclick="salvarMeta()" style="flex:1;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:var(--rsm);font-size:14px;font-weight:600;cursor:pointer">Salvar</button>
+      <button onclick="document.getElementById('modal-meta').style.display='none'" style="padding:10px 16px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:14px;cursor:pointer">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="loading"><div class="spinner"></div><span style="font-size:13px;color:var(--muted)">Carregando...</span></div>
+
+<!-- FIREBASE -->
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import{getFirestore,collection,query,where,getDocs}from'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+const app=initializeApp({apiKey:"AIzaSyCFom_SD6rklJ3hTJHC5_VF34TiDYKn-ak",authDomain:"relatorio-guias.firebaseapp.com",projectId:"relatorio-guias",storageBucket:"relatorio-guias.firebasestorage.app",messagingSenderId:"1078535122546",appId:"1:1078535122546:web:fb1669ddaa66a4e5a1dceb"});
+const db=getFirestore(app);
+window._db=db;window._col=collection;window._q=query;window._where=where;window._gds=getDocs;
+window._fbReady=true;
+</script>
+
+<script>
+const SENHA='luck1960';
+function getMeta(){return parseFloat(localStorage.getItem('luck_meta')||'750000');}
+function editarMeta(){
+  document.getElementById('meta-input-valor').value=getMeta();
+  document.getElementById('modal-meta').style.display='flex';
+  setTimeout(()=>document.getElementById('meta-input-valor').focus(),100);
+}
+function salvarMeta(){
+  const v=parseFloat(document.getElementById('meta-input-valor').value);
+  if(!v||v<=0){alert('Informe um valor válido.');return;}
+  localStorage.setItem('luck_meta',v);
+  document.getElementById('modal-meta').style.display='none';
+  document.getElementById('meta-valor-display').textContent=fmtBRL(v);
+  // Recarrega a meta com novo valor
+  const data=document.getElementById('data-sel').value;
+  if(data)carregarMetaMes(data);
+}
+let pizzaChart=null;
+
+function hoje(){const d=new Date();return d.toLocaleDateString('sv-SE',{timeZone:'America/Recife'});}
+
+function entrar(){
+  const v=document.getElementById('senha-input').value;
+  if(v===SENHA){
+    localStorage.setItem('luck_diretora','1');
+    document.getElementById('login-wrap').style.display='none';
+    document.getElementById('painel').style.display='block';
+    document.getElementById('data-sel').value=hoje();
+    carregar();
+  } else {
+    document.getElementById('login-erro').style.display='block';
+  }
+}
+function sair(){
+  localStorage.removeItem('luck_diretora');
+  location.reload();
+}
+
+function showLoad(){document.getElementById('loading').style.display='flex';}
+function hideLoad(){document.getElementById('loading').style.display='none';}
+
+function fmtBRL(v){return'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtData(d){
+  if(!d)return'';
+  const dt=new Date(d+'T12:00:00');
+  return dt.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+}
+
+async function carregarMetaMes(dataRef){
+  const META=getMeta();
+  // Pega o ms/ano da data selecionada
+  const [ano,mes]=dataRef.split('-');
+  const inicio=ano+'-'+mes+'-01';
+  // ltimo dia do ms
+  const ultimoDia=new Date(parseInt(ano),parseInt(mes),0).getDate();
+  const fim=ano+'-'+mes+'-'+String(ultimoDia).padStart(2,'0');
+
+  try{
+    const snap=await window._gds(window._q(window._col(window._db,'relatorios'),window._where('data','>=',inicio),window._where('data','<=',fim)));
+    let totalMes=0;
+    snap.docs.forEach(d=>{
+      const rel=d.data();
+      const itens=Array.isArray(rel.itens)?rel.itens:(Array.isArray(rel.servicos)?rel.servicos:[rel]);
+      itens.forEach(s=>{totalMes+=parseFloat(s.vendas||s.totalVendas||0);});
+    });
+
+    const pct=Math.min(totalMes/META*100,100);
+    const faltam=Math.max(META-totalMes,0);
+    const atingiu=totalMes>=META;
+
+    // Nomes do ms
+    const nomeMes=new Date(parseInt(ano),parseInt(mes)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+
+    document.getElementById('meta-realizado').textContent=fmtBRL(totalMes);
+    document.getElementById('meta-faltam').textContent=atingiu?fmtBRL(totalMes-META):fmtBRL(faltam);
+    document.getElementById('meta-faltam-lbl').textContent=atingiu?'Acima da meta':'Faltam';
+    document.getElementById('meta-pct-mes').textContent=nomeMes.charAt(0).toUpperCase()+nomeMes.slice(1);
+    document.getElementById('meta-pct-val').textContent=pct.toFixed(1)+'% da meta';
+    document.getElementById('meta-badge').className='meta-badge'+(atingiu?'':' atras');
+    document.getElementById('meta-badge').textContent=atingiu?' Meta atingida!':'Em andamento';
+    document.getElementById('meta-card').style.display='block';
+
+    // Circulo animado
+    const arc=document.getElementById('meta-arc');
+    const totalLen=276.5;
+    arc.style.stroke=atingiu?'#f39c12':'#2ecc71';
+    arc.style.strokeDashoffset=totalLen;
+    setTimeout(()=>{arc.style.strokeDashoffset=(totalLen-totalLen*pct/100).toFixed(2);},80);
+
+    // Contador animado valor realizado
+    const spanReal=document.getElementById('meta-realizado');
+    const duracao=1800;
+    const t0=performance.now();
+    function animarContador(ts){
+      const prog=Math.min((ts-t0)/duracao,1);
+      const ease=1-Math.pow(1-prog,3);
+      spanReal.textContent=fmtBRL(totalMes*ease);
+      if(prog<1)requestAnimationFrame(animarContador);
+      else spanReal.textContent=fmtBRL(totalMes);
+    }
+    requestAnimationFrame(animarContador);
+
+    // Pct animado
+    const pctEl=document.getElementById('meta-pct-val');
+    pctEl.style.color=atingiu?'#f39c12':'#2ecc71';
+    let p=0;const pfinal=parseFloat(pct.toFixed(1));
+    const iv=setInterval(()=>{
+      p=Math.min(+(p+0.3).toFixed(1),pfinal);
+      pctEl.textContent=p+'%';
+      if(p>=pfinal)clearInterval(iv);
+    },20);
+
+    // Confete se meta atingida
+    if(atingiu){
+      const card=document.getElementById('meta-card');
+      const cores=['#f1c40f','#2ecc71','#3498db','#e74c3c','#9b59b6'];
+      for(let i=0;i<14;i++){
+        setTimeout(()=>{
+          const d=document.createElement('div');
+          d.className='confete-dot';
+          d.style.cssText='left:'+Math.random()*100+'%;bottom:0;background:'+cores[Math.floor(Math.random()*cores.length)]+';animation-duration:'+(0.8+Math.random()*0.8)+'s;animation-delay:'+Math.random()*0.3+'s';
+          card.appendChild(d);
+          setTimeout(()=>d.remove(),1600);
+        },i*80);
+      }
+    }
+  }catch(e){console.warn('Erro meta:',e);}
+}
+
+async function carregar(){
+  if(!window._fbReady){setTimeout(carregar,300);return;}
+  const data=document.getElementById('data-sel').value;
+  if(!data)return;
+  showLoad();
+  carregarMetaMes(data);
+  document.getElementById('conteudo').style.display='none';
+  document.getElementById('sem-dados').style.display='none';
+
+  try{
+    // Busca relatrios do dia
+    const snap=await window._gds(window._q(window._col(window._db,'relatorios'),window._where('data','==',data)));
+    const docs=snap.docs.map(d=>d.data());
+
+    // Tambm busca escalas do dia para saber quem trabalhou
+    const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._where('data','==',data)));
+    const guiasNaDia=new Set(escSnap.docs.map(d=>d.data().guia).filter(Boolean));
+
+    if(docs.length===0&&guiasNaDia.size===0){
+      document.getElementById('sem-dados').style.display='block';
+      hideLoad();return;
+    }
+
+    // Agrega por guia
+    const porGuia={};
+    docs.forEach(rel=>{
+      const g=rel.guia;if(!g)return;
+      if(!porGuia[g])porGuia[g]={guia:g,vendas:0,pax:0,noshow:0,chd:0,servicos:0};
+      // Soma servios
+      const itens=Array.isArray(rel.itens)?rel.itens:(Array.isArray(rel.servicos)?rel.servicos:[rel]);
+      itens.forEach(s=>{
+        const v=parseFloat(s.vendas||s.totalVendas||0);
+        porGuia[g].vendas+=v;
+        if(s.servico==='so-vendas')porGuia[g].posVenda=(porGuia[g].posVenda||0)+v;
+        porGuia[g].pax+=parseInt(s.pax||0);
+        porGuia[g].noshow+=parseInt(s.noshow||s.noShow||0);
+        porGuia[g].chd+=parseInt(s.chd||0);
+        porGuia[g].servicos++;
+      });
+    });
+
+    // Busca quem estava em passeio no dia (bloqueios tipo passeio)
+    const passSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._where('inicio','==',data),window._where('tipo','==','passeio')));
+    const guiasEmPasseio=new Set(passSnap.docs.map(d=>d.data().guia).filter(Boolean));
+
+    // Adiciona guias que trabalharam mas nao enviaram relatorio
+    guiasNaDia.forEach(g=>{
+      if(!porGuia[g])porGuia[g]={guia:g,vendas:0,pax:0,noshow:0,chd:0,servicos:0,semRelatorio:true};
+    });
+
+    const guias=Object.values(porGuia);
+    const comVenda=guias.filter(g=>g.vendas>0).sort((a,b)=>b.vendas-a.vendas);
+    // Exclui guias de passeio do "nao venderam" — passeio nao tem venda de chegada
+    const semVenda=guias.filter(g=>g.vendas<=0&&!guiasEmPasseio.has(g.guia));
+    const emPasseioSemVenda=guias.filter(g=>g.vendas<=0&&guiasEmPasseio.has(g.guia));
+    const totalVendas=guias.reduce((s,g)=>s+g.vendas,0);
+    const totalPosVenda=guias.reduce((s,g)=>s+(g.posVenda||0),0);
+    const totalPax=guias.reduce((s,g)=>s+g.pax,0);
+    const totalNoshow=guias.reduce((s,g)=>s+g.noshow,0);
+    const totalGuias=guias.length;
+
+    // CARDS
+    document.getElementById('cards-grid').innerHTML=`
+      <div class="card azul"><div class="num">${totalGuias}</div><div class="lbl">Guias no dia</div></div>
+      <div class="card verde"><div class="num">${comVenda.length}</div><div class="lbl">Venderam</div></div>
+      <div class="card vermelho"><div class="num">${semVenda.length}</div><div class="lbl">Não venderam</div></div>
+      <div class="card laranja"><div class="num">${fmtBRL(totalVendas)}</div><div class="lbl">Faturamento total${totalPosVenda>0?' <span style=\"font-size:10px;display:block;color:#e67e22\">(inc. Pós Venda)</span>':''}</div></div>
+      ${totalPosVenda>0?`<div class="card" style="border-color:#e67e22"><div class="num" style="color:#e67e22">${fmtBRL(totalPosVenda)}</div><div class="lbl">Pós Venda</div></div>`:''}
+      <div class="card azul"><div class="num">${totalPax}</div><div class="lbl">Total pax</div></div>
+    `;
+
+    // PIZZA
+    document.getElementById('pizza-data').textContent=fmtData(data);
+    const guiasValidos=comVenda.length+semVenda.length;
+    const pctVendeu=guiasValidos>0?Math.round(comVenda.length/guiasValidos*100):0;
+    const pctNao=100-pctVendeu;
+
+    if(pizzaChart)pizzaChart.destroy();
+    pizzaChart=new Chart(document.getElementById('pizza-chart'),{
+      type:'doughnut',
+      data:{
+        labels:['Venderam','Não Venderam'],
+        datasets:[{data:[comVenda.length,semVenda.length],backgroundColor:['#27ae60','#e74c3c'],borderWidth:3,borderColor:'#fff'}]
+      },
+      options:{
+        cutout:'60%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ' '+ctx.parsed+' guias ('+Math.round(ctx.parsed/totalGuias*100)+'%)';}}}}
+      }
+    });
+
+    document.getElementById('legenda').innerHTML=`
+      <div class="leg-item">
+        <div class="leg-dot" style="background:#27ae60"></div>
+        <div><div class="leg-pct" style="color:#27ae60">${pctVendeu}%</div><div class="leg-sub">Venderam (${comVenda.length})</div></div>
+      </div>
+      <div class="leg-item">
+        <div class="leg-dot" style="background:#e74c3c"></div>
+        <div><div class="leg-pct" style="color:#e74c3c">${pctNao}%</div><div class="leg-sub">Não venderam (${semVenda.length})</div></div>
+      </div>
+    `;
+
+    // RANKING
+    const maxVenda=comVenda.length>0?comVenda[0].vendas:1;
+    document.getElementById('ranking-body').innerHTML=comVenda.length===0
+      ?'<p style="color:var(--muted);text-align:center;padding:20px">Nenhum guia registrou vendas neste dia.</p>'
+      :comVenda.map((g,i)=>{
+        const pct=Math.round(g.vendas/maxVenda*100);
+        const posClass=i===0?'ouro':i===1?'prata':i===2?'bronze':'';
+        return`<div class="ranking-row">
+          <div class="rank-pos ${posClass}">${i+1}</div>
+          <div class="rank-nome">${g.guia}${g.posVenda?'<span style=\"font-size:10px;color:#e67e22;margin-left:6px\">+'+fmtBRL(g.posVenda)+' pós</span>':''}</div>
+          <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%"></div></div>
+          <div class="rank-valor">${fmtBRL(g.vendas)}</div>
+        </div>`;
+      }).join('');
+
+    // NO VENDERAM
+    if(semVenda.length>0){
+      document.getElementById('nao-wrap').style.display='block';
+      let naoHtml=semVenda.map(g=>`<span class="nao-badge">${g.guia}${g.semRelatorio?' (!)':''}</span>`).join('');
+
+      document.getElementById('nao-list').innerHTML=naoHtml;
+    } else {
+      document.getElementById('nao-wrap').style.display='none';
+    }
+
+    document.getElementById('conteudo').style.display='block';
+  }catch(e){
+    alert('Erro ao carregar: '+e.message);
+  }finally{
+    hideLoad();
+  }
+}
+
+// Auto-login
+window.addEventListener('load',()=>{
+  if(localStorage.getItem('luck_diretora')==='1'){
+    document.getElementById('login-wrap').style.display='none';
+    document.getElementById('painel').style.display='block';
+    document.getElementById('data-sel').value=hoje();
+    document.getElementById('meta-valor-display').textContent=fmtBRL(getMeta());
+    setTimeout(carregar,500);
+  }
+});
+</script>
+</body>
+</html>
