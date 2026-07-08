@@ -137,7 +137,7 @@
 
 const SENHA_ADMIN='luck1960';
 const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
-const BADGE={'chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf'};
+const BADGE={'reservado':'badge-reservado','chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf'};
 const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM','ADRIANE','GUILHERME','FABIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONCALVES','ANTONIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANES','MADSON','CAMILLA','ANDRE','ANA FLAVIA','RENATINHA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAISSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FABIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO MICHELOTI','BRUNO','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANCA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLORINHA','ELISIO','REBECA','ENEZIANE','BRUNO','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
 
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
@@ -828,26 +828,48 @@ async function buscar(){
   try{
     const snap=await window._gds(window._q(window._col(window._db,'relatorios'),window._w('data','>=',inicio),window._w('data','<',fimEx),window._od('data','desc')));
     todosRel=snap.docs.map(d=>({id:d.id,...d.data()}));
-    // Busca passeios do período e adiciona como registros
-    const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    // Busca todos bloqueios do período (passeios + admin reservados)
+    const passeioSnap=await window._gds(window._col(window._db,'bloqueios'));
     passeioSnap.docs.forEach(d=>{
       const dd=d.data();
-      if(dd.inicio>=inicio&&dd.inicio<fimEx){
-        // Cria registro sintético de passeio
-        todosRel.push({
-          id:'passeio_'+d.id,
-          _passeio:true,
-          data:dd.inicio,
-          guia:dd.guia,
-          motorista:'',
-          itens:[{
-            servico:'passeio',
-            destino:dd.descricao,
-            base:dd.base||'Porto',
-            idioma:dd.idioma||'',
-            posicao:dd.posicao||1
-          }]
-        });
+      if(!dd.inicio||!dd.guia)return;
+      if(dd.tipo==='passeio'){
+        if(dd.inicio>=inicio&&dd.inicio<fimEx){
+          todosRel.push({
+            id:'passeio_'+d.id,
+            _passeio:true,
+            data:dd.inicio,
+            guia:dd.guia,
+            motorista:'',
+            itens:[{
+              servico:'passeio',
+              destino:dd.descricao,
+              base:dd.base||'Porto',
+              idioma:dd.idioma||'',
+              posicao:dd.posicao||1
+            }]
+          });
+        }
+      } else {
+        // Bloqueio admin — adiciona uma entrada por dia do intervalo
+        const dataIni=new Date(dd.inicio+'T12:00:00');
+        const dataFim=new Date((dd.fim||dd.inicio)+'T12:00:00');
+        for(let d2=new Date(dataIni);d2<=dataFim;d2.setDate(d2.getDate()+1)){
+          const dStr=d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0')+'-'+String(d2.getDate()).padStart(2,'0');
+          if(dStr>=inicio&&dStr<fimEx){
+            todosRel.push({
+              id:'bloqueio_'+d.id+'_'+dStr,
+              _bloqueioAdmin:true,
+              data:dStr,
+              guia:dd.guia,
+              motorista:'',
+              itens:[{
+                servico:'reservado',
+                destino:dd.descricao||'Serviço reservado'
+              }]
+            });
+          }
+        }
       }
     });
     // Reordena por data desc
@@ -893,7 +915,9 @@ function aplicarFiltros(){
     const editBadge=r.dataEditada?('<br><span style="font-size:10px;background:#faeeda;color:#854f0b;padding:2px 8px;border-radius:99px;font-weight:600">✏️ Editado pelo guia'+(editadoPor?' · '+editadoPor:'')+(editadoEm?' · '+editadoEm:'')+(dataOrigFmt?' (era '+dataOrigFmt+')':'')+'</span>'):'';
 
     let det='';
-    if(it.servico==='passeio'){
+    if(it.servico==='reservado'){
+      det='<span style="background:#f5eeff;color:#8e44ad;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:500">🔒 Reservado pela coordenação</span>';
+    } else if(it.servico==='passeio'){
       const FLAG={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
       const idiomaBadge=it.idioma&&FLAG[it.idioma]?' <span style="background:#e8f4fd;color:#185fa5;padding:1px 6px;border-radius:99px;font-size:11px">'+FLAG[it.idioma]+' '+it.idioma+'</span>':'';
       const baseBadge=it.base==='Recife'?'<span style="background:#e8f5ec;color:#1a6b40;padding:1px 6px;border-radius:99px;font-size:11px">🌆 Recife</span>':'<span style="background:#e8f4fd;color:#1a6b9a;padding:1px 6px;border-radius:99px;font-size:11px">🚢 Porto</span>';
@@ -2285,7 +2309,7 @@ async function enviarPushEscala(itens, data){
     for(const guia of guiasEscalados){
       const servsDia=itens.filter(i=>i.guia===guia);
       const resumo=servsDia.map(s=>{
-        const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
+        const LBLS={'reservado':'Reservado','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
         return`⏰ ${s.horario} — ${LBLS[s.servico]||s.servico}`;
       }).join('\n');
       // Salva no Firestore (app lê ao abrir)
