@@ -1626,19 +1626,26 @@ async function carregarPasseios(){
           window['_apagIds_'+apagKey]=grupo.ids;
           html+='<button data-key="'+apagKey+'" onclick="apagarPasseioGrupo(window[\'_apagIds_\'+this.dataset.key])" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
           html+='</div>';
+          const dragListId='drag-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'_');
+          html+='<div id="'+dragListId+'">';
           guiasOrdenados.forEach((gu,gi)=>{
             const idiomaB=gu.idioma&&FLAG[gu.idioma]?'<span style="background:rgba(0,0,0,0.08);padding:1px 6px;border-radius:99px;font-size:10px;margin-left:4px">'+FLAG[gu.idioma]+' '+gu.idioma+'</span>':'';
-            // Store data in hidden spans, use index to retrieve
-            const rowId='gu-'+data.replace(/-/g,'')+'-'+base+'-'+destino.replace(/\s/g,'_')+'-'+gi;
+            const rowId='gu-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'_')+'-'+gi;
             window['_passeioData_'+rowId]={wpp:{data:data,destino:destino,base:base,guias:[gu]},gu:{id:gu.id,nome:gu.nome,posicao:gu.posicao,idioma:gu.idioma,base:base,data:data,destino:destino}};
-            html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06)">';
-            html+='<span style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+gu.posicao+'</span>';
+            const numBadge=privativo
+              ?'<span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600;flex-shrink:0">Priv.</span>'
+              :'<span class="ps-num" style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+(gi+1)+'</span>';
+            const dragHandle=privativo?'':'<span style="color:#bbb;font-size:15px;flex-shrink:0;cursor:grab;user-select:none" title="Arrastar para reordenar">&#8942;&#8942;</span>';
+            html+='<div class="ps-drag-row" data-id="'+gu.id+'" data-listid="'+dragListId+'" draggable="'+(privativo?'false':'true')+'" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);cursor:'+(privativo?'default':'grab')+'">';
+            html+=dragHandle;
+            html+=numBadge;
             html+='<span style="flex:1;font-size:13px;font-weight:500">'+gu.nome+idiomaB+'</span>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioRemove(this.dataset.row)" title="Remover guia" style="padding:2px 7px;background:#fde8e8;border:none;border-radius:99px;font-size:11px;cursor:pointer;color:#c0392b;font-weight:700">−</button>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioWpp(this.dataset.row)" title="Reenviar WPP" style="padding:3px 10px;background:#25D366;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer;font-weight:600">WPP</button>';
             html+='<button data-row="'+rowId+'" onclick="_callPasseioEdit(this.dataset.row)" title="Editar guia" style="padding:2px 8px;background:none;border:1px solid var(--border);border-radius:99px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button>';
             html+='</div>';
           });
+          html+='</div>';
           html+='</div>';
         });
         html+='</div>';
@@ -1647,9 +1654,43 @@ async function carregarPasseios(){
     });
 
     lista.innerHTML=html||'<p class="empty">Nenhum passeio encontrado.</p>';
+    initDragPasseioLista();
   }catch(e){lista.innerHTML='<p class="empty">Erro: '+e.message+'</p>'}
 }
 
+
+function initDragPasseioLista(){
+  const lists={};
+  document.querySelectorAll('.ps-drag-row[draggable="true"]').forEach(row=>{
+    const lid=row.dataset.listid;
+    if(!lists[lid])lists[lid]=document.getElementById(lid);
+  });
+  Object.values(lists).forEach(lista=>{
+    if(!lista)return;
+    let dragEl=null;
+    lista.querySelectorAll('.ps-drag-row').forEach(item=>{
+      item.addEventListener('dragstart',e=>{dragEl=item;item.style.opacity='0.4';e.dataTransfer.effectAllowed='move';});
+      item.addEventListener('dragend',async()=>{
+        dragEl.style.opacity='';
+        lista.querySelectorAll('.ps-num').forEach((span,i)=>span.textContent=i+1);
+        const rows=[...lista.querySelectorAll('.ps-drag-row')];
+        for(let i=0;i<rows.length;i++){
+          const id=rows[i].dataset.id;
+          if(id){try{await window._ud(window._doc(window._db,'bloqueios',id),{posicao:i+1});}catch(e){console.error(e);}}
+        }
+        dragEl=null;
+      });
+      item.addEventListener('dragover',e=>{
+        e.preventDefault();e.dataTransfer.dropEffect='move';
+        if(item!==dragEl){
+          const r=item.getBoundingClientRect();
+          if(e.clientY<r.top+r.height/2)lista.insertBefore(dragEl,item);
+          else lista.insertBefore(dragEl,item.nextSibling);
+        }
+      });
+    });
+  });
+}
 
 function _callPasseioRemove(rowId){
   const d=window['_passeioData_'+rowId];
@@ -2139,7 +2180,8 @@ async function toggleNaoConvidar(guia){
 async function salvarObsGuia(guia,obs){
   try{
     const snap=await window._gd(window._doc(window._db,'guias',guia));
-    const dados=snap.exists()?snap.data():{};
+    if(!snap.exists())return;
+    const dados=snap.data();
     dados['obs_admin']=obs;
     await window._sd(window._doc(window._db,'guias',guia),dados);
   }catch(e){console.error('Erro obs:',e)}
@@ -2196,6 +2238,15 @@ async function excluirGuia(nome){
   showLoad();
   try{
     await window._dd(window._doc(window._db,'guias',nome));
+    // Apaga também variante com/sem acento
+    const semAcento=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    const variantes=[semAcento,nome.toUpperCase()].filter(v=>v!==nome);
+    for(const v of variantes){
+      try{
+        const snap=await window._gd(window._doc(window._db,'guias',v));
+        if(snap.exists())await window._dd(window._doc(window._db,'guias',v));
+      }catch(e){}
+    }
     hideLoad();
     alert('✅ Documento "'+nome+'" excluído.');
     carregarSenhas();
@@ -3091,8 +3142,11 @@ async function confirmarReset(){
   if(nova.length<4){alert('Mínimo 4 caracteres.');return}
   showLoad();
   try{
-    await window._sd(window._doc(window._db,'guias',guiaReset),{senha:nova});
-    guiasSenhas[guiaReset]={senha:nova};
+    const snapR=await window._gd(window._doc(window._db,'guias',guiaReset));
+    if(!snapR.exists()){alert('Guia não encontrado.');hideLoad();return;}
+    const dadosR=snapR.data();
+    await window._sd(window._doc(window._db,'guias',guiaReset),{...dadosR,senha:nova});
+    guiasSenhas[guiaReset]={...dadosR,senha:nova};
     fecharModal();filtrarGuias();
     alert('Senha de '+guiaReset+' redefinida!');
   }catch(e){alert('Erro: '+e.message)}finally{hideLoad()}
