@@ -1442,22 +1442,16 @@ function atualizarOrdemPasseio(){
     const sel=el.querySelector('select');
     if(sel)idiomasAtuais[el.dataset.guia]=sel.value;
   });
+    const priv=document.getElementById('passeio-privativo')&&document.getElementById('passeio-privativo').checked;
   lista.innerHTML=ordemFinal.map((g,i)=>{
     const ia=idiomasAtuais[g]||'';
-    return '<div class="ordem-item" data-guia="'+g+'" draggable="true" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);cursor:grab">'
-    +'<span style="color:var(--muted);font-size:16px;cursor:grab;padding:0 2px" title="Arrastar para reordenar">⠿</span>'
-    +'<span style="background:#e67e22;color:#fff;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</span>'
-    +'<span style="flex:1;font-size:13px;font-weight:500">'+g+'</span>'
-    +'<select onchange="void(0)" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff">'
-    +'<option value=""'+(ia===''?' selected':'')+'>🌍 PT</option>'
-    +'<option value="Espanhol"'+(ia==='Espanhol'?' selected':'')+'>🇪🇸 ES</option>'
-    +'<option value="Bilíngue"'+(ia==='Bilíngue'?' selected':'')+'>🇧🇷🇪🇸 Bil</option>'
-    +'<option value="Inglês"'+(ia==='Inglês'?' selected':'')+'>🇺🇸 EN</option>'
-    +'<option value="Francês"'+(ia==='Francês'?' selected':'')+'>🇫🇷 FR</option>'
-    +'</select>'
-    +'</div>';
+    const numBadge=priv
+      ?'<span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:600;flex-shrink:0">Privativo</span>'
+      :'<span style="background:#e67e22;color:#fff;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</span>';
+    const dragHandle=priv?'':'<span style="color:var(--muted);font-size:16px;cursor:grab;padding:0 2px" title="Arrastar para reordenar">&#8942;&#8942;</span>';
+    return '<div class="ordem-item" data-guia="'+g+'" draggable="'+(priv?'false':'true')+'" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);cursor:'+(priv?'default':'grab')+'">'    +dragHandle    +numBadge    +'<span style="flex:1;font-size:13px;font-weight:500">'+g+'</span>'    +'<select onchange="void(0)" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff">'    +'<option value=""'+(ia===''?' selected':'')+'>🌍 PT</option>'    +'<option value="Espanhol"'+(ia==='Espanhol'?' selected':'')+'>🇪🇸 ES</option>'    +'<option value="Bilíngue"'+(ia==='Bilíngue'?' selected':'')+'>🇧🇷🇪🇸 Bil</option>'    +'<option value="Inglês"'+(ia==='Inglês'?' selected':'')+'>🇺🇸 EN</option>'    +'<option value="Francês"'+(ia==='Francês'?' selected':'')+'>🇫🇷 FR</option>'    +'</select>'    +'</div>';
   }).join('');
-  initDragOrdem();
+  if(!priv)initDragOrdem();
 }
 
 function initDragOrdem(){
