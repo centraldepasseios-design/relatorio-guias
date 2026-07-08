@@ -138,7 +138,7 @@
 const SENHA_ADMIN='luck1960';
 const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
 const BADGE={'reservado':'badge-reservado','chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf'};
-const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM','ADRIANE','GUILHERME','FABIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONCALVES','ANTONIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANES','MADSON','CAMILLA','ANDRE','ANA FLAVIA','RENATINHA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAISSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FABIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO MICHELOTI','BRUNO','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANCA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLORINHA','ELISIO','REBECA','ENEZIANE','BRUNO','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
+let GUIAS=[]; // carregado dinamicamente do Firebase em carregarListasGuias
 
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
 
@@ -3055,6 +3055,32 @@ async function notificarPendentes(){
 
 
 // ===== SINCRONIZAR FONES =====
+async function carregarListasGuias(){
+  try{
+    const snap=await window._gds(window._col(window._db,'guias'));
+    GUIAS=snap.docs.map(d=>d.id).sort();
+    // Popula selects de guia dinamicamente
+    ['av-guia','edit-item-guia','rg-guia','f-guia'].forEach(selId=>{
+      const sel=document.getElementById(selId);
+      if(!sel)return;
+      const val=sel.value;
+      // Remove opções antigas de guias (mantém as fixas sem value)
+      [...sel.options].forEach(o=>{if(o.value&&o.value!=='__transferistas__')sel.remove(o.index);});
+      GUIAS.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
+      if(val)sel.value=val;
+    });
+    // Popula edit-passeio-guia
+    const epg=document.getElementById('edit-passeio-guia');
+    if(epg){
+      const val=epg.value;
+      while(epg.options.length>0)epg.remove(0);
+      GUIAS.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;epg.appendChild(o);});
+      if(val)epg.value=val;
+    }
+    if(typeof renderLinhas==='function')renderLinhas();
+  }catch(e){console.warn('Erro ao carregar lista de guias:',e);}
+}
+
 async function sincronizarFones(){
   try{
     for(const [guia,fone] of Object.entries(WHATSAPP_GUIAS)){
@@ -3545,6 +3571,7 @@ window._gds=getDocs;window._doc=doc;window._gd=getDoc;window._sd=setDoc;
 window._ad=addDoc;window._dd=deleteDoc;
 document.getElementById('fb-status').textContent='✅ Conectado';
 // Sincroniza números WPP no Firestore para o GitHub Actions usar
+carregarListasGuias();
 sincronizarFones();
 // Auto-login admin se sessão salva
 if(localStorage.getItem('luck_admin')==='1'&&typeof entrar==='function'){
