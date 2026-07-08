@@ -1939,10 +1939,11 @@ async function carregarDisp(){
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
-    // Carrega passeios — conta como último serviço também
-    const todosPasseiosSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
+    // Carrega todos os bloqueios (passeios + admin) — conta como último serviço
+    const todosPasseiosSnap=await window._gds(window._col(window._db,'bloqueios'));
     todosPasseiosSnap.docs.forEach(d=>{
       const dd=d.data();
+      if(!dd.guia||!dd.inicio)return;
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
       if(!ultimaEscala[guiaKey]||dd.inicio>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dd.inicio;
