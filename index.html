@@ -131,9 +131,8 @@
   <div id="step-nome" class="card">
     <label>Seu nome</label>
     <div style="position:relative">
-      <input type="text" id="login-busca-nome" placeholder="🔍 Digite para buscar seu nome..." oninput="filtrarNomes()" onkeydown="if(event.key==='Enter')selecionarPrimeiro()" autocomplete="off" style="text-transform:uppercase" spellcheck="false"/>
+      <input type="text" id="login-busca-nome" placeholder="Digite seu nome..." oninput="filtrarNomes()" onkeydown="if(event.key==='Enter')selecionarPrimeiro()" autocomplete="off" style="text-transform:uppercase"/>
       <div id="login-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:var(--rsm);max-height:220px;overflow-y:auto;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;text-align:center">Digite seu nome e <strong>toque nele</strong> quando aparecer na lista</div>
     </div>
     <input type="hidden" id="login-guia-select" value=""/>
     <div id="nome-selecionado" style="display:none;margin-top:8px;padding:8px 12px;background:#e1f5ee;border-radius:var(--rsm);font-size:13px;color:#0f6e56;font-weight:500"></div>
@@ -205,7 +204,6 @@
       <input type="date" id="data-geral" onchange="servicosAtivos=[];contador=0;document.getElementById('lista-servicos').innerHTML='';carregarEscalaNoRelatorio()"/>
     </div>
     <div id="banner-escala" style="display:none;background:#e1f5ee;color:#0f6e56;border-radius:var(--rsm);padding:10px 14px;font-size:13px;margin-bottom:10px;border:1px solid #b2dfdb"></div>
-    <div id="banner-ja-enviado" style="display:none;background:#fff3cd;color:#856404;border-radius:var(--rsm);padding:10px 14px;font-size:13px;margin-bottom:10px;border:1px solid #ffc107;font-weight:600">⚠️ Relatório já enviado para este dia. Para editar, use a aba Histórico ✏️</div>
     <hr class="divider" />
     <div id="lista-servicos"></div>
     <div style="display:flex;gap:8px;margin-bottom:4px">
@@ -405,7 +403,7 @@ async function registrarPush(guia){
 }
 
 // Lista de nomes carregada do Firebase dinamicamente
-let TODOS_NOMES=[]; // preenchido do Firebase em carregarNomesFirebase
+let TODOS_NOMES=["ADIANES","ADRIANE","ALBERTO","ALEX","ALICE","ALVARO","AMAURY","ANA FLAVIA","ANDRE","ANTONIO","ARLENE","ARLINDO","ARTHUR","BRENO","BRUNO MICHELOTI","BRUNO","CAMILA","CAMILLA","CARLA","CARLOS M","CHICO DINIZ","CHICO LIMA","DANIEL","DEYVISON","DRIELLY","EDMILTON","EDSON","ELISIO","ENEZIANE","ERLON","EUGENIO","EVILAZIO","FABIO GOMES","FABIO COZZI","FELIPE","FRANCA","FRANCINALDO","FREITAS","GEORGE","GERARDO","GESSYCA","GIL","GLORINHA","GONCALVES","GUILHERME","HENRIQUE FARIAS","HENRIQUE JR","HUGO","HUMBERTO","IANNE","ISADORA","JACIANE","JOEL","JOELMA","JUAN","JULIANA","JUNIOR","KATARINA","LIDIANE","LUCIA V","LUCIENE","LUIZ CARLOS","LUIZ FELIPE","MADALENA","MADSON","MARCOS F","MARILANDE","MATHEUS","NATALIA","NEIDE","OLIVEIRA","POLLY","RAFAEL","RAISSA","REBECA","RENATINHA","RODRIGO","RUTH","SANTIAGO","SERGIO","SIDNEI","TALES","TATIANA","TAVARES","TOM","VALTER","VITOR","WIRON","XIMENES","ZENA"];
 async function carregarNomesFirebase(){
   try{
     let t=0;
@@ -454,11 +452,7 @@ document.addEventListener('click',e=>{
 
 async function verificarGuia(){
   const nome=document.getElementById('login-guia-select').value;
-  if(!nome){
-    alert('Selecione seu nome da lista. Digite algumas letras e toque no seu nome quando aparecer.');
-    document.getElementById('login-busca-nome').focus();
-    return;
-  }
+  if(!nome){alert('Digite e selecione seu nome da lista.');return}
   if(!window._fbReady){
     showLoading();
     let t=0;
@@ -823,6 +817,11 @@ async function carregarEscalaHoje(){
 
     if(!itens.length){
       const dtLabel=new Date(dataEscalaAtual+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+      let bloqueioAdmin=null;
+      try{
+        const baSnap=await window._getDocs(window._query(window._collection(window._db,'bloqueios'),window._where('guia','==',guiaAtual)));
+        bloqueioAdmin=baSnap.docs.map(d=>d.data()).find(b=>dataEscalaAtual>=b.inicio&&dataEscalaAtual<=b.fim&&b.tipo!=='passeio')||null;
+      }catch(e){}
       if(passeioInfo){
         const sufixo=passeioInfo.posicao===1?'1º carro':passeioInfo.posicao+'º carro';
         el.innerHTML='<div style="background:#fff8f0;border:2px solid #e67e22;border-radius:var(--radius);padding:20px;text-align:center">'
@@ -830,6 +829,12 @@ async function carregarEscalaHoje(){
           +'<div style="font-size:17px;font-weight:700;color:#e67e22;margin-bottom:6px">'+passeioInfo.descricao+'</div>'
           +'<div style="font-size:14px;color:#7c5c00;margin-bottom:4px">📍 Posição: <strong>'+sufixo+'</strong></div>'
           +'<div style="font-size:13px;color:var(--muted);margin-top:8px">Aguarde a escala com mais detalhes em breve.</div>'
+          +'</div>';
+      } else if(bloqueioAdmin){
+        el.innerHTML='<div style="background:#f8f0ff;border:2px solid #8e44ad;border-radius:var(--radius);padding:20px;text-align:center">'
+          +'<div style="font-size:32px;margin-bottom:8px">🔒</div>'
+          +'<div style="font-size:17px;font-weight:700;color:#8e44ad;margin-bottom:6px">'+(bloqueioAdmin.descricao||'Dia reservado')+'</div>'
+          +'<div style="font-size:13px;color:var(--muted);margin-top:8px">Este dia foi reservado pela coordenação.</div>'
           +'</div>';
       } else {
         el.innerHTML='<div class="no-escala">📭 Nenhum serviço escalado para '+dtLabel+'.<br><small>Consulte seu coordenador.</small></div>';
@@ -1082,19 +1087,18 @@ async function carregarDisponibilidade(){
         </div>`;
       }
 
-      // Dia livre — dois botões diretos: Indisponível e Restrição de horário
-      return`<div class="disp-date-row" style="flex-direction:column;gap:6px" id="row-${data}">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-          <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button onclick="marcarDispSimples('${data}','nao',this)" style="padding:5px 12px;border-radius:99px;border:1px solid #e74c3c;background:#fff5f5;color:#c0392b;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">❌ Indisponível</button>
-            <button onclick="abrirRestricao('${data}')" style="padding:5px 12px;border-radius:99px;border:1px solid #ffc107;background:#fff8e1;color:#856404;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">⚠️ Restrição de horário</button>
+      // Dia livre — botão para marcar restrição
+      return`<div class="disp-date-row" style="flex-direction:row;justify-content:space-between;align-items:center" id="row-${data}">
+        <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
+        <button onclick="abrirRestricao('${data}')" style="padding:5px 14px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit">+ Restrição</button>
+        <div id="edit-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22;width:100%;margin-top:8px">
+          <div class="disp-btns">
+            <button class="btn-disp nao" onclick="marcarDispSimples('${data}','nao',this)">❌ Indisponível</button>
+            <button class="btn-disp restricao" onclick="marcarDispSimples('${data}','restricao',this)">⚠️ Restrição de horário</button>
           </div>
-        </div>
-        <div id="edit-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22;width:100%">
-          <input type="text" id="obs-edit-${data}" placeholder="Descreva a restrição (ex: até 13h no aero)..." style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%;box-sizing:border-box"/>
+          <input type="text" id="obs-edit-${data}" placeholder="Descreva a restrição (ex: até 13h no aero)..." style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
           <div style="display:flex;gap:8px">
-            <button onclick="salvarRestricaoHorario('${data}')" style="flex:1;padding:9px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar restrição</button>
+            <button onclick="salvarEdicaoDispSimples('${data}')" style="flex:1;padding:9px;background:#e74c3c;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar restrição</button>
             <button onclick="fecharEdicaoDisp('${data}')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
           </div>
         </div>
@@ -1106,7 +1110,7 @@ async function carregarDisponibilidade(){
         <h3 style="margin:0">📆 Próximos 14 dias</h3>
         <button onclick="apagarDisponibilidade()" style="padding:5px 12px;border-radius:99px;border:1px solid #e74c3c;background:#fff5f5;color:#e74c3c;font-size:12px;cursor:pointer;font-family:inherit">🗑️ Limpar</button>
       </div>
-      <div style="font-size:13px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:var(--rsm);padding:8px 12px;margin-bottom:12px;font-weight:600">📌 Marque <u>só</u> os dias com restrição. Os demais já estão disponíveis!</div>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Marque só os dias com restrição. Os demais estão disponíveis.</p>
       ${diasRows}
     </div>`;
   }catch(e){hideLoading();el.innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}
@@ -1115,17 +1119,6 @@ async function carregarDisponibilidade(){
 function abrirRestricao(data){
   const el=document.getElementById('edit-'+data);
   if(el){el.style.display='flex';el.scrollIntoView({behavior:'smooth',block:'nearest'});}
-}
-async function salvarRestricaoHorario(data){
-  const obs=document.getElementById('obs-edit-'+data)?.value.trim()||'';
-  showLoading();
-  try{
-    const snap=await window._getDocs(window._query(window._collection(window._db,'disponibilidades'),window._where('guia','==',guiaAtual),window._where('data','==',data)));
-    if(!snap.empty){await window._updateDoc(snap.docs[0].ref,{status:'restricao',obs,editado:true,editadoEm:Date.now()});}
-    else{await window._addDoc(window._collection(window._db,'disponibilidades'),{guia:guiaAtual,data,status:'restricao',obs,criadoEm:window._serverTimestamp()});}
-    fecharEdicaoDisp(data);
-    carregarDisponibilidade();
-  }catch(e){alert('Erro: '+e.message);}finally{hideLoading();}
 }
 function abrirEdicaoDisp(data){abrirRestricao(data);}
 function fecharEdicaoDisp(data){
@@ -1368,28 +1361,16 @@ async function carregarEscalaNoRelatorio(){
   if(!guiaAtual||!window._fbReady)return;
   const data=document.getElementById('data-geral').value||hoje();
   try{
-    // Verifica se já existe relatório para este dia
-    const snapRel=await window._getDocs(window._query(
-      window._collection(window._db,'relatorios'),
-      window._where('guia','==',guiaAtual),
-      window._where('data','==',data)
-    ));
-    const jaEnviado=document.getElementById('banner-ja-enviado');
-    const relExiste=snapRel&&!snapRel.empty;
-    if(jaEnviado) jaEnviado.style.display=relExiste?'block':'none';
-
-    // Se já enviou relatório, não carrega formulário da escala — tela limpa
-    const banner=document.getElementById('banner-escala');
-    if(banner){banner.style.display='none';banner.textContent='';}
-    document.getElementById('lista-servicos').innerHTML='';
-    servicosAtivos=[];contador=0;atualizarResumo();
-    if(relExiste) return;
-
     const snap=await window._getDocs(window._query(
       window._collection(window._db,'escalas'),
       window._where('data','==',data)
     ));
     const itens=snap.docs.map(d=>d.data()).filter(d=>d.guia===guiaAtual).sort((a,b)=>a.horario.localeCompare(b.horario));
+    // Sempre limpa o banner e os serviços ao trocar data
+    const banner=document.getElementById('banner-escala');
+    if(banner){banner.style.display='none';banner.textContent='';}
+    document.getElementById('lista-servicos').innerHTML='';
+    servicosAtivos=[];contador=0;atualizarResumo();
 
     if(!itens.length){
       return; // Sem escala — guia adiciona manualmente
@@ -1697,11 +1678,10 @@ async function renderHistorico(){
     const snap=await window._getDocs(qRel);
     const lista=snap.docs.map(d=>({id:d.id,...d.data()}));
 
-    // Busca passeios do guia no período
+    // Busca todos bloqueios do guia no período (passeios + admin)
     const passeioSnap=await window._getDocs(window._query(
       window._collection(window._db,'bloqueios'),
-      window._where('guia','==',guiaAtual),
-      window._where('tipo','==','passeio')
+      window._where('guia','==',guiaAtual)
     ));
     const FLAG_H={'Espanhol':'🇪🇸','Bilíngue':'🇧🇷🇪🇸','Inglês':'🇺🇸','Francês':'🇫🇷'};
     // Busca no-show de passeios nos relatórios
@@ -1709,8 +1689,9 @@ async function renderHistorico(){
     lista.forEach(r=>r.itens.forEach(it=>{
       if(it.servico==='passeio'&&it.noshow_escala)noshowPasMap[r.data+'__'+(it.destino||'')]={noshow_escala:true,motivo:it.motivo_noshow||''};
     }));
-    const passeiosHist=passeioSnap.docs.map(d=>d.data())
-      .filter(p=>p.inicio>=inicio&&p.inicio<fim)
+    const todosBloqueios=passeioSnap.docs.map(d=>d.data()).filter(p=>p.inicio>=inicio&&p.inicio<fim);
+    const passeiosHist=todosBloqueios
+      .filter(p=>p.tipo==='passeio')
       .map(p=>{
         const key=p.inicio+'__'+(p.descricao||'');
         const ns=noshowPasMap[key]||{};
@@ -1724,16 +1705,33 @@ async function renderHistorico(){
           motivo_noshow:ns.motivo||''
         };
       });
+    const bloqueiosAdminHist=todosBloqueios
+      .filter(p=>p.tipo!=='passeio')
+      .map(p=>({
+        _bloqueioAdmin:true,
+        data:p.inicio,
+        descricao:p.descricao||'Dia reservado'
+      }));
 
     // Mescla e ordena por data desc
-    const tudo=[...lista,...passeiosHist].sort((a,b)=>b.data.localeCompare(a.data));
+    const tudo=[...lista,...passeiosHist,...bloqueiosAdminHist].sort((a,b)=>b.data.localeCompare(a.data));
 
     let ts=0,tp=0,tv=0,tn=0;
     lista.forEach(r=>r.itens.forEach(it=>{ts++;if(isChegada(it.servico))tp+=(it.pax||0);if(it.vendas)tv+=it.vendas;if(it.noshow)tn+=it.noshow}));
-    ts+=passeiosHist.length;
+    ts+=passeiosHist.length+bloqueiosAdminHist.length;
     document.getElementById('resumo-hist').innerHTML=`<div class="resumo-card"><div class="num">${ts}</div><div class="lbl">serviços</div></div><div class="resumo-card"><div class="num">${tp}</div><div class="lbl">pax</div></div><div class="resumo-card"><div class="num">R$${tv.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="lbl">vendas</div></div><div class="resumo-card"><div class="num">${tn}</div><div class="lbl">no-show</div></div>`;
     if(!tudo.length){document.getElementById('lista-relatorios').innerHTML='<p class="empty">Nenhum registro neste período.</p>';return}
     document.getElementById('lista-relatorios').innerHTML=tudo.map(r=>{
+      // Card de bloqueio admin
+      if(r._bloqueioAdmin){
+        const dataFmt=new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'short'});
+        return'<div class="rel-card" style="border-left:3px solid #8e44ad">'+
+          '<div class="rel-dia"><span>'+dataFmt+'</span><span style="background:#f5eeff;color:#8e44ad;font-size:12px;padding:2px 10px;border-radius:99px;font-weight:600">🔒 Reservado</span></div>'+
+          '<div class="sub-card" style="border-left:3px solid #8e44ad">'+
+          '<div style="font-size:14px;font-weight:600;color:#8e44ad">🔒 '+r.descricao+'</div>'+
+          '<div style="font-size:12px;color:var(--muted);margin-top:4px">Dia reservado pela coordenação</div>'+
+          '</div></div>';
+      }
       // Card de passeio
       if(r._passeio){
         const dataFmt=new Date(r.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'short'});
