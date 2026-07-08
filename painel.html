@@ -1946,7 +1946,8 @@ async function carregarDisp(){
       if(!dd.guia||!dd.inicio)return;
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
-      if(!ultimaEscala[guiaKey]||dd.inicio>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dd.inicio;
+      const dataFimBlq=dd.fim||dd.inicio;
+      if(!ultimaEscala[guiaKey]||dataFimBlq>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dataFimBlq;
     });
     // Passeios do dia selecionado
     const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio'),window._w('inicio','==',data)));
