@@ -658,7 +658,7 @@ function _renderLinhasAgrupadas(itens){
     const rows=servicos.map((it,idx)=>{
       const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
       const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
-      const motTxt=isCS&&it.motorista?it.motorista:'—';
+      const motTxt=it.motorista||'—';
       const borderTop=idx===0?'':'border-top:1px dashed var(--border);';
       return`<div class="pub-row" style="${borderTop}"><span class="pub-hor">⏰ ${it.horario}</span><div><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div>${motTxt?'<span style="font-size:12px;color:var(--muted)">🚐 '+motTxt+'</span>':''}<div style="display:flex;gap:4px;align-items:center"><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span><button onclick="editarItemEscala('${it.id}')" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);padding:2px 7px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button><button onclick="apagarItemEscala('${it.id}','${it.guia}','${LBLS[it.servico]||it.servico}')" style="background:none;border:1px solid #fcc;border-radius:var(--rsm);padding:2px 7px;font-size:11px;cursor:pointer;color:#e74c3c">🗑️</button></div></div>`;
     }).join('');
@@ -779,7 +779,7 @@ async function gerarPDF(){
       return porGuiaPDF[guia].map((it,idx)=>{
         const isCS=it.servico&&(it.servico.startsWith('chegada')||it.servico.startsWith('saida'));
         const srv=(LBLS[it.servico]||it.servico)+(isCS&&it.hsrv?'<br><small>'+it.hsrv+(it.pax?' ('+it.pax+' pax)':'')+'</small>':'');
-        const mot=isCS?it.motorista||'—':'—';
+        const mot=it.motorista||'—';
         const guiaTd=idx===0?`<td rowspan="${porGuiaPDF[guia].length}" style="font-weight:600;vertical-align:middle">${guia}</td>`:'';
         const borderStyle=idx===0?'':'border-top:1px dashed #ccc;';
         return`<tr style="${borderStyle}"><td class="col-srv">${srv}</td>${guiaTd}<td class="col-hor">${it.horario}</td><td class="col-mot">${mot}</td></tr>`;
