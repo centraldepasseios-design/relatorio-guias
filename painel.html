@@ -2196,9 +2196,8 @@ async function carregarSenhas(){
     const snap=await window._gds(window._col(window._db,'guias'));
     guiasSenhas={};snap.docs.forEach(d=>{guiasSenhas[d.id]=d.data()});
     // Show ALL docs from Firebase, sorted
-    const todosFirebase=snap.docs.map(d=>d.id).sort();
-    // Also include any from GUIAS list not yet in Firebase
-    const todos=[...new Set([...todosFirebase,...GUIAS])].sort();
+    // Só mostra quem existe no Firebase — nunca recriar excluídos
+    const todos=snap.docs.map(d=>d.id).sort();
     window._todosGuiasSenhas=todos;
     renderGuias(todos);
   }catch(e){document.getElementById('guia-lista').innerHTML='<p class="empty">Erro.</p>'}
@@ -2206,7 +2205,7 @@ async function carregarSenhas(){
 }
 function filtrarGuias(){
   const busca=document.getElementById('busca-guia').value.toUpperCase();
-  const lista=window._todosGuiasSenhas||GUIAS;
+  const lista=window._todosGuiasSenhas||[];
   renderGuias(lista.filter(g=>g.includes(busca)));
 }
 function renderGuias(lista){
