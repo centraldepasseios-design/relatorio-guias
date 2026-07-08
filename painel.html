@@ -2991,7 +2991,9 @@ async function sincronizarFones(){
   try{
     for(const [guia,fone] of Object.entries(WHATSAPP_GUIAS)){
       const snap=await window._gd(window._doc(window._db,'guias',guia));
-      const dados=snap.exists()?snap.data():{};
+      // Só atualiza se o documento já existe — nunca recriar guias excluídos
+      if(!snap.exists())continue;
+      const dados=snap.data();
       if(dados.whatsapp!==fone){
         await window._sd(window._doc(window._db,'guias',guia),{...dados,whatsapp:fone});
       }
