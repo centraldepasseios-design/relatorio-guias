@@ -2001,18 +2001,17 @@ async function carregarDisp(){
       if(nc&&nc>=hoje2)naoConvidarMap[d.id]={ate:nc};
     });
 
-    // Carrega última escala de cada guia (só passadas/hoje — para o badge "🗓️ último serviço")
+    // Carrega última escala de cada guia (inclui datas futuras — mesmo comportamento dos passeios)
     const hojeDisp=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
     const escSnap=await window._gds(window._col(window._db,'escalas'));
     const ultimaEscala={};
-    // Guias escalados exatamente na data selecionada (inclui datas futuras) — para o status "Trabalhando"
+    // Guias escalados exatamente na data selecionada — para o status "Trabalhando"
     const guiasTrabalhandoNaData=new Set();
     escSnap.docs.forEach(d=>{
       const it=d.data();
       const guiaN=_normDisp(it.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||it.guia;
       if(it.data===data)guiasTrabalhandoNaData.add(guiaKey);
-      if(it.data>hojeDisp)return; // ignora escalas futuras (apenas para o badge de último serviço)
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
