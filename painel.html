@@ -1998,23 +1998,26 @@ async function carregarDisp(){
     });
 
     // Carrega última escala de cada guia
+    const hojeDisp=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
     const escSnap=await window._gds(window._col(window._db,'escalas'));
     const ultimaEscala={};
     escSnap.docs.forEach(d=>{
       const it=d.data();
+      if(it.data>hojeDisp)return; // ignora escalas futuras
       const guiaN=_normDisp(it.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||it.guia;
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
-    // Carrega todos os bloqueios (passeios + admin) — conta como último serviço
+    // Carrega todos os bloqueios (passeios + admin) — conta como último serviço (só passados/hoje)
     const todosPasseiosSnap=await window._gds(window._col(window._db,'bloqueios'));
     todosPasseiosSnap.docs.forEach(d=>{
       const dd=d.data();
       if(!dd.guia||!dd.inicio)return;
+      const dataFimBlq=dd.fim||dd.inicio;
+      if(dataFimBlq>hojeDisp)return; // ignora bloqueios futuros
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
-      const dataFimBlq=dd.fim||dd.inicio;
       if(!ultimaEscala[guiaKey]||dataFimBlq>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dataFimBlq;
     });
     // Passeios do dia selecionado
