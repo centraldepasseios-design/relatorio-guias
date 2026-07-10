@@ -1087,18 +1087,19 @@ async function carregarDisponibilidade(){
         </div>`;
       }
 
-      // Dia livre — botão para marcar restrição
-      return`<div class="disp-date-row" style="flex-direction:row;justify-content:space-between;align-items:center" id="row-${data}">
-        <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
-        <button onclick="abrirRestricao('${data}')" style="padding:5px 14px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit">+ Restrição</button>
-        <div id="edit-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22;width:100%;margin-top:8px">
-          <div class="disp-btns">
-            <button class="btn-disp nao" onclick="marcarDispSimples('${data}','nao',this)">❌ Indisponível</button>
-            <button class="btn-disp restricao" onclick="marcarDispSimples('${data}','restricao',this)">⚠️ Restrição de horário</button>
+      // Dia livre — dois botões diretos
+      return`<div class="disp-date-row" style="flex-direction:column;gap:6px" id="row-${data}">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+          <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="marcarDispSimples('${data}','nao',this)" style="padding:5px 12px;border-radius:99px;border:1px solid #e74c3c;background:#fff5f5;color:#c0392b;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">❌ Indisponível</button>
+            <button onclick="abrirRestricao('${data}')" style="padding:5px 12px;border-radius:99px;border:1px solid #ffc107;background:#fff8e1;color:#856404;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">⚠️ Restrição de horário</button>
           </div>
-          <input type="text" id="obs-edit-${data}" placeholder="Descreva a restrição (ex: até 13h no aero)..." style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%"/>
+        </div>
+        <div id="edit-${data}" style="display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-radius:var(--rsm);border:2px solid #e67e22;width:100%">
+          <input type="text" id="obs-edit-${data}" placeholder="Descreva a restrição (ex: até 13h no aero)..." style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--rsm);background:var(--surface);width:100%;box-sizing:border-box"/>
           <div style="display:flex;gap:8px">
-            <button onclick="salvarEdicaoDispSimples('${data}')" style="flex:1;padding:9px;background:#e74c3c;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar restrição</button>
+            <button onclick="salvarRestricaoHorario('${data}')" style="flex:1;padding:9px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">💾 Salvar restrição</button>
             <button onclick="fecharEdicaoDisp('${data}')" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;cursor:pointer">Cancelar</button>
           </div>
         </div>
@@ -1110,7 +1111,7 @@ async function carregarDisponibilidade(){
         <h3 style="margin:0">📆 Próximos 14 dias</h3>
         <button onclick="apagarDisponibilidade()" style="padding:5px 12px;border-radius:99px;border:1px solid #e74c3c;background:#fff5f5;color:#e74c3c;font-size:12px;cursor:pointer;font-family:inherit">🗑️ Limpar</button>
       </div>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Marque só os dias com restrição. Os demais estão disponíveis.</p>
+      <div style="font-size:13px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:var(--rsm);padding:8px 12px;margin-bottom:12px;font-weight:600">📌 Marque <u>só</u> os dias com restrição. Os demais já estão disponíveis!</div>
       ${diasRows}
     </div>`;
   }catch(e){hideLoading();el.innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}
@@ -1120,6 +1121,18 @@ function abrirRestricao(data){
   const el=document.getElementById('edit-'+data);
   if(el){el.style.display='flex';el.scrollIntoView({behavior:'smooth',block:'nearest'});}
 }
+async function salvarRestricaoHorario(data){
+  const obs=document.getElementById('obs-edit-'+data)?.value.trim()||'';
+  showLoading();
+  try{
+    const snap=await window._getDocs(window._query(window._collection(window._db,'disponibilidades'),window._where('guia','==',guiaAtual),window._where('data','==',data)));
+    if(!snap.empty){await window._updateDoc(snap.docs[0].ref,{status:'restricao',obs,editado:true,editadoEm:Date.now()});}
+    else{await window._addDoc(window._collection(window._db,'disponibilidades'),{guia:guiaAtual,data,status:'restricao',obs,criadoEm:window._serverTimestamp()});}
+    fecharEdicaoDisp(data);
+    carregarDisponibilidade();
+  }catch(e){alert('Erro: '+e.message);}finally{hideLoading();}
+}
+
 function abrirEdicaoDisp(data){abrirRestricao(data);}
 function fecharEdicaoDisp(data){
   const el=document.getElementById('edit-'+data);
