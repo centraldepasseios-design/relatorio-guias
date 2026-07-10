@@ -1540,7 +1540,7 @@ async function salvarPasseio(){
       const idiomaPas=idiomaEl?idiomaEl.value:'';
       await window._ad(window._col(window._db,'bloqueios'),{
         guia,inicio:data,fim:data,descricao:destino,tipo:'passeio',
-        base,posicao,idioma:idiomaPas,criadoEm:new Date().toISOString()
+        base,posicao,idioma:idiomaPas,privativo,criadoEm:new Date().toISOString()
       });
     }
     hideLoad();
