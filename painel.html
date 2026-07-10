@@ -2463,20 +2463,29 @@ async function importarPlanilha(event){
       if(!guiaNome)continue;
 
       // Verifica se é um guia da nossa lista (match normalizado, ignora acentos)
+      // Prioriza match EXATO; só usa match aproximado (prefixo) como fallback,
+      // e nesse caso escolhe o candidato mais específico (nome mais próximo em tamanho)
+      // para não confundir nomes parecidos como "FABIO" e "FABIO COZZI".
       const guiaNomeN=norm(guiaNome);
-      const guiaMatch=GUIAS.find(g=>{
-        const gN=norm(g);
-        return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
-      });
+      const _matchGuia=(list)=>{
+        const exato=list.find(g=>norm(g)===guiaNomeN);
+        if(exato)return exato;
+        const candidatos=list.filter(g=>{
+          const gN=norm(g);
+          return guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
+        });
+        if(!candidatos.length)return null;
+        candidatos.sort((a,b)=>Math.abs(norm(a).length-guiaNomeN.length)-Math.abs(norm(b).length-guiaNomeN.length));
+        return candidatos[0];
+      };
+      const guiaMatch=_matchGuia(GUIAS);
+      let guiaMatchFila=null;
       if(!guiaMatch){
         // Tenta também contra GUIAS_FILA (lista completa)
-        const guiaMatchFila=GUIAS_FILA.find(g=>{
-          const gN=norm(g);
-          return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
-        });
+        guiaMatchFila=_matchGuia(GUIAS_FILA);
         if(!guiaMatchFila)continue;
       }
-      const guiaFinal=normNome(guiaMatch||(GUIAS_FILA.find(g=>{const gN=norm(g);return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);})||guiaNome));
+      const guiaFinal=normNome(guiaMatch||guiaMatchFila||guiaNome);
 
       const motorista=(row[COL_MOT]||'').toString().trim();
       const veiculo=(row[COL_VEI]||'').toString().trim();
