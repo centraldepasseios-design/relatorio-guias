@@ -138,7 +138,7 @@
 const SENHA_ADMIN='luck1960';
 const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
 const BADGE={'reservado':'badge-reservado','chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf'};
-let GUIAS=[]; // carregado dinamicamente do Firebase em carregarListasGuias
+const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM','ADRIANE','GUILHERME','FABIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONCALVES','ANTONIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARILANDE','WIRON','IANNE','ADIANES','MADSON','CAMILLA','ANDRE','ANA FLAVIA','RENATINHA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAISSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FABIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO MICHELOTI','BRUNO','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANCA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLORINHA','ELISIO','REBECA','ENEZIANE','BRUNO','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
 
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
 
@@ -618,9 +618,10 @@ async function buscarEscalaPeriodo(){
       window._w('data','>=',inicio),
       window._w('data','<=',fim)
     ));
+    const _tH2=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
     _itensPublicados=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
       if(a.data!==b.data)return a.data.localeCompare(b.data);
-      return a.horario.localeCompare(b.horario);
+      return _tH2(a.horario)-_tH2(b.horario);
     });
     document.getElementById('f-pub-guia').value='';
     document.getElementById('f-pub-mot').value='';
@@ -649,10 +650,17 @@ function _renderLinhasAgrupadas(itens){
     if(!porGuia[it.guia]){porGuia[it.guia]=[];ordemGuia.push(it.guia)}
     porGuia[it.guia].push(it);
   });
+  // Ordena os guias pelo horário do primeiro serviço
+  const t=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
+  ordemGuia.sort((a,b)=>{
+    const hA=porGuia[a].reduce((min,s)=>Math.min(min,t(s.horario)),9999);
+    const hB=porGuia[b].reduce((min,s)=>Math.min(min,t(s.horario)),9999);
+    return hA-hB;
+  });
   return ordemGuia.map(guia=>{
-    // Ordena por horário de apresentação
+    // Ordena serviços do guia por horário
     const servicos=porGuia[guia].slice().sort((a,b)=>{
-      const t=h=>{ const m=h.match(/(\d{1,2}):(\d{2})/); return m?parseInt(m[1])*60+parseInt(m[2]):9999; };
+      const t=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
       return t(a.horario)-t(b.horario);
     });
     const rows=servicos.map((it,idx)=>{
@@ -722,7 +730,8 @@ async function carregarEscalaPublicada(){
   const wrap=document.getElementById('escala-publicada');
   try{
     const snap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
-    _itensPublicados=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.horario.localeCompare(b.horario));
+    const _tH=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
+    _itensPublicados=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>_tH(a.horario)-_tH(b.horario));
     // limpa filtros
     document.getElementById('f-pub-guia').value='';
     document.getElementById('f-pub-mot').value='';
@@ -1616,15 +1625,13 @@ async function carregarPasseios(){
         html+='</div>';
 
         // Destinos dentro da base
-        Object.entries(destinos).forEach(([chave, grupo])=>{
-          const destino=grupo.destino||chave;
+        Object.entries(destinos).forEach(([destino, grupo])=>{
           const guiasOrdenados=grupo.guias.slice().sort((a,b)=>a.posicao-b.posicao);
           const idsJson=JSON.stringify(grupo.ids).replace(/"/g,'&quot;');
-          const privativo=grupo.guias.length>0&&grupo.guias.some(g=>g.privativo===true);
           html+='<div style="padding:10px 14px;border-bottom:1px solid '+cfg.borda+'40">';
           html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-          html+='<span style="font-size:13px;font-weight:600;color:'+cfg.cor+'">🏖️ '+destino+(privativo?' <span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:1px 8px;font-size:10px;font-weight:600">🔒 Privativo</span>':'')+'</span>';
-          const apagKey='apag-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'');
+          html+='<span style="font-size:13px;font-weight:600;color:'+cfg.cor+'">🏖️ '+destino+'</span>';
+          const apagKey='apag-'+data.replace(/-/g,'')+'-'+base+'-'+destino.replace(/\s/g,'');
           window['_apagIds_'+apagKey]=grupo.ids;
           html+='<button data-key="'+apagKey+'" onclick="apagarPasseioGrupo(window[\'_apagIds_\'+this.dataset.key])" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
           html+='</div>';
@@ -1991,27 +1998,23 @@ async function carregarDisp(){
     });
 
     // Carrega última escala de cada guia
-    const hojeEsc=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
     const escSnap=await window._gds(window._col(window._db,'escalas'));
     const ultimaEscala={};
     escSnap.docs.forEach(d=>{
       const it=d.data();
-      if(it.data>hojeEsc)return;
       const guiaN=_normDisp(it.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||it.guia;
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
-    // Carrega todos os bloqueios (passeios + admin) — conta como último serviço (só passados/hoje)
-    const hojeStr=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
+    // Carrega todos os bloqueios (passeios + admin) — conta como último serviço
     const todosPasseiosSnap=await window._gds(window._col(window._db,'bloqueios'));
     todosPasseiosSnap.docs.forEach(d=>{
       const dd=d.data();
       if(!dd.guia||!dd.inicio)return;
-      const dataFimBlq=dd.fim||dd.inicio;
-      if(dataFimBlq>hojeStr)return; // ignora bloqueios futuros
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
+      const dataFimBlq=dd.fim||dd.inicio;
       if(!ultimaEscala[guiaKey]||dataFimBlq>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dataFimBlq;
     });
     // Passeios do dia selecionado
@@ -2200,8 +2203,9 @@ async function carregarSenhas(){
     const snap=await window._gds(window._col(window._db,'guias'));
     guiasSenhas={};snap.docs.forEach(d=>{guiasSenhas[d.id]=d.data()});
     // Show ALL docs from Firebase, sorted
-    // Só mostra quem existe no Firebase — nunca recriar excluídos
-    const todos=snap.docs.map(d=>d.id).sort();
+    const todosFirebase=snap.docs.map(d=>d.id).sort();
+    // Also include any from GUIAS list not yet in Firebase
+    const todos=[...new Set([...todosFirebase,...GUIAS])].sort();
     window._todosGuiasSenhas=todos;
     renderGuias(todos);
   }catch(e){document.getElementById('guia-lista').innerHTML='<p class="empty">Erro.</p>'}
@@ -2209,7 +2213,7 @@ async function carregarSenhas(){
 }
 function filtrarGuias(){
   const busca=document.getElementById('busca-guia').value.toUpperCase();
-  const lista=window._todosGuiasSenhas||[];
+  const lista=window._todosGuiasSenhas||GUIAS;
   renderGuias(lista.filter(g=>g.includes(busca)));
 }
 function renderGuias(lista){
@@ -2243,10 +2247,14 @@ async function excluirGuia(nome){
   showLoad();
   try{
     await window._dd(window._doc(window._db,'guias',nome));
+    // Apaga também variante com/sem acento
     const semAcento=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
     const variantes=[semAcento,nome.toUpperCase()].filter(v=>v!==nome);
     for(const v of variantes){
-      try{const snap=await window._gd(window._doc(window._db,'guias',v));if(snap.exists())await window._dd(window._doc(window._db,'guias',v));}catch(e){}
+      try{
+        const snap=await window._gd(window._doc(window._db,'guias',v));
+        if(snap.exists())await window._dd(window._doc(window._db,'guias',v));
+      }catch(e){}
     }
     hideLoad();
     alert('✅ Documento "'+nome+'" excluído.');
@@ -2417,13 +2425,19 @@ async function importarPlanilha(event){
 
       // Verifica se é um guia da nossa lista (match normalizado, ignora acentos)
       const guiaNomeN=norm(guiaNome);
-      const guiaMatch=GUIAS.find(g=>norm(g)===guiaNomeN);
+      const guiaMatch=GUIAS.find(g=>{
+        const gN=norm(g);
+        return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
+      });
       if(!guiaMatch){
-        // Tenta match exato na GUIAS_FILA
-        const guiaMatchFila=GUIAS_FILA.find(g=>norm(g)===guiaNomeN);
+        // Tenta também contra GUIAS_FILA (lista completa)
+        const guiaMatchFila=GUIAS_FILA.find(g=>{
+          const gN=norm(g);
+          return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
+        });
         if(!guiaMatchFila)continue;
       }
-      const guiaFinal=normNome(guiaMatch||(GUIAS_FILA.find(g=>norm(g)===guiaNomeN)||guiaNome));
+      const guiaFinal=normNome(guiaMatch||(GUIAS_FILA.find(g=>{const gN=norm(g);return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);})||guiaNome));
 
       const motorista=(row[COL_MOT]||'').toString().trim();
       const veiculo=(row[COL_VEI]||'').toString().trim();
@@ -2573,11 +2587,9 @@ async function importarPlanilha(event){
     // Verifica passeios — bloqueia importação
     const passeioSnapImp=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
     const guiasEmPasseioImp=[];
-    const normImp=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-    const guiasImpCheckNorm=guiasImpCheck.map(normImp);
     passeioSnapImp.docs.forEach(d=>{
       const dd=d.data();
-      if(data>=dd.inicio&&data<=dd.fim&&guiasImpCheckNorm.includes(normImp(dd.guia)))
+      if(data>=dd.inicio&&data<=dd.fim&&guiasImpCheck.includes(dd.guia))
         if(!guiasEmPasseioImp.includes(dd.guia))guiasEmPasseioImp.push(dd.guia);
     });
     if(guiasEmPasseioImp.length){
@@ -2798,15 +2810,20 @@ async function enviarEscalaWhatsApp(){
     const dataFmt=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
     const diaSem=dias[d.getDay()];
 
-    // Agrupa por guia
+    // Agrupa por guia e ordena pelo primeiro horário
     const porGuia={};
     itens.forEach(it=>{if(!porGuia[it.guia])porGuia[it.guia]=[];porGuia[it.guia].push(it)});
+    const tH=h=>{const m=(h||'').match(/(\d{1,2}):(\d{2})/);return m?parseInt(m[1])*60+parseInt(m[2]):9999;};
 
     const semFone=[];
     let enviados=0;
     hideLoad();
 
-    const guias=Object.keys(porGuia);
+    const guias=Object.keys(porGuia).sort((a,b)=>{
+      const hA=porGuia[a].reduce((min,s)=>Math.min(min,tH(s.horario)),9999);
+      const hB=porGuia[b].reduce((min,s)=>Math.min(min,tH(s.horario)),9999);
+      return hA-hB;
+    });
     if(!confirm('Enviar escala de '+dataFmt+' por WhatsApp para '+guias.length+' guia(s)?\n\n'+guias.join(', ')))return;
     showLoad();
 
@@ -3055,32 +3072,6 @@ async function notificarPendentes(){
 
 
 // ===== SINCRONIZAR FONES =====
-async function carregarListasGuias(){
-  try{
-    const snap=await window._gds(window._col(window._db,'guias'));
-    GUIAS=snap.docs.map(d=>d.id).sort();
-    // Popula selects de guia dinamicamente
-    ['av-guia','edit-item-guia','rg-guia','f-guia'].forEach(selId=>{
-      const sel=document.getElementById(selId);
-      if(!sel)return;
-      const val=sel.value;
-      // Remove opções antigas de guias (mantém as fixas sem value)
-      [...sel.options].forEach(o=>{if(o.value&&o.value!=='__transferistas__')sel.remove(o.index);});
-      GUIAS.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
-      if(val)sel.value=val;
-    });
-    // Popula edit-passeio-guia
-    const epg=document.getElementById('edit-passeio-guia');
-    if(epg){
-      const val=epg.value;
-      while(epg.options.length>0)epg.remove(0);
-      GUIAS.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;epg.appendChild(o);});
-      if(val)epg.value=val;
-    }
-    if(typeof renderLinhas==='function')renderLinhas();
-  }catch(e){console.warn('Erro ao carregar lista de guias:',e);}
-}
-
 async function sincronizarFones(){
   try{
     for(const [guia,fone] of Object.entries(WHATSAPP_GUIAS)){
@@ -3355,7 +3346,7 @@ async function confirmarReset(){
           <div><label>Guia (opcional)</label>
             <select id="rg-guia">
               <option value="">Todos os guias</option>
-              <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JUNIOR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARI</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA DOS PRAZERES</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA VERONICA</option><option>MARCOS</option><option>MADALENA</option><option>ARLINDO</option>
+              <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
             </select>
           </div>
           <button class="btn-sm" onclick="resumoPorGuia()">📊 Gerar</button>
@@ -3376,7 +3367,7 @@ async function confirmarReset(){
           <select id="f-guia">
             <option value="">Todos</option>
             <option value="__transferistas__">🚐 Transferistas</option>
-            <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JUNIOR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARI</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA DOS PRAZERES</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA VERONICA</option><option>MARCOS</option><option>MADALENA</option><option>ARLINDO</option>
+            <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
           </select>
         </div>
       </div>
@@ -3467,7 +3458,7 @@ async function confirmarReset(){
       <label>Guia</label>
       <select id="edit-item-guia">
         <option value="">— selecionar —</option>
-        <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JUNIOR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARI</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA DOS PRAZERES</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA VERONICA</option><option>MARCOS</option><option>MADALENA</option><option>ARLINDO</option>
+        <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
       </select>
     </div>
     <div style="margin-bottom:10px">
@@ -3519,7 +3510,7 @@ async function confirmarReset(){
       <div><label>Guia</label>
         <select id="av-guia">
           <option value="">— selecionar —</option>
-          <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JUNIOR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONÇALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARI</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA DOS PRAZERES</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA VERONICA</option><option>MARCOS</option><option>MADALENA</option><option>ARLINDO</option>
+          <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
         </select>
       </div>
       <div><label>Tipo de serviço</label>
@@ -3571,7 +3562,6 @@ window._gds=getDocs;window._doc=doc;window._gd=getDoc;window._sd=setDoc;
 window._ad=addDoc;window._dd=deleteDoc;
 document.getElementById('fb-status').textContent='✅ Conectado';
 // Sincroniza números WPP no Firestore para o GitHub Actions usar
-carregarListasGuias();
 sincronizarFones();
 // Auto-login admin se sessão salva
 if(localStorage.getItem('luck_admin')==='1'&&typeof entrar==='function'){
@@ -3624,7 +3614,7 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 <option value="LUCIENE">LUCIENE</option>
 <option value="VITOR">VITOR</option>
 <option value="ERLON">ERLON</option>
-<option value="HENRIQUE JUNIOR">HENRIQUE JUNIOR</option>
+<option value="HENRIQUE JUNIOR">HENRIQUE JR</option>
 <option value="FELIPE">FELIPE</option>
 <option value="EDSON">EDSON</option>
 <option value="TATIANA">TATIANA</option>
@@ -3637,14 +3627,14 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 <option value="JUAN">JUAN</option>
 <option value="EUGENIO">EUGENIO</option>
 <option value="VALTER">VALTER</option>
-<option value="GONÇALVES">GONÇALVES</option>
+<option value="GONÇALVES">GONCALVES</option>
 <option value="ANTONIO">ANTONIO</option>
 <option value="GERARDO">GERARDO</option>
 <option value="HUGO">HUGO</option>
 <option value="JOEL">JOEL</option>
 <option value="HENRIQUE FARIAS">HENRIQUE FARIAS</option>
 <option value="CHICO DINIZ">CHICO DINIZ</option>
-<option value="MARI">MARI</option>
+<option value="MARI">MARILANDE</option>
 <option value="WIRON">WIRON</option>
 <option value="IANNE">IANNE</option>
 <option value="ADIANES">ADIANES</option>
@@ -3690,7 +3680,7 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 <option value="DEYVISON">DEYVISON</option>
 <option value="ALEX">ALEX</option>
 <option value="RUTH">RUTH</option>
-<option value="CAMILA DOS PRAZERES">CAMILA DOS PRAZERES</option>
+<option value="CAMILA DOS PRAZERES">CAMILA</option>
 <option value="GLORINHA">GLORINHA</option>
 <option value="ELISIO">ELISIO</option>
 <option value="REBECA">REBECA</option>
@@ -3700,8 +3690,8 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 <option value="CARLOS">CARLOS</option>
 <option value="CHICO LIMA">CHICO LIMA</option>
 <option value="SERGIO">SERGIO</option>
-<option value="LUCIA VERONICA">LUCIA VERONICA</option>
-<option value="MARCOS">MARCOS</option>
+<option value="LUCIA VERONICA">LUCIA V</option>
+<option value="MARCOS">MARCOS F</option>
 <option value="MADALENA">MADALENA</option>
 <option value="ARLINDO">ARLINDO</option>
     </select>
