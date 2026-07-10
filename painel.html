@@ -1991,23 +1991,27 @@ async function carregarDisp(){
     });
 
     // Carrega última escala de cada guia
+    const hojeEsc=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
     const escSnap=await window._gds(window._col(window._db,'escalas'));
     const ultimaEscala={};
     escSnap.docs.forEach(d=>{
       const it=d.data();
+      if(it.data>hojeEsc)return;
       const guiaN=_normDisp(it.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||it.guia;
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
-    // Carrega todos os bloqueios (passeios + admin) — conta como último serviço
+    // Carrega todos os bloqueios (passeios + admin) — conta como último serviço (só passados/hoje)
+    const hojeStr=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
     const todosPasseiosSnap=await window._gds(window._col(window._db,'bloqueios'));
     todosPasseiosSnap.docs.forEach(d=>{
       const dd=d.data();
       if(!dd.guia||!dd.inicio)return;
+      const dataFimBlq=dd.fim||dd.inicio;
+      if(dataFimBlq>hojeStr)return; // ignora bloqueios futuros
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
-      const dataFimBlq=dd.fim||dd.inicio;
       if(!ultimaEscala[guiaKey]||dataFimBlq>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dataFimBlq;
     });
     // Passeios do dia selecionado
@@ -2413,19 +2417,13 @@ async function importarPlanilha(event){
 
       // Verifica se é um guia da nossa lista (match normalizado, ignora acentos)
       const guiaNomeN=norm(guiaNome);
-      const guiaMatch=GUIAS.find(g=>{
-        const gN=norm(g);
-        return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
-      });
+      const guiaMatch=GUIAS.find(g=>norm(g)===guiaNomeN);
       if(!guiaMatch){
-        // Tenta também contra GUIAS_FILA (lista completa)
-        const guiaMatchFila=GUIAS_FILA.find(g=>{
-          const gN=norm(g);
-          return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
-        });
+        // Tenta match exato na GUIAS_FILA
+        const guiaMatchFila=GUIAS_FILA.find(g=>norm(g)===guiaNomeN);
         if(!guiaMatchFila)continue;
       }
-      const guiaFinal=normNome(guiaMatch||(GUIAS_FILA.find(g=>{const gN=norm(g);return gN===guiaNomeN||guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);})||guiaNome));
+      const guiaFinal=normNome(guiaMatch||(GUIAS_FILA.find(g=>norm(g)===guiaNomeN)||guiaNome));
 
       const motorista=(row[COL_MOT]||'').toString().trim();
       const veiculo=(row[COL_VEI]||'').toString().trim();
@@ -2575,9 +2573,11 @@ async function importarPlanilha(event){
     // Verifica passeios — bloqueia importação
     const passeioSnapImp=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
     const guiasEmPasseioImp=[];
+    const normImp=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    const guiasImpCheckNorm=guiasImpCheck.map(normImp);
     passeioSnapImp.docs.forEach(d=>{
       const dd=d.data();
-      if(data>=dd.inicio&&data<=dd.fim&&guiasImpCheck.includes(dd.guia))
+      if(data>=dd.inicio&&data<=dd.fim&&guiasImpCheckNorm.includes(normImp(dd.guia)))
         if(!guiasEmPasseioImp.includes(dd.guia))guiasEmPasseioImp.push(dd.guia);
     });
     if(guiasEmPasseioImp.length){
