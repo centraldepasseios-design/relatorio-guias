@@ -138,7 +138,7 @@
 const SENHA_ADMIN='luck1960';
 const LBLS={'passeio':'🏖️ Passeio','chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
 const BADGE={'reservado':'badge-reservado','chegada-porto':'badge-chegada','chegada-cabo':'badge-chegada','chegada-maragogi':'badge-chegada','chegada-recife':'badge-chegada','saida-porto':'badge-saida','saida-cabo':'badge-saida','saida-maragogi':'badge-saida','saida-recife':'badge-saida','apoio-porto':'badge-apoio','apoio-recife':'badge-apoio','apoio-recife-tarde':'badge-apoio','trf':'badge-trf'};
-const GUIAS=['JUNIOR','POLLY','NATALIA','GEORGE','KATARINA','EDMILTON','EVILAZIO','LUCIENE','VITOR','ERLON','HENRIQUE JR','FELIPE','EDSON','TATIANA','TOM','ADRIANE','GUILHERME','FABIO GOMES','DANIEL','NEIDE','JUAN','EUGENIO','VALTER','GONCALVES','ANTONIO','GERARDO','ELANE','HUGO','JOEL','HENRIQUE FARIAS','CHICO DINIZ','MARI','WIRON','IANNE','ADIANES','MADSON','CAMILLA','ANDRE','ANA FLAVIA','RENATINHA','GESSYCA','TAVARES','MATHEUS','ALICE','LIDIANE','CARLA','ALBERTO','XIMENES','SIDNEI','DRIELLY','RAISSA','ISADORA','SANTIAGO','ARTHUR','GIL','HUMBERTO','FABIO COZZI','BRENO','LUIZ CARLOS','RODRIGO','JOELMA','OLIVEIRA','BRUNO MICHELOTI','BRUNO','TALES','FRANCINALDO','AMAURY','ARLENE','JACIANE','FRANCA','FREITAS','LUIZ FELIPE','RAFAEL','JULIANA','DEYVISON','ALEX','RUTH','CAMILA','GLORINHA','ELISIO','REBECA','ENEZIANE','BRUNO','ALVARO','ZENA','CARLOS M','CHICO LIMA','SERGIO','LUCIA V','MARCOS F','MADALENA','ARLINDO'];
+let GUIAS=[]; // preenchido dinamicamente do Firebase
 
 let guiasSenhas={},guiaReset='',todosRel=[],contL=0,linhas=[];
 
@@ -313,10 +313,6 @@ function trocarAba(aba){
 
 // ===== ESCALA =====
 function adicionarLinha(dados={}){
-  if(!GUIAS.length){
-    carregarListasGuias().then(()=>adicionarLinha(dados));
-    return;
-  }
   const id=++contL;
   linhas.push(id);
   const div=document.createElement('div');
@@ -504,7 +500,7 @@ async function publicarEscala(){
   for(const id of linhas){
     const guia=normNome(document.getElementById('eg-'+id).value);
     const srv=document.getElementById('es-'+id).value;
-    if(!guia&&!srv)continue; // linha vazia — ignorar
+    if(!guia&&!srv)continue;
     if(!guia||!srv){alert('Preencha guia e tipo em todas as linhas.');return}
     const isCS=srv.startsWith('chegada')||srv.startsWith('saida');
     const isAT=srv.startsWith('apoio')||srv==='trf';
@@ -2209,6 +2205,35 @@ async function salvarObsGuia(guia,obs){
 }
 
 // ===== SENHAS =====
+async function carregarListasGuias(){
+  try{
+    const snap=await window._gds(window._col(window._db,'guias'));
+    GUIAS=snap.docs.map(d=>d.id).sort();
+    // Popula selects dinamicamente
+    ['av-guia','edit-item-guia','rg-guia','f-guia'].forEach(selId=>{
+      const sel=document.getElementById(selId);
+      if(!sel)return;
+      const val=sel.value;
+      [...sel.options].forEach(o=>{if(o.value&&o.value!=='__transferistas__')sel.remove(o.index);});
+      GUIAS.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
+      if(val)sel.value=val;
+    });
+    const epg=document.getElementById('edit-passeio-guia');
+    if(epg){
+      const val=epg.value;
+      while(epg.options.length>0)epg.remove(0);
+      GUIAS.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;epg.appendChild(o);});
+      if(val)epg.value=val;
+    }
+    // Also update escala selects
+    document.querySelectorAll('[id^="eg-"]').forEach(sel=>{
+      const val=sel.value;
+      sel.innerHTML='<option value="">— selecionar —</option>'+GUIAS.map(g=>'<option'+(val===g?' selected':'')+'>'+g+'</option>').join('');
+    });
+    if(typeof renderLinhas==='function')renderLinhas();
+  }catch(e){console.warn('Erro ao carregar lista de guias:',e);}
+}
+
 async function carregarSenhas(){
   showLoad();
   try{
@@ -3364,7 +3389,7 @@ async function confirmarReset(){
           <div><label>Guia (opcional)</label>
             <select id="rg-guia">
               <option value="">Todos os guias</option>
-              <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+              
             </select>
           </div>
           <button class="btn-sm" onclick="resumoPorGuia()">📊 Gerar</button>
@@ -3385,7 +3410,7 @@ async function confirmarReset(){
           <select id="f-guia">
             <option value="">Todos</option>
             <option value="__transferistas__">🚐 Transferistas</option>
-            <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+            
           </select>
         </div>
       </div>
@@ -3476,7 +3501,7 @@ async function confirmarReset(){
       <label>Guia</label>
       <select id="edit-item-guia">
         <option value="">— selecionar —</option>
-        <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+        
       </select>
     </div>
     <div style="margin-bottom:10px">
@@ -3528,7 +3553,7 @@ async function confirmarReset(){
       <div><label>Guia</label>
         <select id="av-guia">
           <option value="">— selecionar —</option>
-          <option>JUNIOR</option><option>POLLY</option><option>NATALIA</option><option>GEORGE</option><option>KATARINA</option><option>EDMILTON</option><option>EVILAZIO</option><option>LUCIENE</option><option>VITOR</option><option>ERLON</option><option>HENRIQUE JR</option><option>FELIPE</option><option>EDSON</option><option>TATIANA</option><option>TOM</option><option>ADRIANE</option><option>GUILHERME</option><option>FABIO GOMES</option><option>DANIEL</option><option>NEIDE</option><option>JUAN</option><option>EUGENIO</option><option>VALTER</option><option>GONCALVES</option><option>ANTONIO</option><option>GERARDO</option><option>ELANE</option><option>HUGO</option><option>JOEL</option><option>HENRIQUE FARIAS</option><option>CHICO DINIZ</option><option>MARILANDE</option><option>WIRON</option><option>IANNE</option><option>ADIANES</option><option>MADSON</option><option>CAMILLA</option><option>ANDRE</option><option>ANA FLAVIA</option><option>RENATA</option><option>GESSYCA</option><option>TAVARES</option><option>MATHEUS</option><option>ALICE</option><option>LIDIANE</option><option>CARLA</option><option>ALBERTO</option><option>XIMENES</option><option>SIDNEI</option><option>DRIELLY</option><option>RAISSA</option><option>ISADORA</option><option>SANTIAGO</option><option>ARTHUR</option><option>GIL</option><option>HUMBERTO</option><option>FABIO COZZI</option><option>BRENO</option><option>LUIZ CARLOS</option><option>RODRIGO</option><option>JOELMA</option><option>OLIVEIRA</option><option>BRUNO MICHELOTI</option><option>TALES</option><option>FRANCINALDO</option><option>AMAURY</option><option>ARLENE</option><option>JACIANE</option><option>FRANCA</option><option>FREITAS</option><option>LUIZ FELIPE</option><option>RAFAEL</option><option>JULIANA</option><option>DEYVISON</option><option>ALEX</option><option>RUTH</option><option>CAMILA</option><option>GLORINHA</option><option>ELISIO</option><option>REBECA</option><option>ENEZIANE</option><option>BRUNO</option><option>ALVARO</option><option>ZENA</option><option>CARLOS M</option><option>CHICO LIMA</option><option>SERGIO</option><option>LUCIA V</option><option>MARCOS F</option><option>MADALENA</option><option>ARLINDO</option>
+          
         </select>
       </div>
       <div><label>Tipo de serviço</label>
@@ -3580,6 +3605,7 @@ window._gds=getDocs;window._doc=doc;window._gd=getDoc;window._sd=setDoc;
 window._ad=addDoc;window._dd=deleteDoc;
 document.getElementById('fb-status').textContent='✅ Conectado';
 // Sincroniza números WPP no Firestore para o GitHub Actions usar
+carregarListasGuias();
 sincronizarFones();
 // Auto-login admin se sessão salva
 if(localStorage.getItem('luck_admin')==='1'&&typeof entrar==='function'){
@@ -3632,7 +3658,7 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 <option value="LUCIENE">LUCIENE</option>
 <option value="VITOR">VITOR</option>
 <option value="ERLON">ERLON</option>
-<option value="HENRIQUE JUNIOR">HENRIQUE JR</option>
+<option value="HENRIQUE JUNIOR">HENRIQUE JUNIOR</option>
 <option value="FELIPE">FELIPE</option>
 <option value="EDSON">EDSON</option>
 <option value="TATIANA">TATIANA</option>
