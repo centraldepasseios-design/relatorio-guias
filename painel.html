@@ -1496,6 +1496,7 @@ async function salvarPasseio(){
   const data=document.getElementById('passeio-data').value;
   const destino=getDestinoPasseio();
   const base=document.getElementById('passeio-base').value||'Porto';
+  const privativo=document.getElementById('passeio-privativo')&&document.getElementById('passeio-privativo').checked;
   const ordenados=[...document.querySelectorAll('#passeio-ordem-lista .ordem-item')].map(el=>el.dataset.guia);
   if(!data){alert('Informe a data.');return}
   if(!destino){alert('Informe o destino.');return}
@@ -1583,9 +1584,10 @@ async function carregarPasseios(){
       const base=dd.base||'Porto';
       if(!porData[dd.inicio][base])porData[dd.inicio][base]={};
       const destino=dd.descricao;
-      if(!porData[dd.inicio][base][destino])porData[dd.inicio][base][destino]={guias:[],ids:[]};
-      porData[dd.inicio][base][destino].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id});
-      porData[dd.inicio][base][destino].ids.push(d.id);
+      const chaveGrupo=destino+'|'+(dd.privativo?'priv':'reg');
+      if(!porData[dd.inicio][base][chaveGrupo])porData[dd.inicio][base][chaveGrupo]={guias:[],ids:[],destino:destino,privativo:!!dd.privativo};
+      porData[dd.inicio][base][chaveGrupo].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id,privativo:!!dd.privativo});
+      porData[dd.inicio][base][chaveGrupo].ids.push(d.id);
     });
 
     const BASES={
@@ -1636,7 +1638,7 @@ async function carregarPasseios(){
           window['_apagIds_'+apagKey]=grupo.ids;
           html+='<button data-key="'+apagKey+'" onclick="apagarPasseioGrupo(window[\'_apagIds_\'+this.dataset.key])" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
           html+='</div>';
-          const privativo=grupo.guias.length>0&&grupo.guias.some(g=>g.privativo===true);
+          const privativo=grupo.privativo||false;
           const dragListId='drag-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'_');
           html+='<div id="'+dragListId+'">';
           guiasOrdenados.forEach((gu,gi)=>{
@@ -3306,8 +3308,14 @@ async function confirmarReset(){
           <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
         </div>
       </div>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:600;font-size:13px">
+          <input type="checkbox" id="passeio-privativo" onchange="onPrivativoChange()" style="width:16px;height:16px;cursor:pointer;accent-color:#e67e22"/>
+          🔒 Privativo <span style="font-size:11px;font-weight:400;color:var(--muted)">(carro exclusivo para o grupo)</span>
+        </label>
+      </div>
       <div style="margin-bottom:10px">
-        <label>Guias e posição no carro</label>
+        <label id="label-guias-pos">Guias e posição no carro</label>
         <input type="text" id="passeio-busca" placeholder="🔍 Buscar guia..." oninput="filtrarGuiasPasseio()" style="background:#fff;margin-bottom:6px"/>
         <div id="passeio-guias-wrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);max-height:160px;overflow-y:auto"></div>
       </div>
