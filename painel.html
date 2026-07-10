@@ -619,7 +619,7 @@ async function buscarEscalaPeriodo(){
       window._w('data','>=',inicio),
       window._w('data','<=',fim)
     ));
-    const _tH2=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
+    const _tH2=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/i);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
     _itensPublicados=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
       if(a.data!==b.data)return a.data.localeCompare(b.data);
       return _tH2(a.horario)-_tH2(b.horario);
@@ -652,7 +652,7 @@ function _renderLinhasAgrupadas(itens){
     porGuia[it.guia].push(it);
   });
   // Ordena os guias pelo horário do primeiro serviço
-  const t=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
+  const t=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/i);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
   ordemGuia.sort((a,b)=>{
     const hA=porGuia[a].reduce((min,s)=>Math.min(min,t(s.horario)),9999);
     const hB=porGuia[b].reduce((min,s)=>Math.min(min,t(s.horario)),9999);
@@ -661,7 +661,7 @@ function _renderLinhasAgrupadas(itens){
   return ordemGuia.map(guia=>{
     // Ordena serviços do guia por horário
     const servicos=porGuia[guia].slice().sort((a,b)=>{
-      const t=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
+      const t=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/i);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
       return t(a.horario)-t(b.horario);
     });
     const rows=servicos.map((it,idx)=>{
@@ -731,7 +731,7 @@ async function carregarEscalaPublicada(){
   const wrap=document.getElementById('escala-publicada');
   try{
     const snap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
-    const _tH=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
+    const _tH=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/i);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
     _itensPublicados=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>_tH(a.horario)-_tH(b.horario));
     // limpa filtros
     document.getElementById('f-pub-guia').value='';
@@ -2001,15 +2001,18 @@ async function carregarDisp(){
       if(nc&&nc>=hoje2)naoConvidarMap[d.id]={ate:nc};
     });
 
-    // Carrega última escala de cada guia
+    // Carrega última escala de cada guia (só passadas/hoje — para o badge "🗓️ último serviço")
     const hojeDisp=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
     const escSnap=await window._gds(window._col(window._db,'escalas'));
     const ultimaEscala={};
+    // Guias escalados exatamente na data selecionada (inclui datas futuras) — para o status "Trabalhando"
+    const guiasTrabalhandoNaData=new Set();
     escSnap.docs.forEach(d=>{
       const it=d.data();
-      if(it.data>hojeDisp)return; // ignora escalas futuras
       const guiaN=_normDisp(it.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||it.guia;
+      if(it.data===data)guiasTrabalhandoNaData.add(guiaKey);
+      if(it.data>hojeDisp)return; // ignora escalas futuras (apenas para o badge de último serviço)
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
@@ -2053,7 +2056,7 @@ async function carregarDisp(){
     // Filtra guias
     let guiasFiltrados=TODOS_GUIAS_DISP.filter(g=>{
       const status=dispMap[g]||'sem';
-      const trabalhando=ultimaEscala[g]===data||guiasEmPasseio.has(g);
+      const trabalhando=guiasTrabalhandoNaData.has(g)||guiasEmPasseio.has(g);
       if(filtStatus==='trabalhando'){
         if(!trabalhando)return false;
       } else if(filtStatus==='nao'){if(status!=='nao'&&status!=='passeio')return false;} else if(filtStatus&&filtStatus!==status)return false;
@@ -2066,7 +2069,7 @@ async function carregarDisp(){
 
     // Resumo — só Indisponíveis, Trabalhando, Não convidar
     const indispCount=TODOS_GUIAS_DISP.filter(g=>dispMap[g]==='nao'||dispMap[g]==='passeio').length;
-    const trabCount=TODOS_GUIAS_DISP.filter(g=>ultimaEscala[g]===data||guiasEmPasseio.has(g)).length;
+    const trabCount=TODOS_GUIAS_DISP.filter(g=>guiasTrabalhandoNaData.has(g)||guiasEmPasseio.has(g)).length;
     const naoConvidarCount=TODOS_GUIAS_DISP.filter(g=>naoConvidarMap[g]).length;
     document.getElementById('disp-resumo').innerHTML=
       '<div class="resumo-card" style="border-left:3px solid #c0392b"><div class="num" style="color:#c0392b">'+indispCount+'</div><div class="lbl">Indisponíveis</div></div>'
