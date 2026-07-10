@@ -1636,6 +1636,7 @@ async function carregarPasseios(){
           window['_apagIds_'+apagKey]=grupo.ids;
           html+='<button data-key="'+apagKey+'" onclick="apagarPasseioGrupo(window[\'_apagIds_\'+this.dataset.key])" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
           html+='</div>';
+          const privativo=grupo.guias.length>0&&grupo.guias.some(g=>g.privativo===true);
           const dragListId='drag-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'_');
           html+='<div id="'+dragListId+'">';
           guiasOrdenados.forEach((gu,gi)=>{
