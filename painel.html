@@ -1625,13 +1625,14 @@ async function carregarPasseios(){
         html+='</div>';
 
         // Destinos dentro da base
-        Object.entries(destinos).forEach(([destino, grupo])=>{
+        Object.entries(destinos).forEach(([chave, grupo])=>{
+          const destino=grupo.destino||chave;
           const guiasOrdenados=grupo.guias.slice().sort((a,b)=>a.posicao-b.posicao);
           const idsJson=JSON.stringify(grupo.ids).replace(/"/g,'&quot;');
           html+='<div style="padding:10px 14px;border-bottom:1px solid '+cfg.borda+'40">';
           html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
           html+='<span style="font-size:13px;font-weight:600;color:'+cfg.cor+'">🏖️ '+destino+'</span>';
-          const apagKey='apag-'+data.replace(/-/g,'')+'-'+base+'-'+destino.replace(/\s/g,'');
+          const apagKey='apag-'+data.replace(/-/g,'')+'-'+base+'-'+(chave||destino).replace(/[\s|]/g,'');
           window['_apagIds_'+apagKey]=grupo.ids;
           html+='<button data-key="'+apagKey+'" onclick="apagarPasseioGrupo(window[\'_apagIds_\'+this.dataset.key])" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
           html+='</div>';
@@ -2015,7 +2016,8 @@ async function carregarDisp(){
       const dd=d.data();
       if(!dd.guia||!dd.inicio)return;
       const dataFimBlq=dd.fim||dd.inicio;
-      if(dataFimBlq>hojeDisp)return; // ignora bloqueios futuros
+      // Passeios: inclui futuros. Bloqueios admin: só passados/hoje
+      if(dd.tipo!=='passeio'&&dataFimBlq>hojeDisp)return;
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
       if(!ultimaEscala[guiaKey]||dataFimBlq>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dataFimBlq;
