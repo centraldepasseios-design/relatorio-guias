@@ -2861,7 +2861,7 @@ async function enviarEscalaWhatsApp(){
     // Agrupa por guia e ordena pelo primeiro horário
     const porGuia={};
     itens.forEach(it=>{if(!porGuia[it.guia])porGuia[it.guia]=[];porGuia[it.guia].push(it)});
-    const tH=h=>{const m=(h||'').match(/(\d{1,2}):(\d{2})/);return m?parseInt(m[1])*60+parseInt(m[2]):9999;};
+    const tH=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/i);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
 
     const semFone=[];
     let enviados=0;
@@ -2880,7 +2880,7 @@ async function enviarEscalaWhatsApp(){
       if(!fone){semFone.push(guia);continue}
 
       const servicos=porGuia[guia].slice().sort((a,b)=>{
-        const t=h=>{ const m=h.match(/(\d{1,2}):(\d{2})/); return m?parseInt(m[1])*60+parseInt(m[2]):9999; };
+        const t=h=>{ const m=h.match(/(\d{1,2})[:h](\d{0,2})/i); return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999; };
         return t(a.horario)-t(b.horario);
       });
       const linhas=servicos.map(s=>{
