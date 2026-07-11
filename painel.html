@@ -669,7 +669,10 @@ function _renderLinhasAgrupadas(itens){
       const hsrvTxt=isCS&&it.hsrv?'<br><small style="color:var(--muted)">'+it.hsrv+(it.pax?' · '+it.pax+' pax':'')+'</small>':'';
       const motTxt=it.motorista||'—';
       const borderTop=idx===0?'':'border-top:1px dashed var(--border);';
-      return`<div class="pub-row" style="${borderTop}"><span class="pub-hor">⏰ ${it.horario}</span><div><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div>${motTxt?'<span style="font-size:12px;color:var(--muted)">🚐 '+motTxt+'</span>':''}<div style="display:flex;gap:4px;align-items:center"><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span><button onclick="editarItemEscala('${it.id}')" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);padding:2px 7px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button><button onclick="apagarItemEscala('${it.id}','${it.guia}','${LBLS[it.servico]||it.servico}')" style="background:none;border:1px solid #fcc;border-radius:var(--rsm);padding:2px 7px;font-size:11px;cursor:pointer;color:#e74c3c">🗑️</button></div></div>`;
+      // Se o guia tem mais de 1 serviço, só mostra o horário no primeiro — os seguintes são sequência do mesmo turno
+      const mostrarHor=idx===0||servicos.length===1;
+      const horHtml=mostrarHor?'⏰ '+it.horario:'<span style="display:inline-block;background:#fdeeda;color:#c2670f;font-weight:600;font-size:11px;padding:3px 9px;border-radius:99px;white-space:nowrap">↳ em seguida</span>';
+      return`<div class="pub-row" style="${borderTop}"><span class="pub-hor">${horHtml}</span><div><small style="color:var(--muted)">${LBLS[it.servico]||it.servico}${hsrvTxt}</small></div>${motTxt?'<span style="font-size:12px;color:var(--muted)">🚐 '+motTxt+'</span>':''}<div style="display:flex;gap:4px;align-items:center"><span><span class="badge ${BADGE[it.servico]||''}">${(LBLS[it.servico]||it.servico).split(' ')[0]}</span></span><button onclick="editarItemEscala('${it.id}')" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);padding:2px 7px;font-size:11px;cursor:pointer;color:var(--muted)">✏️</button><button onclick="apagarItemEscala('${it.id}','${it.guia}','${LBLS[it.servico]||it.servico}')" style="background:none;border:1px solid #fcc;border-radius:var(--rsm);padding:2px 7px;font-size:11px;cursor:pointer;color:#e74c3c">🗑️</button></div></div>`;
     }).join('');
     const totalSrv=servicos.length;
     const dataEsc=servicos[0].data||'';
@@ -2883,9 +2886,10 @@ async function enviarEscalaWhatsApp(){
         const t=h=>{ const m=h.match(/(\d{1,2})[:h](\d{0,2})/i); return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999; };
         return t(a.horario)-t(b.horario);
       });
-      const linhas=servicos.map(s=>{
+      const linhas=servicos.map((s,idx)=>{
         const LBLS2={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
-        let linha='⏰ *'+s.horario+'* — '+(LBLS2[s.servico]||s.servico);
+        const mostrarHor=idx===0||servicos.length===1;
+        let linha=mostrarHor?('⏰ *'+s.horario+'* — '+(LBLS2[s.servico]||s.servico)):('*↳* '+(LBLS2[s.servico]||s.servico));
         if(s.hsrv)linha+=' | ✈️ '+s.hsrv;
         if(s.pax)linha+=' | 👥 '+s.pax+' pax';
         if(s.motorista)linha+=' | 🚐 '+s.motorista;
@@ -3046,10 +3050,13 @@ async function reenviarEscalaGuia(guia, data){
       window._w('data','==',data),
       window._w('guia','==',guia)
     ));
-    const servicos=escSnap.docs.map(d=>d.data());
-    if(!servicos.length){hideLoad();alert('Nenhum serviço encontrado para '+guia+' em '+dataFmt);return}
-    const linhas=servicos.map(s=>{
-      let linha='\u23F0 *'+s.horario+'* - '+(LBLS[s.servico]||s.servico);
+    const servicosRaw=escSnap.docs.map(d=>d.data());
+    if(!servicosRaw.length){hideLoad();alert('Nenhum serviço encontrado para '+guia+' em '+dataFmt);return}
+    const _tHor=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/i);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
+    const servicos=servicosRaw.slice().sort((a,b)=>_tHor(a.horario)-_tHor(b.horario));
+    const linhas=servicos.map((s,idx)=>{
+      const mostrarHor=idx===0||servicos.length===1;
+      let linha=mostrarHor?('\u23F0 *'+s.horario+'* - '+(LBLS[s.servico]||s.servico)):('*\u21B3* '+(LBLS[s.servico]||s.servico));
       if(s.hsrv)linha+=' | '+s.hsrv;
       if(s.pax)linha+=' | '+s.pax+' pax';
       if(s.motorista)linha+=' | '+s.motorista;
