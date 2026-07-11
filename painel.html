@@ -2889,7 +2889,7 @@ async function enviarEscalaWhatsApp(){
       const linhas=servicos.map((s,idx)=>{
         const LBLS2={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
         const mostrarHor=idx===0||servicos.length===1;
-        let linha=mostrarHor?('⏰ *'+s.horario+'* — '+(LBLS2[s.servico]||s.servico)):('*↳* '+(LBLS2[s.servico]||s.servico));
+        let linha=mostrarHor?('⏰ *'+s.horario+'* — '+(LBLS2[s.servico]||s.servico)):('*↳ em seguida:* '+(LBLS2[s.servico]||s.servico));
         if(s.hsrv)linha+=' | ✈️ '+s.hsrv;
         if(s.pax)linha+=' | 👥 '+s.pax+' pax';
         if(s.motorista)linha+=' | 🚐 '+s.motorista;
@@ -3056,7 +3056,7 @@ async function reenviarEscalaGuia(guia, data){
     const servicos=servicosRaw.slice().sort((a,b)=>_tHor(a.horario)-_tHor(b.horario));
     const linhas=servicos.map((s,idx)=>{
       const mostrarHor=idx===0||servicos.length===1;
-      let linha=mostrarHor?('\u23F0 *'+s.horario+'* - '+(LBLS[s.servico]||s.servico)):('*\u21B3* '+(LBLS[s.servico]||s.servico));
+      let linha=mostrarHor?('\u23F0 *'+s.horario+'* - '+(LBLS[s.servico]||s.servico)):('*\u21B3 em seguida:* '+(LBLS[s.servico]||s.servico));
       if(s.hsrv)linha+=' | '+s.hsrv;
       if(s.pax)linha+=' | '+s.pax+' pax';
       if(s.motorista)linha+=' | '+s.motorista;
