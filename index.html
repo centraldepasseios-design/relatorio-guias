@@ -801,7 +801,8 @@ async function carregarEscalaHoje(){
       window._where('data','==',dataEscalaAtual)
     ));
     const _n=(s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim());
-    const itens=snap.docs.map(d=>d.data()).filter(d=>_n(d.guia)===_n(guiaAtual));
+    const _tHorEsc=h=>{const m=(h||'').match(/(\d{1,2})[:h](\d{0,2})/i);return m?parseInt(m[1])*60+(parseInt(m[2])||0):9999;};
+    const itens=snap.docs.map(d=>d.data()).filter(d=>_n(d.guia)===_n(guiaAtual)).sort((a,b)=>_tHorEsc(a.horario)-_tHorEsc(b.horario));
     hideLoading();
     // Verifica se há passeio para este guia nesta data
     let passeioInfo=null;
@@ -858,13 +859,15 @@ async function carregarEscalaHoje(){
     const LBLS={'chegada-porto':'Chegada Porto','chegada-cabo':'Chegada Cabo','chegada-maragogi':'Chegada Maragogi','chegada-recife':'Chegada Recife','saida-porto':'Saída Porto','saida-cabo':'Saída Cabo','saida-maragogi':'Saída Maragogi','saida-recife':'Saída Recife','apoio-porto':'Apoio Porto','apoio-recife':'Apoio Recife','apoio-recife-tarde':'Apoio Recife Tarde','motoguia':'🏍️ Motoguia','trf':'TRF'};
     const dataFmt=new Date(dataEscalaAtual+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
     let vooIdx=0;
-    let rows=itens.map(it=>{
+    let rows=itens.map((it,idxServ)=>{
       const isCheg=it.servico&&it.servico.startsWith('chegada');
       const numVooDisp=it.voo||it.hsrv||'';
       const temVooIATA=isCheg&&numVooDisp.replace(/[^A-Za-z0-9]/g,'').match(/^[A-Z]{2}\d+$/i);
       const vooId=temVooIATA?'voo-status-'+(vooIdx++):'';
+      const mostrarHorEsc=idxServ===0||itens.length===1;
+      const horEscHtml=mostrarHorEsc?`<span class="escala-horario">⏰ ${it.horario}</span>`:`<span style="display:inline-block;background:#fdeeda;color:#c2670f;font-weight:600;font-size:12px;padding:4px 10px;border-radius:99px;white-space:nowrap">↳ em seguida</span>`;
       return`<div class="escala-row">
-        <div><span class="escala-horario">⏰ ${it.horario}</span></div>
+        <div>${horEscHtml}</div>
         <div class="escala-info">
           <div class="escala-servico">${LBLS[it.servico]||it.servico}</div>
           ${it.hsrv?`<div style="font-size:12px;color:var(--muted);margin-top:2px">✈️ ${it.hsrv}</div>`:''}
