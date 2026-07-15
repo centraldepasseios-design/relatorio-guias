@@ -1533,10 +1533,25 @@ async function salvarPasseio(){
       if(!confirm('⚠️ Os guias abaixo já estão em outro passeio neste dia:\n\n'+guiasJaEmPasseio.join('\n')+'\n\nAdicionar mesmo assim?')){return}
       showLoad();
     }
+    // Verifica se já existem guias nesse mesmo destino/data/base/privativo, pra continuar a numeração
+    // (evita que um guia adicionado depois vire "1º carro" quando na verdade é o último)
+    const existentesSnap=await window._gds(window._q(
+      window._col(window._db,'bloqueios'),
+      window._w('tipo','==','passeio'),
+      window._w('inicio','==',data),
+      window._w('descricao','==',destino)
+    ));
+    let maxPosicaoExistente=0;
+    existentesSnap.docs.forEach(d=>{
+      const dd=d.data();
+      if((dd.base||'Porto')===base&&!!dd.privativo===!!privativo&&!ordenados.includes(dd.guia)){
+        if((dd.posicao||0)>maxPosicaoExistente)maxPosicaoExistente=dd.posicao||0;
+      }
+    });
     const ordItems=document.querySelectorAll('#passeio-ordem-lista .ordem-item');
     for(let i=0;i<ordenados.length;i++){
       const guia=ordenados[i];
-      const posicao=i+1;
+      const posicao=maxPosicaoExistente+i+1;
       // Busca pelo data-guia para garantir o idioma correto mesmo após reordenação
       const ordEl=[...ordItems].find(el=>el.dataset.guia===guia);
       const idiomaEl=ordEl?ordEl.querySelector('select'):null;
