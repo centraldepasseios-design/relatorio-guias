@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luck Receptivo — Apresentação dos Motoristas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --verde: #007A6C;
+    --verde-escuro: #05493F;
+    --verde-claro: #E3F0EE;
+    --vermelho: #ED1C24;
+    --fundo: #F4F8F7;
+    --branco: #FFFFFF;
+    --ink: #16302B;
+    --muted: #5E7480;
+    --borda: #D3E5E2;
+    --amarelo: #B7791F;
+    --amarelo-claro: #FDF3E3;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--fundo);
+    color: var(--ink);
+    font-size: 15px;
+  }
+  header {
+    background: var(--verde-escuro);
+    color: var(--branco);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  header .marca {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  header .sub {
+    font-size: 13px;
+    color: #9FD8CF;
+  }
+  .tabs {
+    display: flex;
+    background: var(--verde);
+    padding: 0 24px;
+  }
+  .tab {
+    padding: 13px 22px;
+    color: #CBE9E4;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 15px;
+    font-weight: 600;
+    border-bottom: 3px solid transparent;
+  }
+  .tab.ativa {
+    color: var(--branco);
+    border-bottom-color: var(--branco);
+  }
+  main { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+  .secao { display: none; }
+  .secao.ativa { display: block; }
+  .cartao {
+    background: var(--branco);
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  h2 { font-size: 18px; margin-bottom: 12px; }
+  h3 { font-size: 15px; margin-bottom: 8px; color: var(--verde-escuro); }
+  .linha-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .campo { display: flex; flex-direction: column; gap: 4px; }
+  .campo label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  input[type=text], input[type=tel], input[type=date], select, textarea {
+    padding: 9px 11px;
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    font-size: 14.5px;
+    font-family: inherit;
+    background: var(--branco);
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); outline-offset: 0; }
+  button.acao {
+    background: var(--verde);
+    color: var(--branco);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.acao:hover { background: var(--verde-escuro); }
+  button.acao:disabled { background: #9BB8B3; cursor: not-allowed; }
+  button.secundario {
+    background: var(--branco);
+    color: var(--verde);
+    border: 1px solid var(--verde);
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.perigo { background: none; border: none; color: var(--vermelho); cursor: pointer; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--borda);
+  }
+  td { padding: 10px; border-bottom: 1px solid var(--borda); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .horario {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--verde-escuro);
+    letter-spacing: 0.5px;
+  }
+  .chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .chip.casa { background: var(--verde-claro); color: var(--verde-escuro); }
+  .chip.terceirizado { background: #EDEFF1; color: var(--muted); }
+  .chip.alerta { background: var(--amarelo-claro); color: var(--amarelo); }
+  .chip.erro { background: #FDEBEC; color: var(--vermelho); }
+  .chip.ok { background: var(--verde-claro); color: var(--verde-escuro); }
+  .aviso {
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 14px;
+  }
+  .aviso.info { background: var(--verde-claro); color: var(--verde-escuro); }
+  .aviso.atencao { background: var(--amarelo-claro); color: var(--amarelo); }
+  .aviso.erro { background: #FDEBEC; color: var(--vermelho); }
+  .resumo-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .resumo-card {
+    background: var(--branco);
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    padding: 12px 18px;
+    min-width: 130px;
+  }
+  .resumo-card .num { font-size: 26px; font-weight: 700; color: var(--verde-escuro); }
+  .resumo-card .rotulo { font-size: 12.5px; color: var(--muted); }
+  .busca { width: 100%; max-width: 320px; margin-bottom: 10px; }
+  .progresso { height: 10px; background: var(--borda); border-radius: 99px; overflow: hidden; margin: 10px 0; }
+  .progresso > div { height: 100%; background: var(--verde); width: 0%; transition: width 0.3s; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+  .rodape { text-align: center; color: var(--muted); font-size: 12.5px; padding: 20px 0 30px; }
+  @media (max-width: 640px) {
+    .tabs { overflow-x: auto; }
+    .horario { font-size: 18px; }
+    td, th { padding: 7px 6px; font-size: 13.5px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="marca">LUCK RECEPTIVO</div>
+    <div class="sub">Apresentação dos Motoristas — Setor Operacional Base Recife</div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab ativa" data-secao="escala">Escala do dia</button>
+  <button class="tab" data-secao="cadastro">Motoristas</button>
+  <button class="tab" data-secao="config">Configuração</button>
+</nav>
+
+<main>
+
+<!-- ================= ESCALA DO DIA ================= -->
+<section id="secao-escala" class="secao ativa">
+  <div class="cartao">
+    <h2>1. Importar a escala</h2>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:12px;">
+      Selecione a <strong>Prévia de Escala</strong> (.xlsx) ou o export do sistema (IN e OUT). Os dois formatos são reconhecidos automaticamente.
+      O aviso enviado contém apenas o <strong>primeiro horário de apresentação</strong> de cada motorista.
+    </p>
+    <div class="linha-form">
+      <div class="campo">
+        <label>Arquivo(s) do export (.xls)</label>
+        <input type="file" id="arquivoEscala" accept=".xls,.xlsx,.html" multiple>
+      </div>
+      <div class="campo">
+        <label>Data do aviso (dia da escala)</label>
+        <input type="date" id="dataEscala">
+      </div>
+      <button class="acao" id="btnProcessar">Processar escala</button>
+    </div>
+    <div id="avisoImportacao"></div>
+  </div>
+
+  <div class="cartao" id="cartaoRevisao" style="display:none;">
+    <h2>2. Revisar antes de enviar</h2>
+    <div class="resumo-cards" id="resumoEscala"></div>
+    <div id="avisosRevisao"></div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30%">Motorista</th>
+          <th style="width:13%">Apresentação</th>
+          <th style="width:17%">Telefone</th>
+          <th style="width:15%">Situação</th>
+          <th style="width:10%">Enviar</th>
+          <th style="width:15%"></th>
+        </tr>
+      </thead>
+      <tbody id="tabelaEscala"></tbody>
+    </table>
+  </div>
+
+  <div class="cartao" id="cartaoEnvio" style="display:none;">
+    <h2>3. Enviar os avisos</h2>
+    <div class="campo" style="margin-bottom:10px;">
+      <label>Modelo da mensagem — use {nome}, {data}, {diasemana} e {horario}</label>
+      <textarea id="modeloMensagem" rows="3" style="width:100%;">LUCK RECEPTIVO
+
+{nome}, sua APRESENTAÇÃO:
+
+📅 {diasemana}, {data}
+🕒 {horario}
+
+Qualquer dúvida, ligue para a coordenação.</textarea>
+    </div>
+    <div style="font-size:13.5px; color:var(--muted); margin-bottom:10px;">
+      Prévia:<pre id="previaMensagem" class="mono" style="white-space:pre-wrap; background:var(--fundo); border:1px solid var(--borda); border-radius:8px; padding:10px; margin-top:6px;"></pre>
+    </div>
+    <button class="acao" id="btnEnviar">Enviar avisos via WhatsApp</button>
+    <div class="progresso" style="display:none;" id="barraProgresso"><div></div></div>
+    <div id="logEnvio" class="mono" style="max-height:220px; overflow:auto; margin-top:10px;"></div>
+  </div>
+</section>
+
+<!-- ================= CADASTRO ================= -->
+<section id="secao-cadastro" class="secao">
+  <div class="cartao">
+    <h2>Cadastrar motorista</h2>
+    <div class="linha-form">
+      <div class="campo" style="flex:2; min-width:200px;">
+        <label>Nome (exatamente como sai no export)</label>
+        <input type="text" id="cadNome" placeholder="Ex.: MARCOS MOURA">
+      </div>
+      <div class="campo" style="flex:1; min-width:160px;">
+        <label>WhatsApp (DDI+DDD+número)</label>
+        <input type="tel" id="cadTelefone" placeholder="5581999998888">
+      </div>
+      <div class="campo">
+        <label>Vínculo</label>
+        <select id="cadTipo">
+          <option value="casa">Da casa</option>
+          <option value="terceirizado">Terceirizado</option>
+        </select>
+      </div>
+      <button class="acao" id="btnCadastrar">Salvar</button>
+    </div>
+    <div id="avisoCadastro"></div>
+  </div>
+  <div class="cartao">
+    <h2>Motoristas cadastrados</h2>
+    <input type="text" class="busca" id="buscaMotorista" placeholder="Buscar por nome...">
+    <table>
+      <thead>
+        <tr><th>Nome</th><th>WhatsApp</th><th>Vínculo</th><th></th></tr>
+      </thead>
+      <tbody id="tabelaMotoristas"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= CONFIGURAÇÃO ================= -->
+<section id="secao-config" class="secao">
+  <div class="cartao">
+    <h2>Z-API (WhatsApp)</h2>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:12px;">
+      Os mesmos dados usados na plataforma dos guias. Ficam salvos apenas neste navegador.
+    </p>
+    <div class="linha-form">
+      <div class="campo" style="flex:1; min-width:180px;">
+        <label>ID da instância</label>
+        <input type="text" id="zapiInstancia">
+      </div>
+      <div class="campo" style="flex:1; min-width:180px;">
+        <label>Token da instância</label>
+        <input type="text" id="zapiToken">
+      </div>
+      <div class="campo" style="flex:1; min-width:180px;">
+        <label>Client-Token (Conta)</label>
+        <input type="text" id="zapiClientToken">
+      </div>
+      <button class="acao" id="btnSalvarZapi">Salvar</button>
+    </div>
+    <div id="avisoConfig"></div>
+  </div>
+  <div class="cartao">
+    <h2>Firebase</h2>
+    <p style="color:var(--muted); font-size:14px;">
+      A conexão usa o mesmo projeto da plataforma (<span class="mono">relatorio-guias</span>).
+      Cole o firebaseConfig no bloco indicado dentro deste arquivo (mesmo conteúdo do index.html).
+      Coleção usada: <span class="mono">motoristas</span>.
+    </p>
+  </div>
+</section>
+
+</main>
+<div class="rodape">Luck Receptivo — uso interno do Setor Operacional. Após publicar no GitHub Pages, teste em aba anônima (cache do CDN pode levar até 10 min).</div>
+
+<script>
+// ======================================================================
+// CONFIG FIREBASE — cole aqui o mesmo firebaseConfig usado no index.html
+// ======================================================================
+const firebaseConfig = {
+  apiKey: "COLE_AQUI",
+  authDomain: "relatorio-guias.firebaseapp.com",
+  projectId: "relatorio-guias",
+  storageBucket: "relatorio-guias.appspot.com",
+  messagingSenderId: "COLE_AQUI",
+  appId: "COLE_AQUI"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+</script>
+
+<script>
+// ============================ UTILIDADES ============================
+function normalizar(nome) {
+  return String(nome || '').toUpperCase().replace(/\s+/g, ' ').trim();
+}
+function minutos(str) {
+  const m = /(\d{1,2}):(\d{2})/.exec(String(str || ''));
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+}
+function hhmm(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+function primeiroNome(nome) {
+  const n = normalizar(nome).split(' ')[0];
+  return n.charAt(0) + n.slice(1).toLowerCase();
+}
+function dataBR(iso) {
+  if (!iso) return '';
+  const p = iso.split('-');
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+function mostrarAviso(id, tipo, texto) {
+  document.getElementById(id).innerHTML =
+    '<div class="aviso ' + tipo + '" style="margin-top:12px;">' + texto + '</div>';
+}
+
+// ============================ ABAS ============================
+document.querySelectorAll('.tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('ativa'); });
+    document.querySelectorAll('.secao').forEach(function(s) { s.classList.remove('ativa'); });
+    tab.classList.add('ativa');
+    document.getElementById('secao-' + tab.dataset.secao).classList.add('ativa');
+  });
+});
+
+// ============================ CADASTRO ============================
+let motoristas = {}; // nomeNormalizado -> {id, nome, telefone, tipo}
+
+function carregarMotoristas() {
+  db.collection('motoristas').get().then(function(snap) {
+    motoristas = {};
+    snap.forEach(function(doc) {
+      const d = doc.data();
+      motoristas[normalizar(d.nome)] = { id: doc.id, nome: d.nome, telefone: d.telefone || '', tipo: d.tipo || 'casa' };
+    });
+    renderMotoristas();
+  }).catch(function(e) {
+    mostrarAviso('avisoCadastro', 'erro', 'Falha ao carregar motoristas: ' + e.message +
+      '. Confira o firebaseConfig no arquivo.');
+  });
+}
+
+function renderMotoristas() {
+  const filtro = normalizar(document.getElementById('buscaMotorista').value);
+  const tbody = document.getElementById('tabelaMotoristas');
+  const nomes = Object.keys(motoristas).sort();
+  let html = '';
+  nomes.forEach(function(n) {
+    if (filtro && n.indexOf(filtro) === -1) return;
+    const m = motoristas[n];
+    html += '<tr>' +
+      '<td>' + m.nome + '</td>' +
+      '<td class="mono">' + (m.telefone || '<span class="chip erro">sem telefone</span>') + '</td>' +
+      '<td><span class="chip ' + m.tipo + '">' + (m.tipo === 'casa' ? 'Da casa' : 'Terceirizado') + '</span></td>' +
+      '<td><button class="perigo" onclick="excluirMotorista(\'' + m.id + '\')">excluir</button></td>' +
+      '</tr>';
+  });
+  tbody.innerHTML = html || '<tr><td colspan="4" style="color:var(--muted);">Nenhum motorista cadastrado ainda.</td></tr>';
+}
+document.getElementById('buscaMotorista').addEventListener('input', renderMotoristas);
+
+document.getElementById('btnCadastrar').addEventListener('click', function() {
+  const nome = normalizar(document.getElementById('cadNome').value);
+  const telefone = document.getElementById('cadTelefone').value.replace(/\D/g, '');
+  const tipo = document.getElementById('cadTipo').value;
+  if (!nome) { mostrarAviso('avisoCadastro', 'erro', 'Informe o nome do motorista.'); return; }
+  if (telefone && telefone.length < 12) {
+    mostrarAviso('avisoCadastro', 'erro', 'Telefone incompleto — use DDI+DDD+número (ex.: 5581999998888).'); return;
+  }
+  const existente = motoristas[nome];
+  const dados = { nome: nome, telefone: telefone, tipo: tipo };
+  const op = existente
+    ? db.collection('motoristas').doc(existente.id).set(dados)
+    : db.collection('motoristas').add(dados);
+  op.then(function() {
+    mostrarAviso('avisoCadastro', 'info', (existente ? 'Atualizado: ' : 'Cadastrado: ') + nome);
+    document.getElementById('cadNome').value = '';
+    document.getElementById('cadTelefone').value = '';
+    carregarMotoristas();
+  }).catch(function(e) { mostrarAviso('avisoCadastro', 'erro', 'Erro ao salvar: ' + e.message); });
+});
+
+function excluirMotorista(id) {
+  if (!confirm('Excluir este motorista do cadastro?')) return;
+  db.collection('motoristas').doc(id).delete().then(carregarMotoristas);
+}
+
+// ============================ ESCALA ============================
+let escala = []; // [{nome, horarioMin, vespera, telefone, situacao, enviar}]
+
+document.getElementById('btnProcessar').addEventListener('click', function() {
+  const arquivos = document.getElementById('arquivoEscala').files;
+  const dataAviso = document.getElementById('dataEscala').value;
+  if (!arquivos.length) { mostrarAviso('avisoImportacao', 'erro', 'Selecione o arquivo do export.'); return; }
+  if (!dataAviso) { mostrarAviso('avisoImportacao', 'erro', 'Informe a data da escala.'); return; }
+
+  const leituras = [];
+  for (let i = 0; i < arquivos.length; i++) {
+    const arq = arquivos[i];
+    const ehXlsx = /\.xlsx$/i.test(arq.name);
+    leituras.push(
+      (ehXlsx ? arq.arrayBuffer() : arq.text()).then(function(conteudo) {
+        return XLSX.read(conteudo, { type: ehXlsx ? 'array' : 'string' });
+      })
+    );
+  }
+  Promise.all(leituras).then(function(pastas) {
+    const dataAlvo = dataBR(dataAviso); // dd/mm/aaaa igual ao export
+    const porMotorista = {};
+    let linhasLidas = 0;
+
+    pastas.forEach(function(wb) {
+      // ===== FORMATO 1: Prévia de Escala (abas "Prévia Escala ...") =====
+      const abasPrevia = wb.SheetNames.filter(function(n) { return n.indexOf('Prévia Escala') === 0; });
+      if (abasPrevia.length) {
+        abasPrevia.forEach(function(nomeAba) {
+          const linhas = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { header: 1, raw: false });
+          if (linhas.length < 2) return;
+          const cab = linhas[0].map(function(c) { return normalizar(c); });
+          const iMot = cab.findIndex(function(c) { return c === 'MOTORISTA'; });
+          const iIN = cab.findIndex(function(c) { return c.indexOf('HORÁRIO IN') === 0 || c.indexOf('HORARIO IN') === 0; });
+          if (iMot === -1) return;
+          linhas.slice(1).forEach(function(l) {
+            const nome = normalizar(l[iMot]);
+            if (!nome) return;
+            const candidatos = [];
+            const t1 = minutos(l[0]);           // primeiro horário da coluna 1 (OUT)
+            if (t1 !== null) candidatos.push(t1);
+            if (iIN > -1) {
+              const t2 = minutos(l[iIN]);       // horário do IN
+              if (t2 !== null) candidatos.push(t2);
+            }
+            if (!candidatos.length) return;
+            linhasLidas++;
+            if (!porMotorista[nome]) porMotorista[nome] = { horarios: [], vesperas: [] };
+            porMotorista[nome].horarios.push(Math.min.apply(null, candidatos));
+          });
+        });
+        return; // arquivo tratado como Prévia
+      }
+
+      // ===== FORMATO 2: export do sistema (IN/OUT com voos) =====
+      const planilha = wb.Sheets[wb.SheetNames[0]];
+      const linhas = XLSX.utils.sheet_to_json(planilha, { header: 1, raw: false });
+      if (!linhas.length) return;
+
+      const cab = linhas[0].map(function(c) { return normalizar(c); });
+      const iCod = 0;
+      const iTipo = cab.findIndex(function(c) { return c.indexOf('TIPO DO SERV') === 0; });
+      const iServ = cab.findIndex(function(c) { return c === 'SERVIÇO' || c === 'SERVICO'; });
+      const iVoo = cab.findIndex(function(c) { return c.indexOf('HOR') === 0 && c.indexOf('VOO') > -1; });
+      const iMot = cab.findIndex(function(c) { return c === 'MOTORISTA'; });
+      if (iMot === -1 || iVoo === -1) return;
+
+      let dataAtual = null;
+      linhas.slice(1).forEach(function(l) {
+        const cod = String(l[iCod] || '');
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(cod)) { dataAtual = cod; return; }
+        if (cod.indexOf('REC-') !== 0) return;
+        if (dataAtual !== dataAlvo) return;
+        linhasLidas++;
+
+        const nome = normalizar(l[iMot]);
+        if (!nome || nome === '-') return;
+        const voo = minutos(l[iVoo]);
+        if (voo === null) return;
+        const tipoServ = iTipo > -1 ? normalizar(l[iTipo]) : '';
+        const servico = iServ > -1 ? normalizar(l[iServ]) : '';
+
+        // ===== Regras de antecedência (horário de apresentação = voo - antecedência) =====
+        let antecedencia;
+        if (tipoServ === 'IN') {
+          antecedencia = 60; // chegada: 1h antes
+        } else {
+          const horaVoo = Math.floor(voo / 60);
+          if (servico.indexOf('MARAGOGI') > -1) {
+            antecedencia = (horaVoo >= 7 && horaVoo <= 10) ? 180 : 240; // Maragogi: 4h (3h se voo 07-10h)
+          } else if (servico.indexOf('PORTO') > -1 || servico.indexOf('CABO') > -1) {
+            antecedencia = 120; // Porto de Galinhas / Cabo: 2h antes
+          } else {
+            antecedencia = 60; // Recife (e demais): 1h antes
+          }
+        }
+        const apr = voo - antecedencia;
+
+        // Apresentação na véspera: cálculo cai antes da meia-noite (voos de madrugada)
+        const vespera = apr < 0;
+
+        if (!porMotorista[nome]) porMotorista[nome] = { horarios: [], vesperas: [] };
+        if (vespera) porMotorista[nome].vesperas.push(apr + 1440);
+        else porMotorista[nome].horarios.push(apr);
+      });
+    });
+
+    escala = Object.keys(porMotorista).sort().map(function(nome) {
+      const registro = porMotorista[nome];
+      const cadastro = motoristas[nome];
+      const soVespera = registro.horarios.length === 0 && registro.vesperas.length > 0;
+      const horarioMin = registro.horarios.length ? Math.min.apply(null, registro.horarios)
+                        : (registro.vesperas.length ? Math.min.apply(null, registro.vesperas) : null);
+      let situacao = 'ok';
+      if (!cadastro) situacao = 'sem-cadastro';
+      else if (!cadastro.telefone) situacao = 'sem-telefone';
+      return {
+        nome: nome,
+        horarioMin: horarioMin,
+        vespera: soVespera,
+        telefone: cadastro ? cadastro.telefone : '',
+        situacao: situacao,
+        enviar: situacao === 'ok' && !soVespera
+      };
+    });
+
+    if (!escala.length) {
+      mostrarAviso('avisoImportacao', 'atencao',
+        'Nenhum serviço encontrado para ' + dataAlvo + '. Confira se a data escolhida existe no export.');
+      document.getElementById('cartaoRevisao').style.display = 'none';
+      document.getElementById('cartaoEnvio').style.display = 'none';
+      return;
+    }
+    mostrarAviso('avisoImportacao', 'info', linhasLidas + ' serviços lidos para ' + dataAlvo + '.');
+    renderEscala();
+  }).catch(function(e) {
+    mostrarAviso('avisoImportacao', 'erro', 'Não consegui ler o arquivo: ' + e.message);
+  });
+});
+
+function renderEscala() {
+  const total = escala.length;
+  const prontos = escala.filter(function(m) { return m.situacao === 'ok' && !m.vespera; }).length;
+  const semCadastro = escala.filter(function(m) { return m.situacao === 'sem-cadastro'; }).length;
+  const semTelefone = escala.filter(function(m) { return m.situacao === 'sem-telefone'; }).length;
+  const vesperas = escala.filter(function(m) { return m.vespera; }).length;
+
+  document.getElementById('resumoEscala').innerHTML =
+    '<div class="resumo-card"><div class="num">' + total + '</div><div class="rotulo">motoristas na escala</div></div>' +
+    '<div class="resumo-card"><div class="num">' + prontos + '</div><div class="rotulo">prontos para envio</div></div>' +
+    '<div class="resumo-card"><div class="num">' + semCadastro + '</div><div class="rotulo">sem cadastro</div></div>' +
+    '<div class="resumo-card"><div class="num">' + semTelefone + '</div><div class="rotulo">sem telefone</div></div>' +
+    '<div class="resumo-card"><div class="num">' + vesperas + '</div><div class="rotulo">apresentação na véspera</div></div>';
+
+  let avisos = '';
+  if (semCadastro > 0) avisos += '<div class="aviso atencao">Há motoristas sem cadastro — cadastre na aba Motoristas (o nome precisa ser idêntico ao do export) e processe de novo.</div>';
+  if (vesperas > 0) avisos += '<div class="aviso atencao">Motoristas marcados como "véspera" têm apresentação na noite anterior (voo de madrugada). Confirme o dia certo antes de incluir no envio.</div>';
+  document.getElementById('avisosRevisao').innerHTML = avisos;
+
+  let html = '';
+  escala.forEach(function(m, i) {
+    let chip = '<span class="chip ok">pronto</span>';
+    if (m.situacao === 'sem-cadastro') chip = '<span class="chip erro">sem cadastro</span>';
+    else if (m.situacao === 'sem-telefone') chip = '<span class="chip erro">sem telefone</span>';
+    if (m.vespera) chip += ' <span class="chip alerta">véspera</span>';
+    html += '<tr>' +
+      '<td id="celNome-' + i + '">' + m.nome + (m.substituto ? ' <span class="chip alerta">trocado</span>' : '') + '</td>' +
+      '<td><span class="horario">' + (m.horarioMin !== null ? hhmm(m.horarioMin) : '—') + '</span></td>' +
+      '<td class="mono">' + (m.telefone || '—') + '</td>' +
+      '<td>' + chip + '</td>' +
+      '<td><input type="checkbox" data-i="' + i + '" ' + (m.enviar ? 'checked' : '') +
+        (m.situacao !== 'ok' ? ' disabled' : '') + '></td>' +
+      '<td><button class="secundario" style="padding:5px 10px; font-size:13px;" onclick="trocarMotorista(' + i + ')">Trocar</button></td>' +
+      '</tr>';
+  });
+  document.getElementById('tabelaEscala').innerHTML = html;
+  document.querySelectorAll('#tabelaEscala input[type=checkbox]').forEach(function(cb) {
+    cb.addEventListener('change', function() { escala[parseInt(cb.dataset.i, 10)].enviar = cb.checked; });
+  });
+
+  document.getElementById('cartaoRevisao').style.display = 'block';
+  document.getElementById('cartaoEnvio').style.display = 'block';
+  atualizarPrevia();
+}
+
+function trocarMotorista(i) {
+  const cel = document.getElementById('celNome-' + i);
+  const nomes = Object.keys(motoristas).sort();
+  if (!nomes.length) { alert('Nenhum motorista cadastrado para substituir.'); return; }
+  let opcoes = '<option value="">— escolha o substituto —</option>';
+  nomes.forEach(function(n) { opcoes += '<option value="' + n + '">' + n + '</option>'; });
+  cel.innerHTML = '<select style="width:100%; padding:7px; border:1px solid var(--borda); border-radius:8px;" ' +
+    'onchange="confirmarTroca(' + i + ', this.value)">' + opcoes + '</select>';
+}
+function confirmarTroca(i, nome) {
+  if (!nome) { renderEscala(); return; }
+  const cad = motoristas[nome];
+  escala[i].nome = nome;
+  escala[i].telefone = cad.telefone || '';
+  escala[i].situacao = cad.telefone ? 'ok' : 'sem-telefone';
+  escala[i].enviar = !!cad.telefone && !escala[i].vespera;
+  escala[i].substituto = true;
+  renderEscala();
+}
+
+// ============================ ENVIO ============================
+function diaSemana(iso) {
+  const dias = ['DOMINGO','SEGUNDA','TERÇA','QUARTA','QUINTA','SEXTA','SÁBADO'];
+  const p = iso.split('-');
+  return dias[new Date(parseInt(p[0],10), parseInt(p[1],10)-1, parseInt(p[2],10)).getDay()];
+}
+function montarMensagem(m) {
+  const modelo = document.getElementById('modeloMensagem').value;
+  const iso = document.getElementById('dataEscala').value;
+  return modelo
+    .split('{nome}').join(primeiroNome(m.nome))
+    .split('{data}').join(dataBR(iso))
+    .split('{diasemana}').join(diaSemana(iso))
+    .split('{horario}').join(m.horarioMin !== null ? hhmm(m.horarioMin) : '');
+}
+function atualizarPrevia() {
+  const alvo = escala.find(function(m) { return m.enviar; }) || escala[0];
+  document.getElementById('previaMensagem').textContent = alvo ? montarMensagem(alvo) : '';
+}
+document.getElementById('modeloMensagem').addEventListener('input', atualizarPrevia);
+
+function pausa(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+document.getElementById('btnEnviar').addEventListener('click', async function() {
+  const inst = localStorage.getItem('zapiInstancia');
+  const token = localStorage.getItem('zapiToken');
+  const clientToken = localStorage.getItem('zapiClientToken');
+  if (!inst || !token) {
+    mostrarAviso('avisoImportacao', 'erro', 'Configure a Z-API na aba Configuração antes de enviar.');
+    return;
+  }
+  const fila = escala.filter(function(m) { return m.enviar && m.telefone; });
+  if (!fila.length) { alert('Nenhum motorista marcado para envio.'); return; }
+  if (!confirm('Enviar aviso de apresentação para ' + fila.length + ' motorista(s)?')) return;
+
+  const btn = document.getElementById('btnEnviar');
+  btn.disabled = true;
+  const barra = document.getElementById('barraProgresso');
+  barra.style.display = 'block';
+  const preenchimento = barra.querySelector('div');
+  const log = document.getElementById('logEnvio');
+  log.innerHTML = '';
+  let ok = 0, falha = 0;
+
+  for (let i = 0; i < fila.length; i++) {
+    const m = fila[i];
+    try {
+      const resp = await fetch('https://api.z-api.io/instances/' + inst + '/token/' + token + '/send-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken || '' },
+        body: JSON.stringify({ phone: m.telefone, message: montarMensagem(m) })
+      });
+      if (resp.ok) { ok++; log.innerHTML += '✅ ' + m.nome + ' (' + hhmm(m.horarioMin) + ')<br>'; }
+      else { falha++; log.innerHTML += '❌ ' + m.nome + ' — HTTP ' + resp.status + '<br>'; }
+    } catch (e) {
+      falha++; log.innerHTML += '❌ ' + m.nome + ' — ' + e.message + '<br>';
+    }
+    preenchimento.style.width = Math.round(((i + 1) / fila.length) * 100) + '%';
+    log.scrollTop = log.scrollHeight;
+    if (i < fila.length - 1) await pausa(3000 + Math.random() * 3000);
+  }
+  log.innerHTML += '<br><strong>Concluído: ' + ok + ' enviados, ' + falha + ' com falha.</strong>';
+  btn.disabled = false;
+});
+
+// ============================ CONFIG ============================
+document.getElementById('zapiInstancia').value = localStorage.getItem('zapiInstancia') || '';
+document.getElementById('zapiToken').value = localStorage.getItem('zapiToken') || '';
+document.getElementById('zapiClientToken').value = localStorage.getItem('zapiClientToken') || '';
+document.getElementById('btnSalvarZapi').addEventListener('click', function() {
+  localStorage.setItem('zapiInstancia', document.getElementById('zapiInstancia').value.trim());
+  localStorage.setItem('zapiToken', document.getElementById('zapiToken').value.trim());
+  localStorage.setItem('zapiClientToken', document.getElementById('zapiClientToken').value.trim());
+  mostrarAviso('avisoConfig', 'info', 'Dados da Z-API salvos neste navegador.');
+});
+
+// data padrão: amanhã
+(function() {
+  const amanha = new Date(Date.now() + 24 * 3600 * 1000);
+  document.getElementById('dataEscala').value = amanha.toISOString().slice(0, 10);
+})();
+carregarMotoristas();
+</script>
+</body>
+</html>
