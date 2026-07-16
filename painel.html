@@ -301,7 +301,7 @@ async function carregarAuditoria(){
 }
 
 function trocarAba(aba){
-  ['escala','passeios','relatorios','disp','senhas'].forEach((a,i)=>{
+  ['escala','passeios','relatorios','disp','senhas','reclamacoes'].forEach((a,i)=>{
     document.querySelectorAll('.tab')[i].classList.toggle('active',aba===a);
     document.getElementById('sec-'+a).classList.toggle('active',aba===a);
   });
@@ -309,6 +309,7 @@ function trocarAba(aba){
   if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();verificarPendentes();setTimeout(verificarRascunho,400);}
   if(aba==='disp')carregarDisp();
   if(aba==='passeios'){carregarPasseios();document.getElementById('passeio-filtro-data').value=amanha();}
+  if(aba==='reclamacoes'){carregarReclamacoes();verificarReclamacoesVencidas();}
 }
 
 // ===== ESCALA =====
@@ -3238,6 +3239,215 @@ async function confirmarReset(){
   }catch(e){alert('Erro: '+e.message)}finally{hideLoad()}
 }
 
+// ===== RECLAMAÇÕES =====
+const FONE_GESTORA_REC='5581999982889';
+let _recFotoB64='',_recAudioB64='',_recMediaRec=null,_recAudioChunks=[],_recAudioTimer=null,_recAudioSecs=0;
+
+function recFotoChange(input){
+  const file=input.files&&input.files[0];
+  if(!file){_recFotoB64='';document.getElementById('rec-foto-preview').innerHTML='';return}
+  const img=new Image();
+  const reader=new FileReader();
+  reader.onload=e=>{
+    img.onload=()=>{
+      const MAX=700;
+      let w=img.width,h=img.height;
+      if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX}else{w=Math.round(w*MAX/h);h=MAX}}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      _recFotoB64=cv.toDataURL('image/jpeg',0.55);
+      document.getElementById('rec-foto-preview').innerHTML='<img src="'+_recFotoB64+'" style="max-width:120px;max-height:90px;border-radius:6px;border:1px solid var(--border)"/> <button onclick="_recFotoB64=\'\';document.getElementById(\'rec-foto-preview\').innerHTML=\'\';document.getElementById(\'rec-foto\').value=\'\'" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:12px">✕ remover</button>';
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function recToggleGravacao(){
+  const btn=document.getElementById('rec-audio-btn');
+  if(_recMediaRec&&_recMediaRec.state==='recording'){_recMediaRec.stop();return}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    _recAudioChunks=[];_recAudioSecs=0;
+    const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':(MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/mp4');
+    _recMediaRec=new MediaRecorder(stream,{mimeType:mime,audioBitsPerSecond:32000});
+    _recMediaRec.ondataavailable=e=>{if(e.data.size>0)_recAudioChunks.push(e.data)};
+    _recMediaRec.onstop=()=>{
+      clearInterval(_recAudioTimer);
+      document.getElementById('rec-audio-timer').textContent='';
+      btn.textContent='🎙️ Gravar';btn.style.background='var(--surface)';btn.style.color='var(--text)';
+      stream.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(_recAudioChunks,{type:mime});
+      const fr=new FileReader();
+      fr.onload=ev=>{
+        _recAudioB64=ev.target.result;
+        document.getElementById('rec-audio-preview').innerHTML='<audio controls src="'+_recAudioB64+'" style="height:32px;max-width:230px"></audio> <button onclick="_recAudioB64=\'\';document.getElementById(\'rec-audio-preview\').innerHTML=\'\'" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:12px">✕ remover</button>';
+      };
+      fr.readAsDataURL(blob);
+    };
+    _recMediaRec.start();
+    btn.textContent='⏹️ Parar';btn.style.background='#c0392b';btn.style.color='#fff';
+    _recAudioTimer=setInterval(()=>{
+      _recAudioSecs++;
+      document.getElementById('rec-audio-timer').textContent=_recAudioSecs+'s / 60s';
+      if(_recAudioSecs>=60&&_recMediaRec&&_recMediaRec.state==='recording')_recMediaRec.stop();
+    },1000);
+  }catch(e){alert('Não foi possível acessar o microfone: '+e.message)}
+}
+
+function _recPopularSelect(){
+  const sel=document.getElementById('rec-guia');
+  if(!sel||sel.options.length>1)return;
+  const lista=(GUIAS&&GUIAS.length?GUIAS:GUIAS_FILA).slice().sort();
+  lista.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o)});
+}
+
+async function salvarReclamacao(){
+  const guia=document.getElementById('rec-guia').value;
+  const data=document.getElementById('rec-data').value;
+  const texto=document.getElementById('rec-texto').value.trim();
+  if(!guia){alert('Selecione o guia.');return}
+  if(!data){alert('Informe a data da ocorrência.');return}
+  if(!texto){alert('Descreva a reclamação.');return}
+  const tamanhoTotal=(texto.length+_recFotoB64.length+_recAudioB64.length);
+  if(tamanhoTotal>900000){alert('Anexos muito grandes. Reduza a foto ou grave um áudio mais curto.');return}
+  showLoad();
+  try{
+    await window._ad(window._col(window._db,'reclamacoes'),{
+      guia,dataOcorrencia:data,texto,
+      foto:_recFotoB64||'',audio:_recAudioB64||'',
+      criadoEm:new Date().toISOString(),
+      status:'pendente',resposta:'',respondidaEm:'',notificado48h:false
+    });
+    // Notifica o guia por WhatsApp
+    const fone=buscarFoneGuia(guia);
+    const dataFmt=new Date(data+'T12:00:00').toLocaleDateString('pt-BR');
+    if(fone){
+      try{
+        await enviarWhatsApp(fone,'📣 *LUCK RECEPTIVO — Reclamação registrada*\n\nOlá '+guia.split(' ')[0]+'! Foi registrada uma reclamação de passageiro referente ao dia *'+dataFmt+'*.\n\nAcesse o app, aba *📣 Reclamações*, leia os detalhes e envie sua resposta em até *2 dias*.\n\nhttps://centraldepasseios-design.github.io/relatorio-guias/');
+      }catch(e){console.log('WPP reclamação:',e.message)}
+    }
+    // Limpa formulário
+    document.getElementById('rec-guia').value='';
+    document.getElementById('rec-data').value='';
+    document.getElementById('rec-texto').value='';
+    document.getElementById('rec-foto').value='';
+    document.getElementById('rec-foto-preview').innerHTML='';
+    document.getElementById('rec-audio-preview').innerHTML='';
+    _recFotoB64='';_recAudioB64='';
+    hideLoad();
+    alert('✅ Reclamação registrada'+(fone?' e guia notificado por WhatsApp!':'! (guia sem número cadastrado — avise manualmente)'));
+    carregarReclamacoes();
+  }catch(e){hideLoad();alert('Erro ao salvar: '+e.message)}
+}
+
+async function carregarReclamacoes(){
+  _recPopularSelect();
+  const mesEl=document.getElementById('rec-filtro-mes');
+  if(!mesEl.value){
+    const hj=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
+    mesEl.value=hj.slice(0,7);
+  }
+  const mes=mesEl.value;
+  const filtStatus=document.getElementById('rec-filtro-status').value;
+  showLoad();
+  try{
+    const snap=await window._gds(window._col(window._db,'reclamacoes'));
+    let itens=snap.docs.map(d=>({id:d.id,...d.data()}));
+    itens=itens.filter(it=>(it.dataOcorrencia||'').startsWith(mes));
+    if(filtStatus)itens=itens.filter(it=>it.status===filtStatus);
+    itens.sort((a,b)=>(b.dataOcorrencia||'').localeCompare(a.dataOcorrencia||'')||(b.criadoEm||'').localeCompare(a.criadoEm||''));
+
+    // Ranking
+    const porGuia={};
+    itens.forEach(it=>{porGuia[it.guia]=(porGuia[it.guia]||0)+1});
+    const ranking=Object.entries(porGuia).sort((a,b)=>b[1]-a[1]);
+    const mesFmt=mes.split('-')[1]+'/'+mes.split('-')[0];
+    let rHtml='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px">';
+    rHtml+='<h4 style="margin:0 0 10px 0;font-size:13px">🏆 Ranking de reclamações — '+mesFmt+' ('+itens.length+' no total)</h4>';
+    if(!ranking.length){rHtml+='<div style="font-size:13px;color:var(--muted)">Nenhuma reclamação no período. 🎉</div>'}
+    else{
+      ranking.forEach(([g,n],i)=>{
+        const cor=i===0?'#c0392b':(i===1?'#e67e22':(i===2?'#f0a500':'var(--muted)'));
+        rHtml+='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span><strong style="color:'+cor+'">'+(i+1)+'º</strong> '+g+'</span><span style="background:#fde8e8;color:#c0392b;border-radius:99px;padding:2px 10px;font-size:11px;font-weight:600">'+n+' reclamaç'+(n>1?'ões':'ão')+'</span></div>';
+      });
+    }
+    rHtml+='</div>';
+    document.getElementById('rec-ranking').innerHTML=rHtml;
+
+    // Lista
+    let html='';
+    if(!itens.length){html='<div style="text-align:center;color:var(--muted);padding:2rem;font-size:13px">Nenhuma reclamação encontrada com esses filtros.</div>'}
+    itens.forEach(it=>{
+      const dataFmt=it.dataOcorrencia?new Date(it.dataOcorrencia+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+      const criadoFmt=it.criadoEm?new Date(it.criadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+      const pendente=it.status!=='respondida';
+      const diasPendente=pendente?Math.floor((Date.now()-new Date(it.criadoEm).getTime())/(24*60*60*1000)):0;
+      const badge=pendente
+        ?'<span style="background:'+(diasPendente>=2?'#fde8e8;color:#c0392b':'#faeeda;color:#854f0b')+';border-radius:99px;padding:3px 10px;font-size:11px;font-weight:600">⏳ Aguardando resposta'+(diasPendente>=2?' ('+diasPendente+' dias!)':'')+'</span>'
+        :'<span style="background:#e1f5ee;color:#0f6e56;border-radius:99px;padding:3px 10px;font-size:11px;font-weight:600">✅ Respondida</span>';
+      html+='<div style="background:var(--surface);border:1px solid '+(pendente&&diasPendente>=2?'#e74c3c':'var(--border)')+';border-radius:var(--radius);padding:14px 16px;margin-bottom:10px">';
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
+      html+='<span style="font-weight:600;font-size:14px">👤 '+it.guia+' <span style="font-weight:400;color:var(--muted);font-size:12px">· serviço de '+dataFmt+' · registrada em '+criadoFmt+'</span></span>';
+      html+='<div style="display:flex;gap:6px;align-items:center">'+badge+'<button onclick="apagarReclamacao(\''+it.id+'\')" title="Apagar" style="background:none;border:1px solid #fcc;border-radius:var(--rsm);padding:2px 8px;font-size:11px;cursor:pointer;color:#e74c3c">🗑️</button></div>';
+      html+='</div>';
+      html+='<div style="font-size:13px;background:var(--bg);border-radius:var(--rsm);padding:10px 12px;margin-bottom:8px">📣 '+it.texto+'</div>';
+      if(it.foto)html+='<div style="margin-bottom:8px"><img src="'+it.foto+'" style="max-width:180px;max-height:140px;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="this.style.maxWidth=this.style.maxWidth===\'100%\'?\'180px\':\'100%\';this.style.maxHeight=this.style.maxHeight===\'none\'?\'140px\':\'none\'" title="Clique para ampliar/reduzir"/></div>';
+      if(it.audio)html+='<div style="margin-bottom:8px"><audio controls src="'+it.audio+'" style="height:34px;max-width:280px"></audio></div>';
+      if(!pendente){
+        const respFmt=it.respondidaEm?new Date(it.respondidaEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+        html+='<div style="font-size:13px;background:#e1f5ee;border-radius:var(--rsm);padding:10px 12px;border:1px solid #b2dfdb">💬 <strong>Resposta do guia</strong> <span style="color:var(--muted);font-size:11px">('+respFmt+')</span>:<br>'+(it.resposta||'—')+'</div>';
+      }
+      html+='</div>';
+    });
+    document.getElementById('rec-lista').innerHTML=html;
+  }catch(e){alert('Erro ao carregar reclamações: '+e.message)}
+  finally{hideLoad()}
+}
+
+async function apagarReclamacao(id){
+  if(!confirm('Apagar esta reclamação? Esta ação não pode ser desfeita.'))return;
+  showLoad();
+  try{
+    await window._dd(window._doc(window._db,'reclamacoes',id));
+    carregarReclamacoes();
+  }catch(e){alert('Erro: '+e.message)}
+  finally{hideLoad()}
+}
+
+// Verifica reclamações pendentes há 2+ dias e notifica gestora + guia (uma única vez por reclamação)
+async function verificarReclamacoesVencidas(){
+  if(!window._fbReady)return;
+  try{
+    const snap=await window._gds(window._q(window._col(window._db,'reclamacoes'),window._w('status','==','pendente')));
+    const agora=Date.now();
+    const DOIS_DIAS=2*24*60*60*1000;
+    for(const d of snap.docs){
+      const it=d.data();
+      if(it.notificado48h)continue;
+      if(!it.criadoEm)continue;
+      if(agora-new Date(it.criadoEm).getTime()<DOIS_DIAS)continue;
+      const dataFmt=it.dataOcorrencia?new Date(it.dataOcorrencia+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+      // Notifica gestora
+      try{
+        await enviarWhatsApp(FONE_GESTORA_REC,'⚠️ *LUCK RECEPTIVO — Reclamação sem resposta*\n\nO guia *'+it.guia+'* ainda não respondeu a reclamação do serviço de *'+dataFmt+'* (registrada há mais de 2 dias).');
+      }catch(e){console.log('WPP gestora 48h:',e.message)}
+      // Notifica guia
+      const fone=buscarFoneGuia(it.guia);
+      if(fone){
+        try{
+          await enviarWhatsApp(fone,'⏰ *LUCK RECEPTIVO — Lembrete*\n\nOlá '+it.guia.split(' ')[0]+'! Você tem uma reclamação de passageiro do dia *'+dataFmt+'* aguardando sua resposta há mais de 2 dias.\n\nPor favor, acesse o app na aba *📣 Reclamações* e responda:\nhttps://centraldepasseios-design.github.io/relatorio-guias/');
+        }catch(e){console.log('WPP guia 48h:',e.message)}
+      }
+      // Marca como notificado para não repetir
+      await window._sd(window._doc(window._db,'reclamacoes',d.id),{notificado48h:true},{merge:true});
+    }
+  }catch(e){console.log('verificarReclamacoesVencidas:',e.message)}
+}
+
+// Roda a checagem de 48h automaticamente ao abrir o painel (após Firebase conectar)
+setTimeout(()=>{try{verificarReclamacoesVencidas()}catch(e){}},8000);
+
 </script>
   <script>emailjs.init("qnM1TCYejpDdTLaIh");</script>
 </head>
@@ -3271,6 +3481,7 @@ async function confirmarReset(){
     <button class="tab" onclick="trocarAba('relatorios')">📋 Relatórios</button>
     <button class="tab" onclick="trocarAba('disp')">👥 Disponibilidade</button>
     <button class="tab" onclick="trocarAba('senhas')">🔑 Senhas</button>
+    <button class="tab" onclick="trocarAba('reclamacoes')">📣 Reclamações</button>
   </div>
 
   <!-- ESCALA -->
@@ -3511,6 +3722,58 @@ async function confirmarReset(){
       <button onclick="corrigirCampoGuia()" style="padding:8px 16px;background:#8e44ad;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:8px">🚨 Corrigir campo guia (emergência)</button>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Remove acentos de todos os nomes de guias nas coleções escalas, relatórios, disponibilidades, confirmações e bloqueios.</div>
     </div>
+  </div>
+
+  <!-- RECLAMAÇÕES -->
+  <div id="sec-reclamacoes" class="section">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+      <h3 style="margin:0 0 12px 0;font-size:15px">📣 Registrar reclamação de passageiro</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label>Guia</label>
+          <select id="rec-guia"><option value="">— selecionar —</option></select>
+        </div>
+        <div><label>Data do serviço/ocorrência</label>
+          <input type="date" id="rec-data"/>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label>Reclamação do passageiro</label>
+        <textarea id="rec-texto" rows="4" placeholder="Descreva a reclamação feita pelo passageiro..." style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:var(--rsm);font-family:inherit;font-size:13px;resize:vertical"></textarea>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-start">
+        <div>
+          <label style="display:block;margin-bottom:4px">📷 Foto (opcional)</label>
+          <input type="file" id="rec-foto" accept="image/*" onchange="recFotoChange(this)" style="font-size:12px"/>
+          <div id="rec-foto-preview" style="margin-top:6px"></div>
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:4px">🎙️ Áudio (opcional, máx. 60s)</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button id="rec-audio-btn" onclick="recToggleGravacao()" style="padding:7px 14px;border-radius:99px;border:1px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer;font-family:inherit">🎙️ Gravar</button>
+            <span id="rec-audio-timer" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <div id="rec-audio-preview" style="margin-top:6px"></div>
+        </div>
+      </div>
+      <button onclick="salvarReclamacao()" style="padding:9px 20px;background:#c0392b;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-family:inherit;font-weight:600">💾 Salvar e notificar guia</button>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:4px">
+        <div><label>Período (mês)</label><input type="month" id="rec-filtro-mes"/></div>
+        <div><label>Status</label>
+          <select id="rec-filtro-status">
+            <option value="">Todos</option>
+            <option value="pendente">⏳ Aguardando resposta</option>
+            <option value="respondida">✅ Respondida</option>
+          </select>
+        </div>
+        <button onclick="carregarReclamacoes()" style="padding:9px 18px;background:var(--accent);color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-family:inherit">🔍 Buscar</button>
+      </div>
+    </div>
+
+    <div id="rec-ranking" style="margin-bottom:16px"></div>
+    <div id="rec-lista"></div>
   </div>
 </div>
 
