@@ -177,7 +177,6 @@
     <button class="tab" onclick="trocarAba('disp')">📆 Disponibilidade</button>
     <button class="tab" onclick="trocarAba('form')">📋 Relatório</button>
     <button class="tab" onclick="trocarAba('hist')">↩ Histórico</button>
-    <button class="tab" onclick="trocarAba('rec')" style="position:relative">📣 Reclamações<span id="rec-badge" style="display:none;position:absolute;top:2px;right:2px;background:#e74c3c;color:#fff;border-radius:99px;font-size:10px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px;font-weight:700"></span></button>
   </div>
 
   <!-- ESCALA DO DIA -->
@@ -236,11 +235,6 @@
       </div>
     </div>
     <div id="lista-relatorios"></div>
-  </div>
-
-  <!-- RECLAMAÇÕES -->
-  <div id="sec-rec" class="section">
-    <div id="rec-conteudo"></div>
   </div>
 </div>
 </div>
@@ -1370,15 +1364,13 @@ async function confirmarEscala(){
 }
 
 function trocarAba(aba){
-  const abas=['escala','disp','form','hist','rec'];
+  const abas=['escala','disp','form','hist'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',aba===abas[i]));
   abas.forEach(a=>document.getElementById('sec-'+a).classList.toggle('active',aba===a));
   if(aba==='hist')renderHistorico();
   if(aba==='escala')carregarEscalaHoje();
   if(aba==='disp')carregarDisponibilidade();
   if(aba==='form')carregarEscalaNoRelatorio();
-  if(aba==='rec')carregarMinhasReclamacoes();
-  atualizarBadgeReclamacoes();
 }
 
 // ---- RELATÓRIO ----
@@ -1788,90 +1780,6 @@ async function renderHistorico(){
     }).join('');
   }catch(e){document.getElementById('lista-relatorios').innerHTML='<p class="empty">Erro ao carregar.</p>';console.error(e)}finally{hideLoading()}
 }
-
-// ===== RECLAMAÇÕES (guia) =====
-async function carregarMinhasReclamacoes(){
-  if(!guiaAtual||!window._fbReady)return;
-  const cont=document.getElementById('rec-conteudo');
-  cont.innerHTML='<p style="text-align:center;color:var(--muted);font-size:13px;padding:1rem">Carregando...</p>';
-  try{
-    const snap=await window._getDocs(window._query(
-      window._collection(window._db,'reclamacoes'),
-      window._where('guia','==',guiaAtual)
-    ));
-    let itens=snap.docs.map(d=>({id:d.id,...d.data()}));
-    itens.sort((a,b)=>(b.criadoEm||'').localeCompare(a.criadoEm||''));
-    if(!itens.length){
-      cont.innerHTML='<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted)"><div style="font-size:36px;margin-bottom:8px">🎉</div><p style="font-size:14px;margin:0">Você não tem nenhuma reclamação registrada.</p></div>';
-      return;
-    }
-    let html='';
-    itens.forEach(it=>{
-      const dataFmt=it.dataOcorrencia?new Date(it.dataOcorrencia+'T12:00:00').toLocaleDateString('pt-BR'):'—';
-      const pendente=it.status!=='respondida';
-      html+='<div class="card" style="border:1.5px solid '+(pendente?'#e74c3c':'var(--border)')+';margin-bottom:12px">';
-      html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
-      html+='<span style="font-size:13px;font-weight:600">📣 Reclamação — serviço de '+dataFmt+'</span>';
-      html+=pendente
-        ?'<span style="background:#fde8e8;color:#c0392b;border-radius:99px;padding:3px 10px;font-size:11px;font-weight:600">⏳ Responder</span>'
-        :'<span style="background:#e1f5ee;color:#0f6e56;border-radius:99px;padding:3px 10px;font-size:11px;font-weight:600">✅ Respondida</span>';
-      html+='</div>';
-      html+='<div style="font-size:13px;background:var(--bg);border-radius:var(--rsm);padding:10px 12px;margin-bottom:8px;border:1px solid var(--border)">'+it.texto+'</div>';
-      if(it.foto)html+='<div style="margin-bottom:8px"><img src="'+it.foto+'" style="max-width:100%;border-radius:8px;border:1px solid var(--border)"/></div>';
-      if(it.audio)html+='<div style="margin-bottom:8px"><audio controls src="'+it.audio+'" style="width:100%;height:36px"></audio></div>';
-      if(pendente){
-        html+='<div style="margin-top:6px">';
-        html+='<label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">💬 Sua resposta / relato do ocorrido:</label>';
-        html+='<textarea id="rec-resp-'+it.id+'" rows="4" placeholder="Descreva sua versão do ocorrido..." style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:var(--rsm);font-family:inherit;font-size:13px;resize:vertical;background:var(--surface)"></textarea>';
-        html+='<button onclick="responderReclamacao(\''+it.id+'\')" style="margin-top:8px;width:100%;padding:11px;background:#0f6e56;color:#fff;border:none;border-radius:var(--rsm);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">📤 Enviar resposta</button>';
-        html+='</div>';
-      }else{
-        const respFmt=it.respondidaEm?new Date(it.respondidaEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-        html+='<div style="font-size:13px;background:#e1f5ee;border-radius:var(--rsm);padding:10px 12px;border:1px solid #b2dfdb">💬 <strong>Sua resposta</strong> <span style="color:var(--muted);font-size:11px">('+respFmt+')</span>:<br>'+(it.resposta||'—')+'</div>';
-      }
-      html+='</div>';
-    });
-    cont.innerHTML=html;
-  }catch(e){
-    cont.innerHTML='<p style="text-align:center;color:#c0392b;font-size:13px;padding:1rem">Erro ao carregar reclamações.</p>';
-    console.error(e);
-  }
-}
-
-async function responderReclamacao(id){
-  const ta=document.getElementById('rec-resp-'+id);
-  const resposta=(ta&&ta.value||'').trim();
-  if(!resposta){alert('Escreva sua resposta antes de enviar.');return}
-  if(!confirm('Enviar esta resposta? Ela ficará registrada e não poderá ser alterada.'))return;
-  showLoading&&showLoading();
-  try{
-    await window._setDoc(window._doc(window._db,'reclamacoes',id),{
-      resposta,status:'respondida',respondidaEm:new Date().toISOString()
-    },{merge:true});
-    alert('✅ Resposta enviada com sucesso!');
-    carregarMinhasReclamacoes();
-    atualizarBadgeReclamacoes();
-  }catch(e){alert('Erro ao enviar: '+e.message)}
-  finally{hideLoading&&hideLoading()}
-}
-
-async function atualizarBadgeReclamacoes(){
-  if(!guiaAtual||!window._fbReady)return;
-  try{
-    const snap=await window._getDocs(window._query(
-      window._collection(window._db,'reclamacoes'),
-      window._where('guia','==',guiaAtual),
-      window._where('status','==','pendente')
-    ));
-    const n=snap.docs.length;
-    const badge=document.getElementById('rec-badge');
-    if(!badge)return;
-    if(n>0){badge.textContent=n;badge.style.display='block'}
-    else{badge.style.display='none'}
-  }catch(e){console.log('badge rec:',e.message)}
-}
-// Atualiza badge após login automático
-setTimeout(()=>{try{atualizarBadgeReclamacoes()}catch(e){}},4000);
 </script>
 <!-- MODAL RECUSAR ESCALA -->
 <div class="loading-overlay" id="modal-recusar" style="display:none;z-index:200">
