@@ -1760,8 +1760,9 @@ async function enviarWppPasseio(grupo,silencioso){
     if(!fone){semFone.push(gu.nome);continue}
     const sufixo=gu.posicao===1?'1º carro':gu.posicao+'º carro';
     const idiomaLinha=gu.idioma?('\n🌍 Idioma: *'+(flagMap[gu.idioma]||'')+' '+gu.idioma+'*'):'';
+    const posicaoLinha=grupo.privativo?'':'\n📍 Posição: *'+sufixo+'*';
     const privLinha=grupo.privativo?'\n🔒 *Carro privativo* (exclusivo para o grupo)':'';
-    const msg='🏖️ *Passeio confirmado!*\n\nOlá '+gu.nome.split(' ')[0]+'! Você está confirmado no passeio de *'+grupo.destino+'* no dia *'+dataFmt+'*.\n\n📍 Posição: *'+sufixo+'*'+privLinha+idiomaLinha+'\n\nAguarde a escala com mais detalhes em breve. 🙏';
+    const msg='🏖️ *Passeio confirmado!*\n\nOlá '+gu.nome.split(' ')[0]+'! Você está confirmado no passeio de *'+grupo.destino+'* no dia *'+dataFmt+'*.\n'+posicaoLinha+privLinha+idiomaLinha+'\n\nAguarde a escala com mais detalhes em breve. 🙏';
     await enviarWhatsApp(fone,msg);
     enviados++;
   }
