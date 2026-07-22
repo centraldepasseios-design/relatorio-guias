@@ -1782,7 +1782,7 @@ async function enviarWppTodosPasseiosDia(data,base){
     const dd=d.data();
     const baseDoc=dd.base||'Porto';
     if(base&&baseDoc!==base)return;
-    const key=dd.inicio+'__'+baseDoc+'__'+dd.descricao;
+    const key=dd.inicio+'__'+baseDoc+'__'+dd.descricao+'__'+(dd.privativo?'priv':'reg');
     if(!grupos[key])grupos[key]={data:dd.inicio,destino:dd.descricao,base:baseDoc,privativo:!!dd.privativo,guias:[]};
     grupos[key].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||''});
   });
