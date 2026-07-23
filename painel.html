@@ -1996,11 +1996,22 @@ async function carregarDisp(){
     const dispEditadoEm={};
     const dispStatusAnterior={};
     const _normDisp=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
+    // Casa o nome do registro com a lista de guias: prioriza match EXATO e, no
+    // fallback aproximado, escolhe o candidato mais próximo em tamanho — evita
+    // que "BRUNO" seja atribuído a "BRUNO MICHELOTI" (ou FABIO a FABIO COZZI).
+    const _matchGuiaDisp=guiaN=>{
+      const exato=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN);
+      if(exato)return exato;
+      const cands=TODOS_GUIAS_DISP.filter(g=>{const gN=_normDisp(g);return gN.startsWith(guiaN)||guiaN.startsWith(gN);});
+      if(!cands.length)return null;
+      cands.sort((a,b)=>Math.abs(_normDisp(a).length-guiaN.length)-Math.abs(_normDisp(b).length-guiaN.length));
+      return cands[0];
+    };
     dispSnap.docs.forEach(d=>{
       const dd=d.data();
       // Salva tanto pelo nome original quanto pelo normalizado para garantir o match
       const guiaN=_normDisp(dd.guia);
-      const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN||_normDisp(g).startsWith(guiaN)||guiaN.startsWith(_normDisp(g)))||dd.guia;
+      const guiaKey=_matchGuiaDisp(guiaN)||dd.guia;
       dispMap[guiaKey]=dd.status;
       if(dd.obs)dispObs[guiaKey]=dd.obs;
       if(dd.editado){
