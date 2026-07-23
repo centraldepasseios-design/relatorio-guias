@@ -403,7 +403,7 @@ async function registrarPush(guia){
 }
 
 // Lista de nomes carregada do Firebase dinamicamente
-let TODOS_NOMES=["ADIANES","ADRIANE","ALBERTO","ALEX","ALICE","ALVARO","AMAURY","ANA FLAVIA","ANDRE","ANTONIO","ARLENE","ARLINDO","ARTHUR","BRENO","BRUNO MICHELOTI","BRUNO","CAMILA","CAMILLA","CARLA","CARLOS M","CHICO DINIZ","CHICO LIMA","DANIEL","DEYVISON","DRIELLY","EDMILTON","EDSON","ELISIO","ENEZIANE","ERLON","EUGENIO","EVILAZIO","FABIO GOMES","FABIO COZZI","FELIPE","FRANCA","FRANCINALDO","FREITAS","GEORGE","GERARDO","GESSYCA","GIL","GLORINHA","GONCALVES","GUILHERME","HENRIQUE FARIAS","HENRIQUE JR","HUGO","HUMBERTO","IANNE","ISADORA","JACIANE","JOEL","JOELMA","JUAN","JULIANA","JUNIOR","KATARINA","LIDIANE","LUCIA V","LUCIENE","LUIZ CARLOS","LUIZ FELIPE","MADALENA","MADSON","MARCOS F","MARILANDE","MATHEUS","NATALIA","NEIDE","OLIVEIRA","POLLY","RAFAEL","RAISSA","REBECA","RENATINHA","RODRIGO","RUTH","SANTIAGO","SERGIO","SIDNEI","TALES","TATIANA","TAVARES","TOM","VALTER","VITOR","WIRON","XIMENES","ZENA"];
+let TODOS_NOMES=["ADIANES","ADRIANE","ALBERTO","ALEX","ALICE","ALVARO","AMAURY","ANA FLAVIA","ANDRE","ANTONIO","ARLENE","ARLINDO","ARTHUR","BRENO","BRUNO MICHELOTI","BRUNO","CAMILA","CAMILLA","CARLA","CARLOS M","CHICO DINIZ","CHICO LIMA","DANIEL","DEYVISON","DRIELLY","EDMILTON","EDSON","ELISIO","ENEZIANE","ERLON","EUGENIO","EVILAZIO","FABIO GOMES","FABIO COZZI","FELIPE","FRANCA","FRANCINALDO","FREITAS","GEORGE","GERARDO","GESSYCA","GIL","GLORINHA","GONCALVES","GUILHERME","HENRIQUE FARIAS","HENRIQUE JR","HUGO","HUMBERTO","IANNE","ISADORA","JACIANE","JOEL","JOELMA","JUAN","JULIANA","JUNIOR","KATARINA","LIDIANE","LUCIA V","LUCIENE","LUIZ CARLOS","LUIZ FELIPE","MADALENA","MADSON","MARCOS F","MARILANDE","MATHEUS","NATALIA","NEIDE","OLIVEIRA","POLLY","RAFAEL","RAISSA","REBECA","RENATINHA","RODRIGO","RUTH","SANTIAGO","SERGIO","SIDNEI","TALES","TATIANA","TAVARES","TOM","VALTER","VITOR","WIRON","XIMENES","ZENA"].sort();
 async function carregarNomesFirebase(){
   try{
     let t=0;
@@ -439,9 +439,16 @@ function selecionarNome(nome){
 }
 
 function selecionarPrimeiro(){
-  const busca=document.getElementById('login-busca-nome').value.toUpperCase();
-  const filtrado=TODOS_NOMES.find(n=>n.includes(busca));
-  if(filtrado)selecionarNome(filtrado);
+  const busca=document.getElementById('login-busca-nome').value.toUpperCase().trim();
+  if(!busca)return;
+  // Prioriza match EXATO; senão escolhe o nome mais curto entre os candidatos
+  // (evita que "BRUNO" acabe selecionando "BRUNO MICHELOTI")
+  const exato=TODOS_NOMES.find(n=>n===busca);
+  if(exato){selecionarNome(exato);return}
+  const candidatos=TODOS_NOMES.filter(n=>n.includes(busca));
+  if(!candidatos.length)return;
+  candidatos.sort((a,b)=>a.length-b.length);
+  selecionarNome(candidatos[0]);
 }
 
 // Fecha dropdown ao clicar fora
