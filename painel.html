@@ -1627,6 +1627,7 @@ async function carregarPasseios(){
       html+='<div style="display:flex;gap:6px">';
       html+='<button data-date="'+data+'" data-base="Porto" onclick="enviarWppTodosPasseiosDia(this.dataset.date,this.dataset.base)" style="padding:6px 14px;background:#1a6b9a;color:#fff;border:none;border-radius:99px;font-size:12px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px">🌴 Enviar Porto</button>';
       html+='<button data-date="'+data+'" data-base="Recife" onclick="enviarWppTodosPasseiosDia(this.dataset.date,this.dataset.base)" style="padding:6px 14px;background:#1a6b40;color:#fff;border:none;border-radius:99px;font-size:12px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px">🐟 Enviar Recife</button>';
+      html+='<button data-date="'+data+'" onclick="enviarResumoPortoContato(this.dataset.date)" style="padding:6px 14px;background:#8e44ad;color:#fff;border:none;border-radius:99px;font-size:12px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px">📋 Resumo Porto</button>';
       html+='</div>';
       html+='</div>';
 
@@ -1802,6 +1803,52 @@ async function enviarWppTodosPasseiosDia(data,base){
 
 async function reenviarWppPasseioGuia(grupo){
   await enviarWppPasseio(grupo);
+}
+
+// Envia um RESUMO dos passeios da base Porto (guias por destino, ordem de posição no carro)
+// para um contato fixo específico
+const FONE_RESUMO_PORTO='5581999481525';
+async function enviarResumoPortoContato(data){
+  const snap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio'),window._w('inicio','==',data)));
+  if(!snap.docs.length){alert('Nenhum passeio nesta data.');return}
+  // Agrupa só a base Porto por destino (+privativo), guias ordenados por posição
+  const grupos={};
+  snap.docs.forEach(d=>{
+    const dd=d.data();
+    if((dd.base||'Porto')!=='Porto')return;
+    const key=dd.descricao+'__'+(dd.privativo?'priv':'reg');
+    if(!grupos[key])grupos[key]={destino:dd.descricao,privativo:!!dd.privativo,guias:[]};
+    grupos[key].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||''});
+  });
+  const chaves=Object.keys(grupos);
+  if(!chaves.length){alert('Nenhum passeio de Porto nesta data.');return}
+  // Ordena destinos alfabeticamente para uma leitura estável
+  chaves.sort((a,b)=>grupos[a].destino.localeCompare(grupos[b].destino));
+
+  const dataFmt=new Date(data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+  let totalGuias=0;
+  let corpo='';
+  chaves.forEach(k=>{
+    const g=grupos[k];
+    const guias=g.guias.slice().sort((a,b)=>a.posicao-b.posicao);
+    corpo+='\n🏖️ *'+g.destino+'*'+(g.privativo?' 🔒 (privativo)':'')+'\n';
+    guias.forEach(gu=>{
+      totalGuias++;
+      const pos=g.privativo?'•':(gu.posicao+'º');
+      const idi=gu.idioma?(' — '+gu.idioma):'';
+      corpo+=pos+' '+gu.nome+idi+'\n';
+    });
+  });
+
+  const msg='📋 *RESUMO PASSEIOS — PORTO*\n📅 '+dataFmt+'\n👥 Total: '+totalGuias+' guia'+(totalGuias>1?'s':'')+'\n'+corpo;
+
+  if(!confirm('Enviar resumo dos passeios de Porto ('+totalGuias+' guias) para o contato fixo?'))return;
+  showLoad();
+  try{
+    await enviarWhatsApp(FONE_RESUMO_PORTO,msg);
+    hideLoad();
+    alert('✅ Resumo Porto enviado!');
+  }catch(e){hideLoad();alert('Erro ao enviar: '+e.message)}
 }
 
 let _editPasseioItem=null;
