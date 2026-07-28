@@ -44,6 +44,8 @@
   .date-bar input[type=date]{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--rsm);font-size:14px;background:#fff;cursor:pointer}
   .btn-buscar{padding:8px 20px;background:var(--primary);color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-weight:600;cursor:pointer}
   .btn-buscar:hover{background:#155a84}
+  .btn-modo{padding:6px 14px;background:transparent;color:#8a9bb0;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+  .btn-modo.ativo{background:var(--primary);color:#fff}
 
   /* CARDS RESUMO */
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
@@ -154,8 +156,20 @@
 
   <div class="container">
     <div class="date-bar">
-      <label>📅 Data</label>
-      <input type="date" id="data-sel"/>
+      <div style="display:flex;gap:4px;background:rgba(255,255,255,0.06);padding:3px;border-radius:8px">
+        <button id="modo-dia-btn" class="btn-modo ativo" onclick="setModo('dia')">📅 Dia</button>
+        <button id="modo-periodo-btn" class="btn-modo" onclick="setModo('periodo')">🗓️ Período</button>
+      </div>
+      <div id="campo-dia" style="display:flex;gap:8px;align-items:center">
+        <label>Data</label>
+        <input type="date" id="data-sel"/>
+      </div>
+      <div id="campo-periodo" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
+        <label>De</label>
+        <input type="date" id="data-ini"/>
+        <label>até</label>
+        <input type="date" id="data-fim"/>
+      </div>
       <button class="btn-buscar" onclick="carregar()">🔍 Ver desempenho</button>
     </div>
 
@@ -390,30 +404,79 @@ async function carregarMetaMes(dataRef){
   }catch(e){console.warn('Erro meta:',e);}
 }
 
+let _modoAtual='dia';
+function setModo(modo){
+  _modoAtual=modo;
+  document.getElementById('modo-dia-btn').classList.toggle('ativo',modo==='dia');
+  document.getElementById('modo-periodo-btn').classList.toggle('ativo',modo==='periodo');
+  document.getElementById('campo-dia').style.display=modo==='dia'?'flex':'none';
+  document.getElementById('campo-periodo').style.display=modo==='periodo'?'flex':'none';
+  // Ao entrar no modo período, pré-preenche com o mês corrente até hoje
+  if(modo==='periodo'&&!document.getElementById('data-ini').value){
+    const hj=hoje();
+    document.getElementById('data-ini').value=hj.slice(0,8)+'01';
+    document.getElementById('data-fim').value=hj;
+  }
+}
+// Lista todas as datas (YYYY-MM-DD) entre ini e fim, inclusive
+function _datasDoIntervalo(ini,fim){
+  const out=[];
+  let d=new Date(ini+'T12:00:00');
+  const f=new Date(fim+'T12:00:00');
+  while(d<=f){out.push(d.toLocaleDateString('sv-SE'));d.setDate(d.getDate()+1);}
+  return out;
+}
+
 async function carregar(){
   if(!window._fbReady){setTimeout(carregar,300);return;}
-  const data=document.getElementById('data-sel').value;
-  if(!data)return;
+  // Determina datas conforme o modo (dia único ou período)
+  let data,dataIni,dataFim,ehPeriodo=false;
+  if(_modoAtual==='periodo'){
+    dataIni=document.getElementById('data-ini').value;
+    dataFim=document.getElementById('data-fim').value;
+    if(!dataIni||!dataFim){alert('Selecione as duas datas do período.');return;}
+    if(dataIni>dataFim){const t=dataIni;dataIni=dataFim;dataFim=t;}
+    ehPeriodo=true;
+    data=dataFim; // referência para a meta do mês
+  }else{
+    data=document.getElementById('data-sel').value;
+    if(!data)return;
+  }
   showLoad();
   carregarMetaMes(data);
   document.getElementById('conteudo').style.display='none';
   document.getElementById('sem-dados').style.display='none';
 
   try{
-    // Busca relatrios do dia
-    const snap=await window._gds(window._q(window._col(window._db,'relatorios'),window._where('data','==',data)));
-    const docs=snap.docs.map(d=>d.data());
-
-    // Tambm busca escalas do dia para saber quem trabalhou
-    const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._where('data','==',data)));
-    const guiasNaDia=new Set(escSnap.docs.map(d=>d.data().guia).filter(Boolean));
+    // Busca relatórios (dia único ou intervalo)
+    let docs=[],guiasNaDia=new Set(),guiasEmPasseioArr=[];
+    if(ehPeriodo){
+      const relSnap=await window._gds(window._q(window._col(window._db,'relatorios'),window._where('data','>=',dataIni),window._where('data','<=',dataFim)));
+      docs=relSnap.docs.map(d=>d.data());
+      const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._where('data','>=',dataIni),window._where('data','<=',dataFim)));
+      escSnap.docs.map(d=>d.data().guia).filter(Boolean).forEach(g=>guiasNaDia.add(g));
+      let passSnap;
+      try{
+        passSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._where('tipo','==','passeio'),window._where('inicio','>=',dataIni),window._where('inicio','<=',dataFim)));
+        guiasEmPasseioArr=passSnap.docs.map(d=>d.data().guia).filter(Boolean);
+      }catch(err){
+        // Índice composto ausente — busca só por range e filtra tipo no cliente
+        passSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._where('inicio','>=',dataIni),window._where('inicio','<=',dataFim)));
+        guiasEmPasseioArr=passSnap.docs.map(d=>d.data()).filter(x=>x.tipo==='passeio').map(x=>x.guia).filter(Boolean);
+      }
+    }else{
+      const snap=await window._gds(window._q(window._col(window._db,'relatorios'),window._where('data','==',data)));
+      docs=snap.docs.map(d=>d.data());
+      const escSnap=await window._gds(window._q(window._col(window._db,'escalas'),window._where('data','==',data)));
+      escSnap.docs.map(d=>d.data().guia).filter(Boolean).forEach(g=>guiasNaDia.add(g));
+    }
 
     if(docs.length===0&&guiasNaDia.size===0){
       document.getElementById('sem-dados').style.display='block';
       hideLoad();return;
     }
 
-    // Agrega por guia
+    // Agrega por guia (soma acumulada no período)
     const porGuia={};
     docs.forEach(rel=>{
       const g=rel.guia;if(!g)return;
@@ -431,9 +494,12 @@ async function carregar(){
       });
     });
 
-    // Busca quem estava em passeio no dia (bloqueios tipo passeio)
-    const passSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._where('inicio','==',data),window._where('tipo','==','passeio')));
-    const guiasEmPasseio=new Set(passSnap.docs.map(d=>d.data().guia).filter(Boolean));
+    // Busca quem estava em passeio (dia único carrega aqui; período já carregou acima)
+    if(!ehPeriodo){
+      const passSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._where('inicio','==',data),window._where('tipo','==','passeio')));
+      guiasEmPasseioArr=passSnap.docs.map(d=>d.data().guia).filter(Boolean);
+    }
+    const guiasEmPasseio=new Set(guiasEmPasseioArr);
 
     // Adiciona guias que trabalharam mas nao enviaram relatorio
     guiasNaDia.forEach(g=>{
@@ -453,7 +519,7 @@ async function carregar(){
 
     // CARDS
     document.getElementById('cards-grid').innerHTML=`
-      <div class="card azul"><div class="num">${totalGuias}</div><div class="lbl">Guias no dia</div></div>
+      <div class="card azul"><div class="num">${totalGuias}</div><div class="lbl">Guias no ${ehPeriodo?'período':'dia'}</div></div>
       <div class="card verde"><div class="num">${comVenda.length}</div><div class="lbl">Venderam</div></div>
       <div class="card vermelho"><div class="num">${semVenda.length}</div><div class="lbl">Não venderam</div></div>
       <div class="card laranja"><div class="num">${fmtBRL(totalVendas)}</div><div class="lbl">Faturamento total${totalPosVenda>0?' <span style=\"font-size:10px;display:block;color:#e67e22\">(inc. Pós Venda)</span>':''}</div></div>
@@ -462,7 +528,7 @@ async function carregar(){
     `;
 
     // PIZZA
-    document.getElementById('pizza-data').textContent=fmtData(data);
+    document.getElementById('pizza-data').textContent=ehPeriodo?(fmtData(dataIni)+' a '+fmtData(dataFim)):fmtData(data);
     const guiasValidos=comVenda.length+semVenda.length;
     const pctVendeu=guiasValidos>0?Math.round(comVenda.length/guiasValidos*100):0;
     const pctNao=100-pctVendeu;
