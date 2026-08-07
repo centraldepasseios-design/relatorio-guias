@@ -302,7 +302,7 @@ function entrar(){
     localStorage.setItem('luck_diretora','1');
     document.getElementById('login-wrap').style.display='none';
     document.getElementById('painel').style.display='block';
-    document.getElementById('data-sel').value=hoje();
+    document.getElementById('data-sel').value=dataInicial();
     carregar();
   } else {
     document.getElementById('login-erro').style.display='block';
@@ -317,6 +317,12 @@ function showLoad(){document.getElementById('loading').style.display='flex';}
 function hideLoad(){document.getElementById('loading').style.display='none';}
 
 function fmtBRL(v){return'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+// Lê ?data=AAAA-MM-DD da URL (usado no link do resumo automático); senão, hoje
+function dataInicial(){
+  const p=new URLSearchParams(location.search).get('data');
+  if(p&&/^\d{4}-\d{2}-\d{2}$/.test(p))return p;
+  return hoje();
+}
 function fmtData(d){
   if(!d)return'';
   const dt=new Date(d+'T12:00:00');
@@ -594,7 +600,7 @@ window.addEventListener('load',()=>{
   if(localStorage.getItem('luck_diretora')==='1'){
     document.getElementById('login-wrap').style.display='none';
     document.getElementById('painel').style.display='block';
-    document.getElementById('data-sel').value=hoje();
+    document.getElementById('data-sel').value=dataInicial();
     document.getElementById('meta-valor-display').textContent=fmtBRL(getMeta());
     setTimeout(carregar,500);
   }
