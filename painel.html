@@ -988,10 +988,10 @@ function aplicarFiltros(){
       det='<span style="background:#e1f5ee;color:#0f6e56;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:500">💰 Pós Venda</span>'+(it.rec?' · REC: <strong>'+it.rec+'</strong>':'')+' · R$<strong>'+((it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2}))+'</strong>';
     } else if(it.noshow_escala){
       det=`<span style="background:#fde8e8;color:#c0392b;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:500">🚫 No-show de escala</span>${it.motivo_noshow?' — '+it.motivo_noshow:''}`;
-    } else if(it.servico&&it.servico.startsWith('chegada'))det=`Voo: <strong>${it.voo||'—'}</strong> · Pax: <strong>${it.pax??0}</strong>${it.chd?` · Chd: <strong>${it.chd}</strong>`:''} · Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>${it.noshow_obs?` <span style="color:var(--muted);font-size:12px">— ${it.noshow_obs}</span>`:''}`;
-    else if(it.servico&&it.servico.startsWith('saida'))det=`No-show: <strong>${it.noshow??0} pax</strong>`;
+    } else if(it.servico&&it.servico.startsWith('chegada'))det=`Voo: <strong>${it.voo||'—'}</strong> · Pax: <strong>${it.pax??0}</strong>${it.chd?` · Chd: <strong>${it.chd}</strong>`:''} · Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>${it.noshow_obs?` <span style="color:var(--muted);font-size:12px">— ${it.noshow_obs}</span>`:''}${it.recIdioma?` · <span style="background:#e8f4fd;color:#185fa5;padding:1px 8px;border-radius:99px;font-size:11px">🌍 REC ${it.recIdioma}</span>`:''}`;
+    else if(it.servico&&it.servico.startsWith('saida'))det=`No-show: <strong>${it.noshow??0} pax</strong>${it.recIdioma?` · <span style="background:#e8f4fd;color:#185fa5;padding:1px 8px;border-radius:99px;font-size:11px">🌍 REC ${it.recIdioma}</span>`:''}`;
     else det=`Vendas: <strong>R$${(it.vendas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong> · No-show: <strong>${it.noshow??0}</strong>`;
-    return`<tr><td>${dt}${editBadge}</td><td><strong>${r.guia}</strong><br><small style="color:var(--muted)">🚐 ${r.motorista}</small></td><td><span class="badge ${BADGE[it.servico]||''}">${LBLS[it.servico]||it.servico}</span></td><td>${det}${it.obs?`<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;white-space:pre-line">📝 ${it.obs}</div>`:''}</td></tr>`;
+    return`<tr><td>${dt}${editBadge}</td><td><strong>${r.guia}</strong><br><small style="color:var(--muted)">🚐 ${it.motorista||r.motorista||'—'}</small></td><td><span class="badge ${BADGE[it.servico]||''}">${LBLS[it.servico]||it.servico}</span></td><td>${det}${it.obs?`<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;white-space:pre-line">📝 ${it.obs}</div>`:''}</td></tr>`;
   }).join('');
   document.getElementById('tabela-wrap').innerHTML=`<table><thead><tr><th>Data</th><th>Guia/Motorista</th><th>Serviço</th><th>Detalhes</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -1350,7 +1350,7 @@ async function resumoPorGuia(){
         else if(it.servico&&it.servico.startsWith('apoio')){g.apoios++;g.vendas+=(it.vendas||0)}
         else if(it.servico==='trf'){g.trfs++;g.vendas+=(it.vendas||0)}
       });
-      g.detalhesDias.push({data:r.data,motorista:r.motorista,itens:r.itens});
+      g.detalhesDias.push({data:r.data,motorista:r.motorista,itens:r.itens.map(it=>({...it,motorista:it.motorista||r.motorista}))});
     });
 
     hideLoad();
