@@ -1373,36 +1373,56 @@ function togglePasseioForm(){
   f.style.display=show?'block':'none';
   if(show){
     document.getElementById('passeio-data').value=amanha();
-    document.getElementById('passeio-busca').value='';
-    document.getElementById('passeio-nome-sel').value='';
-    document.getElementById('passeio-nome').value='';
-    document.getElementById('passeio-nome').style.display='none';
-    window._passeioSelecionados=[];
-    renderGuiasPasseio('');
-    document.getElementById('passeio-ordem-wrap').style.display='none';
-    document.getElementById('passeio-ordem-lista').innerHTML='';
+    limparFormPasseio();
+    window._passeioStaging=window._passeioStaging||[];
+    renderStagingPasseios();
     carregarPasseios();
   }
 }
 
-// Guarda selecionados globalmente para persistir entre filtros
+// Guarda selecionados e idiomas globalmente para persistir entre filtros
 window._passeioSelecionados=[];
+window._passeioIdiomas={};
+window._passeioStaging=window._passeioStaging||[];
 
 function renderGuiasPasseio(filtro){
   const wrap=document.getElementById('passeio-guias-wrap');
   const f=filtro.toUpperCase().trim();
-  if(!f&&!window._passeioSelecionados.length){
+  renderSelResumoPasseio();
+  if(!f){
     wrap.innerHTML='<span style="font-size:12px;color:var(--muted)">Digite o nome do guia para buscar...</span>';
     return;
   }
-  // Mostra selecionados sempre + resultado da busca
-  const porBusca=f?GUIAS.filter(g=>g.includes(f)&&!window._passeioSelecionados.includes(g)):[];
-  const lista=[...window._passeioSelecionados,...porBusca];
-  wrap.innerHTML=lista.map(g=>{
-    const sel=window._passeioSelecionados.includes(g);
-    return'<label style="display:flex;align-items:center;gap:5px;font-size:13px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:99px;cursor:pointer'+(sel?';outline:2px solid #e67e22;background:#fff8f0':'')+'">'
-    +'<input type="checkbox" value="'+g+'" '+(sel?'checked':'')+' onchange="onCheckPasseio(this)" style="cursor:pointer"/> '+g+'</label>';
+  const porBusca=GUIAS.filter(g=>g.includes(f)).sort();
+  const porLetra={};
+  porBusca.forEach(g=>{const l=g[0];if(!porLetra[l])porLetra[l]=[];porLetra[l].push(g);});
+  const letras=Object.keys(porLetra).sort();
+  if(!letras.length){wrap.innerHTML='<span style="font-size:12px;color:var(--muted)">Nenhum guia encontrado.</span>';return}
+  wrap.innerHTML=letras.map(l=>{
+    const chips=porLetra[l].map(g=>{
+      const sel=window._passeioSelecionados.includes(g);
+      return '<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;padding:5px 9px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:nowrap'+(sel?';outline:2px solid #e67e22;background:#fff8f0;border-color:#e67e22':'')+'">'
+      +'<input type="checkbox" value="'+g+'" '+(sel?'checked':'')+' onchange="onCheckPasseio(this)" style="cursor:pointer"/> '+g+'</label>';
+    }).join('');
+    return '<div style="margin-bottom:8px"><div style="font-size:10.5px;font-weight:700;color:var(--hint);margin-bottom:4px;letter-spacing:.5px">'+l+'</div><div style="display:flex;flex-wrap:wrap;gap:5px">'+chips+'</div></div>';
   }).join('');
+}
+
+function renderSelResumoPasseio(){
+  const el=document.getElementById('passeio-sel-resumo');
+  if(!el)return;
+  if(!window._passeioSelecionados.length){el.innerHTML='';return}
+  el.innerHTML=window._passeioSelecionados.map(g=>
+    '<div style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:4px 6px 4px 10px;background:#fff8f0;border:1.5px solid #e67e22;border-radius:99px;color:#a8551a">'+g
+    +'<span onclick="removerSelPasseio(\''+g+'\')" style="cursor:pointer;color:#e67e22;font-weight:700;padding:0 3px">✕</span></div>'
+  ).join('');
+}
+
+function removerSelPasseio(g){
+  window._passeioSelecionados=window._passeioSelecionados.filter(x=>x!==g);
+  delete window._passeioIdiomas[g];
+  renderGuiasPasseio(document.getElementById('passeio-busca').value);
+  atualizarOrdemPasseio();
 }
 
 function onCheckPasseio(cb){
@@ -1410,6 +1430,7 @@ function onCheckPasseio(cb){
     if(!window._passeioSelecionados.includes(cb.value))window._passeioSelecionados.push(cb.value);
   } else {
     window._passeioSelecionados=window._passeioSelecionados.filter(g=>g!==cb.value);
+    delete window._passeioIdiomas[cb.value];
   }
   renderGuiasPasseio(document.getElementById('passeio-busca').value);
   atualizarOrdemPasseio();
@@ -1422,8 +1443,14 @@ function onDestinoChange(){
   else{inp.style.display='none';inp.value=sel;}
 }
 
-function onPrivativoChange(){
-  // No visual change needed — just affects the saved name
+function onModoPasseioChange(qual){
+  const priv=document.getElementById('passeio-privativo');
+  const moto=document.getElementById('passeio-motoguia');
+  if(qual==='priv'&&priv.checked)moto.checked=false;
+  if(qual==='moto'&&moto.checked)priv.checked=false;
+  document.getElementById('lbl-passeio-priv').style.cssText=priv.checked?'display:flex;align-items:center;gap:7px;cursor:pointer;margin:0;font-weight:600;font-size:13px;padding:7px 12px;border-radius:99px;border:1.5px solid #7f8c8d;background:#f2f3f3;color:#4a5556':'display:flex;align-items:center;gap:7px;cursor:pointer;margin:0;font-weight:600;font-size:13px;padding:7px 12px;border-radius:99px;border:1.5px solid var(--border)';
+  document.getElementById('lbl-passeio-moto').style.cssText=moto.checked?'display:flex;align-items:center;gap:7px;cursor:pointer;margin:0;font-weight:600;font-size:13px;padding:7px 12px;border-radius:99px;border:1.5px solid #8e44ad;background:#f6eefa;color:#6c2f85':'display:flex;align-items:center;gap:7px;cursor:pointer;margin:0;font-weight:600;font-size:13px;padding:7px 12px;border-radius:99px;border:1.5px solid var(--border)';
+  atualizarOrdemPasseio();
 }
 
 function getDestinoPasseio(){
@@ -1443,28 +1470,27 @@ function atualizarOrdemPasseio(){
   const lista=document.getElementById('passeio-ordem-lista');
   if(!selecionados.length){wrap.style.display='none';return}
   wrap.style.display='block';
-  // Mantém ordem existente, adiciona novos no final, remove desmarcados
   const atual=[...lista.querySelectorAll('.ordem-item')].map(el=>el.dataset.guia);
   const mantidos=atual.filter(g=>selecionados.includes(g));
   const novos=selecionados.filter(g=>!mantidos.includes(g));
   const ordemFinal=[...mantidos,...novos];
-  // Preserva idiomas já selecionados antes de recriar
-  // Preserva idiomas antes de recriar
-  const idiomasAtuais={};
   lista.querySelectorAll('.ordem-item').forEach(el=>{
     const sel=el.querySelector('select');
-    if(sel)idiomasAtuais[el.dataset.guia]=sel.value;
+    if(sel)window._passeioIdiomas[el.dataset.guia]=sel.value;
   });
-    const priv=document.getElementById('passeio-privativo')&&document.getElementById('passeio-privativo').checked;
+  const priv=document.getElementById('passeio-privativo')&&document.getElementById('passeio-privativo').checked;
+  const moto=document.getElementById('passeio-motoguia')&&document.getElementById('passeio-motoguia').checked;
+  const modo=priv||moto;
   lista.innerHTML=ordemFinal.map((g,i)=>{
-    const ia=idiomasAtuais[g]||'';
-    const numBadge=priv
-      ?'<span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:600;flex-shrink:0">Privativo</span>'
-      :'<span style="background:#e67e22;color:#fff;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</span>';
-    const dragHandle=priv?'':'<span style="color:var(--muted);font-size:16px;cursor:grab;padding:0 2px" title="Arrastar para reordenar">&#8942;&#8942;</span>';
-    return '<div class="ordem-item" data-guia="'+g+'" draggable="'+(priv?'false':'true')+'" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);cursor:'+(priv?'default':'grab')+'">'    +dragHandle    +numBadge    +'<span style="flex:1;font-size:13px;font-weight:500">'+g+'</span>'    +'<select onchange="void(0)" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff">'    +'<option value=""'+(ia===''?' selected':'')+'>🌍 PT</option>'    +'<option value="Espanhol"'+(ia==='Espanhol'?' selected':'')+'>🇪🇸 ES</option>'    +'<option value="Bilíngue"'+(ia==='Bilíngue'?' selected':'')+'>🇧🇷🇪🇸 Bil</option>'    +'<option value="Inglês"'+(ia==='Inglês'?' selected':'')+'>🇺🇸 EN</option>'    +'<option value="Francês"'+(ia==='Francês'?' selected':'')+'>🇫🇷 FR</option>'    +'</select>'    +'</div>';
+    const ia=window._passeioIdiomas[g]||'';
+    let numBadge;
+    if(priv)numBadge='<span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:600;flex-shrink:0">Privativo</span>';
+    else if(moto)numBadge='<span style="background:#8e44ad;color:#fff;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:600;flex-shrink:0">🚗 Motoguia</span>';
+    else numBadge='<span style="background:#e67e22;color:#fff;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</span>';
+    const dragHandle=modo?'':'<span style="color:var(--muted);font-size:16px;cursor:grab;padding:0 2px" title="Arrastar para reordenar">&#8942;&#8942;</span>';
+    return '<div class="ordem-item" data-guia="'+g+'" draggable="'+(modo?'false':'true')+'" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);cursor:'+(modo?'default':'grab')+'">'+dragHandle+numBadge+'<span style="flex:1;font-size:13px;font-weight:500">'+g+'</span><select onchange="window._passeioIdiomas[\''+g+'\']=this.value" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--rsm);background:#fff"><option value=""'+(ia===''?' selected':'')+'>🌍 PT</option><option value="Espanhol"'+(ia==='Espanhol'?' selected':'')+'>🇪🇸 ES</option><option value="Bilíngue"'+(ia==='Bilíngue'?' selected':'')+'>🇧🇷🇪🇸 Bil</option><option value="Inglês"'+(ia==='Inglês'?' selected':'')+'>🇺🇸 EN</option><option value="Francês"'+(ia==='Francês'?' selected':'')+'>🇫🇷 FR</option></select></div>';
   }).join('');
-  if(!priv)initDragOrdem();
+  if(!modo)initDragOrdem();
 }
 
 function initDragOrdem(){
@@ -1484,98 +1510,134 @@ function atualizarNumeracao(){
   });
 }
 
-function moverOrdem(btn,dir){
-  const item=btn.closest('.ordem-item');
-  const lista=document.getElementById('passeio-ordem-lista');
-  const items=[...lista.querySelectorAll('.ordem-item')];
-  const idx=items.indexOf(item);
-  const newIdx=idx+dir;
-  if(newIdx<0||newIdx>=items.length)return;
-  if(dir===-1)lista.insertBefore(item,items[newIdx]);
-  else lista.insertBefore(items[newIdx],item);
-  atualizarOrdemPasseio();
+function limparFormPasseio(){
+  window._passeioSelecionados=[];
+  window._passeioIdiomas={};
+  document.getElementById('passeio-nome-sel').value='';
+  document.getElementById('passeio-base').value=document.getElementById('passeio-base').value||'Porto';
+  const privEl=document.getElementById('passeio-privativo');if(privEl)privEl.checked=false;
+  const motoEl=document.getElementById('passeio-motoguia');if(motoEl)motoEl.checked=false;
+  onModoPasseioChange('priv');
+  document.getElementById('passeio-nome').value='';
+  document.getElementById('passeio-nome').style.display='none';
+  document.getElementById('passeio-busca').value='';
+  document.getElementById('passeio-ordem-wrap').style.display='none';
+  document.getElementById('passeio-ordem-lista').innerHTML='';
+  renderGuiasPasseio('');
 }
 
-async function salvarPasseio(){
+// Adiciona o destino atual à lista de rascunho (não grava no banco ainda)
+function adicionarDestinoStaging(){
   const data=document.getElementById('passeio-data').value;
   const destino=getDestinoPasseio();
   const base=document.getElementById('passeio-base').value||'Porto';
   const privativo=document.getElementById('passeio-privativo')&&document.getElementById('passeio-privativo').checked;
-  const ordenados=[...document.querySelectorAll('#passeio-ordem-lista .ordem-item')].map(el=>el.dataset.guia);
+  const motoguia=document.getElementById('passeio-motoguia')&&document.getElementById('passeio-motoguia').checked;
+  const ordItems=[...document.querySelectorAll('#passeio-ordem-lista .ordem-item')];
   if(!data){alert('Informe a data.');return}
   if(!destino){alert('Informe o destino.');return}
-  if(!ordenados.length){alert('Selecione pelo menos um guia.');return}
+  if(!ordItems.length){alert('Selecione pelo menos um guia.');return}
+  const guias=ordItems.map(el=>({guia:el.dataset.guia,idioma:(el.querySelector('select')||{}).value||''}));
+  window._passeioStaging.push({data,base,destino,privativo,motoguia,guias});
+  limparFormPasseio();
+  renderStagingPasseios();
+}
+
+function removerStagingPasseio(i){
+  window._passeioStaging.splice(i,1);
+  renderStagingPasseios();
+}
+
+function renderStagingPasseios(){
+  const wrap=document.getElementById('passeio-staging-wrap');
+  const lista=document.getElementById('passeio-staging-lista');
+  const staging=window._passeioStaging||[];
+  document.getElementById('passeio-staging-count').textContent=staging.length;
+  wrap.style.display=staging.length?'block':'none';
+  lista.innerHTML=staging.map((s,i)=>{
+    const tag=s.privativo?'🔒 Privativo':(s.motoguia?'🚗 Motoguia':'');
+    const guiasTxt=s.guias.map(g=>g.guia+(g.idioma?' ('+g.idioma+')':'')).join(', ');
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
+      +'<div><div style="font-weight:600;font-size:13.5px">🏖️ '+s.destino+(tag?' <span style="font-size:11px;color:var(--muted);font-weight:400">· '+tag+'</span>':'')+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-top:3px">'+s.data+' · '+s.base+' · '+s.guias.length+' guia(s): '+guiasTxt+'</div></div>'
+      +'<button onclick="removerStagingPasseio('+i+')" style="background:none;border:1px solid #fcc;border-radius:var(--rsm);padding:4px 9px;font-size:11px;cursor:pointer;color:#e74c3c">🗑️</button></div>';
+  }).join('');
+}
+
+// Salva todos os destinos da lista de rascunho de uma vez
+async function salvarTodosPasseios(){
+  const staging=window._passeioStaging||[];
+  if(!staging.length){alert('Adicione pelo menos um destino à lista antes de salvar.');return}
   showLoad();
   try{
-    // Verifica conflitos: escala no mesmo dia
-    const escalaSnapPas=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
-    const guiasComEscala=[];
-    escalaSnapPas.docs.forEach(d=>{
-      const dd=d.data();
-      if(ordenados.includes(dd.guia)&&!guiasComEscala.includes(dd.guia))
-        guiasComEscala.push(dd.guia);
+    // Passo 1: verifica conflitos de escala (bloqueante) em todos os grupos de uma vez
+    const datasUnicas=[...new Set(staging.map(s=>s.data))];
+    const escalasPorData={};
+    for(const data of datasUnicas){
+      const snap=await window._gds(window._q(window._col(window._db,'escalas'),window._w('data','==',data)));
+      escalasPorData[data]=new Set(snap.docs.map(d=>d.data().guia));
+    }
+    const conflitosEscala=[];
+    staging.forEach(s=>{
+      s.guias.forEach(g=>{
+        if(escalasPorData[s.data]&&escalasPorData[s.data].has(g.guia)){
+          conflitosEscala.push(g.guia+' — '+s.destino+' ('+s.data+')');
+        }
+      });
     });
-    if(guiasComEscala.length){
+    if(conflitosEscala.length){
       hideLoad();
-      alert('🚫 Não é possível salvar o passeio!\n\nOs guias abaixo já têm SERVIÇO ESCALADO no dia '+data+':\n\n'+guiasComEscala.join('\n')+'\n\nRemova-os do passeio ou cancele a escala deles.');
+      alert('🚫 Não é possível salvar!\n\nOs guias abaixo já têm SERVIÇO ESCALADO no dia:\n\n'+conflitosEscala.join('\n')+'\n\nRemova-os do passeio ou cancele a escala deles.');
       return;
     }
-    // Verifica conflitos: outro passeio no mesmo dia para o mesmo guia
+    // Passo 2: verifica conflitos com outros passeios já salvos (aviso, não bloqueante)
     const outrosPasseios=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio')));
-    const guiasJaEmPasseio=[];
-    outrosPasseios.docs.forEach(d=>{
-      const dd=d.data();
-      if(data>=dd.inicio&&data<=dd.fim&&ordenados.includes(dd.guia)&&!guiasJaEmPasseio.includes(dd.guia))
-        guiasJaEmPasseio.push(dd.guia+' ('+dd.descricao+')');
-    });
-    if(guiasJaEmPasseio.length){
-      hideLoad();
-      if(!confirm('⚠️ Os guias abaixo já estão em outro passeio neste dia:\n\n'+guiasJaEmPasseio.join('\n')+'\n\nAdicionar mesmo assim?')){return}
-      showLoad();
-    }
-    // Verifica se já existem guias nesse mesmo destino/data/base/privativo, pra continuar a numeração
-    // (evita que um guia adicionado depois vire "1º carro" quando na verdade é o último)
-    const existentesSnap=await window._gds(window._q(
-      window._col(window._db,'bloqueios'),
-      window._w('tipo','==','passeio'),
-      window._w('inicio','==',data),
-      window._w('descricao','==',destino)
-    ));
-    let maxPosicaoExistente=0;
-    existentesSnap.docs.forEach(d=>{
-      const dd=d.data();
-      if((dd.base||'Porto')===base&&!!dd.privativo===!!privativo&&!ordenados.includes(dd.guia)){
-        if((dd.posicao||0)>maxPosicaoExistente)maxPosicaoExistente=dd.posicao||0;
-      }
-    });
-    const ordItems=document.querySelectorAll('#passeio-ordem-lista .ordem-item');
-    for(let i=0;i<ordenados.length;i++){
-      const guia=ordenados[i];
-      const posicao=maxPosicaoExistente+i+1;
-      // Busca pelo data-guia para garantir o idioma correto mesmo após reordenação
-      const ordEl=[...ordItems].find(el=>el.dataset.guia===guia);
-      const idiomaEl=ordEl?ordEl.querySelector('select'):null;
-      const idiomaPas=idiomaEl?idiomaEl.value:'';
-      await window._ad(window._col(window._db,'bloqueios'),{
-        guia,inicio:data,fim:data,descricao:destino,tipo:'passeio',
-        base,posicao,idioma:idiomaPas,privativo,criadoEm:new Date().toISOString()
+    const conflitosPasseio=[];
+    staging.forEach(s=>{
+      s.guias.forEach(g=>{
+        outrosPasseios.docs.forEach(d=>{
+          const dd=d.data();
+          if(s.data>=dd.inicio&&s.data<=dd.fim&&dd.guia===g.guia){
+            conflitosPasseio.push(g.guia+' já está em '+dd.descricao+' ('+s.data+')');
+          }
+        });
       });
+    });
+    if(conflitosPasseio.length){
+      if(!confirm('⚠️ Os guias abaixo já estão em outro passeio no mesmo dia:\n\n'+conflitosPasseio.join('\n')+'\n\nSalvar todos mesmo assim?')){hideLoad();return}
+    }
+    // Passo 3: grava cada grupo, continuando a numeração de quem já existe no mesmo destino/data/base/modo
+    let totalGuias=0;
+    for(const s of staging){
+      const existentesSnap=await window._gds(window._q(
+        window._col(window._db,'bloqueios'),
+        window._w('tipo','==','passeio'),
+        window._w('inicio','==',s.data),
+        window._w('descricao','==',s.destino)
+      ));
+      let maxPosicaoExistente=0;
+      const guiasNomes=s.guias.map(g=>g.guia);
+      existentesSnap.docs.forEach(d=>{
+        const dd=d.data();
+        if((dd.base||'Porto')===s.base&&!!dd.privativo===!!s.privativo&&!!dd.motoguia===!!s.motoguia&&!guiasNomes.includes(dd.guia)){
+          if((dd.posicao||0)>maxPosicaoExistente)maxPosicaoExistente=dd.posicao||0;
+        }
+      });
+      for(let i=0;i<s.guias.length;i++){
+        const posicao=maxPosicaoExistente+i+1;
+        await window._ad(window._col(window._db,'bloqueios'),{
+          guia:s.guias[i].guia,inicio:s.data,fim:s.data,descricao:s.destino,tipo:'passeio',
+          base:s.base,posicao,idioma:s.guias[i].idioma,privativo:s.privativo,motoguia:s.motoguia,criadoEm:new Date().toISOString()
+        });
+        totalGuias++;
+      }
+      logAuditoria('Passeio criado — '+s.destino+' ('+s.data+')','passeio','Guias: '+guiasNomes.join(', '),'admin');
     }
     hideLoad();
-    // Limpa tudo para o próximo passeio
-    window._passeioSelecionados=[];
-    document.getElementById('passeio-nome-sel').value='';
-    document.getElementById('passeio-base').value='Porto';
-    const privEl=document.getElementById('passeio-privativo');if(privEl)privEl.checked=false;
-    document.getElementById('passeio-nome').value='';
-    document.getElementById('passeio-nome').style.display='none';
-    document.getElementById('passeio-busca').value='';
-    document.getElementById('passeio-ordem-wrap').style.display='none';
-    document.getElementById('passeio-ordem-lista').innerHTML='';
-    renderGuiasPasseio('');
+    window._passeioStaging=[];
+    renderStagingPasseios();
     carregarPasseios();
-    alert('🏖️ Passeio salvo para '+ordenados.length+' guia'+(ordenados.length>1?'s':'')+'!');
-    logAuditoria('Passeio criado — '+destino+' ('+data+')','passeio','Guias: '+ordenados.join(', '),'admin');
+    alert('🏖️ '+staging.length+' destino(s) salvos, '+totalGuias+' guia(s) no total!');
   }catch(e){hideLoad();alert('Erro: '+e.message)}
 }
 
@@ -1603,9 +1665,9 @@ async function carregarPasseios(){
       const base=dd.base||'Porto';
       if(!porData[dd.inicio][base])porData[dd.inicio][base]={};
       const destino=dd.descricao;
-      const chaveGrupo=destino+'|'+(dd.privativo?'priv':'reg');
-      if(!porData[dd.inicio][base][chaveGrupo])porData[dd.inicio][base][chaveGrupo]={guias:[],ids:[],destino:destino,privativo:!!dd.privativo};
-      porData[dd.inicio][base][chaveGrupo].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id,privativo:!!dd.privativo});
+      const chaveGrupo=destino+'|'+(dd.privativo?'priv':(dd.motoguia?'moto':'reg'));
+      if(!porData[dd.inicio][base][chaveGrupo])porData[dd.inicio][base][chaveGrupo]={guias:[],ids:[],destino:destino,privativo:!!dd.privativo,motoguia:!!dd.motoguia};
+      porData[dd.inicio][base][chaveGrupo].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||'',id:d.id,privativo:!!dd.privativo,motoguia:!!dd.motoguia});
       porData[dd.inicio][base][chaveGrupo].ids.push(d.id);
     });
 
@@ -1659,17 +1721,20 @@ async function carregarPasseios(){
           html+='<button data-key="'+apagKey+'" onclick="apagarPasseioGrupo(window[\'_apagIds_\'+this.dataset.key])" style="padding:2px 8px;background:none;border:1px solid '+cfg.borda+';border-radius:99px;font-size:11px;cursor:pointer;color:'+cfg.cor+'">🗑️ Apagar</button>';
           html+='</div>';
           const privativo=grupo.privativo||false;
+          const motoguia=grupo.motoguia||false;
+          const modo=privativo||motoguia;
           const dragListId='drag-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'_');
           html+='<div id="'+dragListId+'">';
           guiasOrdenados.forEach((gu,gi)=>{
             const idiomaB=gu.idioma&&FLAG[gu.idioma]?'<span style="background:rgba(0,0,0,0.08);padding:1px 6px;border-radius:99px;font-size:10px;margin-left:4px">'+FLAG[gu.idioma]+' '+gu.idioma+'</span>':'';
             const rowId='gu-'+data.replace(/-/g,'')+'-'+base+'-'+chave.replace(/[\s|]/g,'_')+'-'+gi;
-            window['_passeioData_'+rowId]={wpp:{data:data,destino:destino,base:base,privativo:privativo,guias:[gu]},gu:{id:gu.id,nome:gu.nome,posicao:gu.posicao,idioma:gu.idioma,base:base,data:data,destino:destino}};
-            const numBadge=privativo
-              ?'<span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600;flex-shrink:0">Priv.</span>'
-              :'<span class="ps-num" style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+(gi+1)+'</span>';
-            const dragHandle=privativo?'':'<span style="color:#bbb;font-size:15px;flex-shrink:0;cursor:grab;user-select:none" title="Arrastar para reordenar">&#8942;&#8942;</span>';
-            html+='<div class="ps-drag-row" data-id="'+gu.id+'" data-listid="'+dragListId+'" draggable="'+(privativo?'false':'true')+'" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);cursor:'+(privativo?'default':'grab')+'">';
+            window['_passeioData_'+rowId]={wpp:{data:data,destino:destino,base:base,privativo:privativo,motoguia:motoguia,guias:[gu]},gu:{id:gu.id,nome:gu.nome,posicao:gu.posicao,idioma:gu.idioma,base:base,data:data,destino:destino,privativo:privativo,motoguia:motoguia}};
+            let numBadge;
+            if(privativo)numBadge='<span style="background:#7f8c8d;color:#fff;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600;flex-shrink:0">Priv.</span>';
+            else if(motoguia)numBadge='<span style="background:#8e44ad;color:#fff;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600;flex-shrink:0">🚗 Moto</span>';
+            else numBadge='<span class="ps-num" style="background:'+cfg.cor+';color:#fff;border-radius:99px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+(gi+1)+'</span>';
+            const dragHandle=modo?'':'<span style="color:#bbb;font-size:15px;flex-shrink:0;cursor:grab;user-select:none" title="Arrastar para reordenar">&#8942;&#8942;</span>';
+            html+='<div class="ps-drag-row" data-id="'+gu.id+'" data-listid="'+dragListId+'" draggable="'+(modo?'false':'true')+'" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);cursor:'+(modo?'default':'grab')+'">';
             html+=dragHandle;
             html+=numBadge;
             html+='<span style="flex:1;font-size:13px;font-weight:500">'+gu.nome+idiomaB+'</span>';
@@ -1709,7 +1774,7 @@ function initDragPasseioLista(){
         const rows=[...lista.querySelectorAll('.ps-drag-row')];
         for(let i=0;i<rows.length;i++){
           const id=rows[i].dataset.id;
-          if(id){try{await window._ud(window._doc(window._db,'bloqueios',id),{posicao:i+1});}catch(e){console.error(e);}}
+          if(id){try{await window._sd(window._doc(window._db,'bloqueios',id),{posicao:i+1},{merge:true});}catch(e){console.error(e);}}
         }
         dragEl=null;
       });
@@ -1729,12 +1794,32 @@ function _callPasseioRemove(rowId){
   const d=window['_passeioData_'+rowId];
   if(!d){alert('Erro: dados não encontrados. Recarregue a página.');return;}
   if(!confirm('Remover '+d.gu.nome+' do passeio '+d.gu.destino+'?'))return;
-  removerGuiaPasseio(d.gu.id,d.gu.nome);
+  removerGuiaPasseio(d.gu.id,d.gu.nome,d.gu);
 }
-async function removerGuiaPasseio(id,nome){
+async function removerGuiaPasseio(id,nome,grupoInfo){
   showLoad();
   try{
     await window._dd(window._doc(window._db,'bloqueios',id));
+    // Renumera os guias que sobraram no mesmo grupo (destino+data+base+privativo),
+    // pra ninguém ficar "preso" numa posição (ex: 2º carro vira 1º quando o 1º sai)
+    if(grupoInfo){
+      const restantesSnap=await window._gds(window._q(
+        window._col(window._db,'bloqueios'),
+        window._w('tipo','==','passeio'),
+        window._w('inicio','==',grupoInfo.data),
+        window._w('descricao','==',grupoInfo.destino)
+      ));
+      const restantes=restantesSnap.docs
+        .map(d=>({id:d.id,...d.data()}))
+        .filter(dd=>(dd.base||'Porto')===grupoInfo.base&&!!dd.privativo===!!grupoInfo.privativo&&!!dd.motoguia===!!grupoInfo.motoguia)
+        .sort((a,b)=>(a.posicao||0)-(b.posicao||0));
+      for(let i=0;i<restantes.length;i++){
+        const novaPos=i+1;
+        if(restantes[i].posicao!==novaPos){
+          await window._sd(window._doc(window._db,'bloqueios',restantes[i].id),{posicao:novaPos},{merge:true});
+        }
+      }
+    }
     hideLoad();
     carregarPasseios();
   }catch(e){hideLoad();alert('Erro: '+e.message)}
@@ -1761,8 +1846,8 @@ async function enviarWppPasseio(grupo,silencioso){
     if(!fone){semFone.push(gu.nome);continue}
     const sufixo=gu.posicao===1?'1º carro':gu.posicao+'º carro';
     const idiomaLinha=gu.idioma?('\n🌍 Idioma: *'+(flagMap[gu.idioma]||'')+' '+gu.idioma+'*'):'';
-    const posicaoLinha=grupo.privativo?'':'\n📍 Posição: *'+sufixo+'*';
-    const privLinha=grupo.privativo?'\n🔒 *Carro privativo* (exclusivo para o grupo)':'';
+    const posicaoLinha=(grupo.privativo||grupo.motoguia)?'':'\n📍 Posição: *'+sufixo+'*';
+    const privLinha=grupo.privativo?'\n🔒 *Privativo*':(grupo.motoguia?'\n🚗 *Motoguia*':'');
     const msg='🏖️ *Passeio confirmado!*\n\nOlá '+gu.nome.split(' ')[0]+'! Você está confirmado no passeio de *'+grupo.destino+'* no dia *'+dataFmt+'*.\n'+posicaoLinha+privLinha+idiomaLinha+'\n\nAguarde a escala com mais detalhes em breve. 🙏';
     await enviarWhatsApp(fone,msg);
     enviados++;
@@ -1783,8 +1868,8 @@ async function enviarWppTodosPasseiosDia(data,base){
     const dd=d.data();
     const baseDoc=dd.base||'Porto';
     if(base&&baseDoc!==base)return;
-    const key=dd.inicio+'__'+baseDoc+'__'+dd.descricao+'__'+(dd.privativo?'priv':'reg');
-    if(!grupos[key])grupos[key]={data:dd.inicio,destino:dd.descricao,base:baseDoc,privativo:!!dd.privativo,guias:[]};
+    const key=dd.inicio+'__'+baseDoc+'__'+dd.descricao+'__'+(dd.privativo?'priv':(dd.motoguia?'moto':'reg'));
+    if(!grupos[key])grupos[key]={data:dd.inicio,destino:dd.descricao,base:baseDoc,privativo:!!dd.privativo,motoguia:!!dd.motoguia,guias:[]};
     grupos[key].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||''});
   });
   if(!Object.keys(grupos).length){alert('Nenhum passeio de '+base+' nesta data.');return}
@@ -1816,8 +1901,8 @@ async function enviarResumoPortoContato(data){
   snap.docs.forEach(d=>{
     const dd=d.data();
     if((dd.base||'Porto')!=='Porto')return;
-    const key=dd.descricao+'__'+(dd.privativo?'priv':'reg');
-    if(!grupos[key])grupos[key]={destino:dd.descricao,privativo:!!dd.privativo,guias:[]};
+    const key=dd.descricao+'__'+(dd.privativo?'priv':(dd.motoguia?'moto':'reg'));
+    if(!grupos[key])grupos[key]={destino:dd.descricao,privativo:!!dd.privativo,motoguia:!!dd.motoguia,guias:[]};
     grupos[key].guias.push({nome:dd.guia,posicao:dd.posicao||1,idioma:dd.idioma||''});
   });
   const chaves=Object.keys(grupos);
@@ -1831,10 +1916,11 @@ async function enviarResumoPortoContato(data){
   chaves.forEach(k=>{
     const g=grupos[k];
     const guias=g.guias.slice().sort((a,b)=>a.posicao-b.posicao);
-    corpo+='\n🏖️ *'+g.destino+'*'+(g.privativo?' 🔒 (privativo)':'')+'\n';
+    const tag=g.privativo?' 🔒 (privativo)':(g.motoguia?' 🚗 (motoguia)':'');
+    corpo+='\n🏖️ *'+g.destino+'*'+tag+'\n';
     guias.forEach(gu=>{
       totalGuias++;
-      const pos=g.privativo?'•':(gu.posicao+'º');
+      const pos=(g.privativo||g.motoguia)?'•':(gu.posicao+'º');
       const idi=gu.idioma?(' — '+gu.idioma):'';
       corpo+=pos+' '+gu.nome+idi+'\n';
     });
@@ -3408,6 +3494,7 @@ async function confirmarReset(){
       <button onclick="togglePasseioForm()" id="btn-toggle-passeio" style="padding:8px 16px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">+ Adicionar passeio</button>
     </div>
     <div id="passeio-form" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:1rem">
+      <div style="background:#e7f3ee;border:1px solid #b8ddce;border-radius:var(--rsm);padding:10px 14px;font-size:12.5px;color:#0f6e56;margin-bottom:12px;display:flex;align-items:center;gap:8px">💡 Monte vários destinos e clique em "Salvar todos" no final — sem repetir a tela a cada um.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
         <div><label>Data</label><input type="date" id="passeio-data" style="background:#fff"/></div>
         <div><label>Base de saída</label>
@@ -3426,30 +3513,43 @@ async function confirmarReset(){
             <option value="Litoral Norte">🏖️ Litoral Norte</option>
             <option value="City Tour Recife e Olinda">🏛️ City Tour Recife e Olinda</option>
             <option value="São José da Coroa Grande">🏖️ São José da Coroa Grande</option>
+            <option value="Porto de Galinhas - Boramar">🏖️ Porto de Galinhas - Boramar</option>
+            <option value="Porto de Galinhas - Itaoca">🏖️ Porto de Galinhas - Itaoca</option>
             <option value="outro">✏️ Outro destino...</option>
           </select>
           <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
         </div>
       </div>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:600;font-size:13px">
-          <input type="checkbox" id="passeio-privativo" onchange="onPrivativoChange()" style="width:16px;height:16px;cursor:pointer;accent-color:#e67e22"/>
-          🔒 Privativo <span style="font-size:11px;font-weight:400;color:var(--muted)">(carro exclusivo para o grupo)</span>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label id="lbl-passeio-priv" style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0;font-weight:600;font-size:13px;padding:7px 12px;border-radius:99px;border:1.5px solid var(--border)">
+          <input type="checkbox" id="passeio-privativo" onchange="onModoPasseioChange('priv')" style="width:16px;height:16px;cursor:pointer;accent-color:#e67e22"/>
+          🔒 Privativo
+        </label>
+        <label id="lbl-passeio-moto" style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0;font-weight:600;font-size:13px;padding:7px 12px;border-radius:99px;border:1.5px solid var(--border)">
+          <input type="checkbox" id="passeio-motoguia" onchange="onModoPasseioChange('moto')" style="width:16px;height:16px;cursor:pointer;accent-color:#8e44ad"/>
+          🚗 Motoguia
         </label>
       </div>
       <div style="margin-bottom:10px">
         <label id="label-guias-pos">Guias e posição no carro</label>
         <input type="text" id="passeio-busca" placeholder="🔍 Buscar guia..." oninput="filtrarGuiasPasseio()" style="background:#fff;margin-bottom:6px"/>
-        <div id="passeio-guias-wrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);max-height:160px;overflow-y:auto"></div>
+        <div id="passeio-sel-resumo" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px"></div>
+        <div id="passeio-guias-wrap" style="padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);max-height:220px;overflow-y:auto"></div>
       </div>
       <div id="passeio-ordem-wrap" style="display:none;margin-bottom:10px">
         <label>Ordem dos guias <span style="font-size:11px;color:var(--muted)">(1º = 1º carro)</span></label>
         <div id="passeio-ordem-lista" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm)"></div>
       </div>
       <div style="display:flex;gap:8px">
-        <button onclick="salvarPasseio()" style="padding:9px 18px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">💾 Salvar passeio</button>
-        <button onclick="togglePasseioForm()" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer">Cancelar</button>
+        <button onclick="adicionarDestinoStaging()" style="padding:9px 18px;background:#1a6b40;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">➕ Adicionar destino à lista</button>
+        <button onclick="limparFormPasseio()" style="padding:9px 14px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer">Limpar</button>
       </div>
+    </div>
+
+    <div id="passeio-staging-wrap" style="display:none;margin-bottom:1rem">
+      <label style="display:block;margin-bottom:8px">Destinos prontos pra salvar</label>
+      <div id="passeio-staging-lista" style="margin-bottom:10px"></div>
+      <button onclick="salvarTodosPasseios()" style="padding:10px 20px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:14px;cursor:pointer;font-weight:600">💾 Salvar todos os passeios (<span id="passeio-staging-count">0</span>)</button>
     </div>
 
     <!-- Lista de passeios por data e base -->
