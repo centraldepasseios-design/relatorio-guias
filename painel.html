@@ -53,6 +53,8 @@
     .escala-top h3{font-size:15px;font-weight:600}
     .escala-top-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .linha-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);padding:1rem;margin-bottom:10px;position:relative}
+    .linha-card.busca-match{border-color:#f0c040;box-shadow:0 0 0 1px #f0c040}
+    .linha-card.busca-atual{border-color:#e67e22;box-shadow:0 0 0 2px #e67e22;background:#fff8ee}
     .linha-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
     .linha-num{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
     .linha-btns{display:flex;gap:6px}
@@ -361,6 +363,53 @@ function adicionarLinha(dados={}){
   // Apply field visibility based on pre-selected service
   if(dados.servico)onTipo(id);
   if(dados.servico)onTipo(id);
+}
+
+// Busca própria por guia dentro dos cards de serviço — o Ctrl+F do navegador
+// não acha texto dentro de <select>, então essa busca olha o valor selecionado
+// de cada dropdown de guia e destaca/navega entre os cards que baterem.
+let _buscaGuiaResultados=[];
+let _buscaGuiaIndex=-1;
+
+function buscarGuiaEscala(){
+  document.querySelectorAll('.linha-card.busca-match').forEach(el=>el.classList.remove('busca-match'));
+  document.querySelectorAll('.linha-card.busca-atual').forEach(el=>el.classList.remove('busca-atual'));
+  const termo=document.getElementById('busca-guia-escala').value.toUpperCase().trim();
+  _buscaGuiaResultados=[];
+  _buscaGuiaIndex=-1;
+  if(!termo){document.getElementById('busca-guia-contador').textContent='';return}
+  linhas.forEach(id=>{
+    const sel=document.getElementById('eg-'+id);
+    if(!sel)return;
+    const nomeGuia=(sel.value||'').toUpperCase();
+    if(nomeGuia.includes(termo)){
+      _buscaGuiaResultados.push(id);
+      const card=document.getElementById('lc-'+id);
+      if(card)card.classList.add('busca-match');
+    }
+  });
+  document.getElementById('busca-guia-contador').textContent=_buscaGuiaResultados.length
+    ?('0/'+_buscaGuiaResultados.length)
+    :'0/0';
+  if(_buscaGuiaResultados.length)irProximoResultadoBusca(1);
+}
+
+function irProximoResultadoBusca(dir){
+  if(!_buscaGuiaResultados.length)return;
+  document.querySelectorAll('.linha-card.busca-atual').forEach(el=>el.classList.remove('busca-atual'));
+  _buscaGuiaIndex=(_buscaGuiaIndex+dir+_buscaGuiaResultados.length)%_buscaGuiaResultados.length;
+  const id=_buscaGuiaResultados[_buscaGuiaIndex];
+  const card=document.getElementById('lc-'+id);
+  if(card){
+    card.classList.add('busca-atual');
+    card.scrollIntoView({behavior:'smooth',block:'center'});
+  }
+  document.getElementById('busca-guia-contador').textContent=(_buscaGuiaIndex+1)+'/'+_buscaGuiaResultados.length;
+}
+
+function limparBuscaGuiaEscala(){
+  document.getElementById('busca-guia-escala').value='';
+  buscarGuiaEscala();
 }
 
 function onTipo(id){
@@ -2899,10 +2948,17 @@ async function importarPlanilha(event){
       };
 
       const extrairVoo=(texto)=>{
-        const m=texto.match(/([A-Z]{2})\s*[-\u2013]?\s*(\d{3,4})(?:\s|\||$)/g);
-        if(!m)return '';
-        const first=m[0].replace(/[^A-Z0-9]/gi,'').toUpperCase();
-        return first.match(/^[A-Z]{2}\d{3,4}$/)?first:'';
+        // 1ª tentativa: padrão original, mais preciso (2 letras + 3-4 números)
+        const m1=texto.match(/([A-Z]{2})\s*[-\u2013]?\s*(\d{3,4})(?:\s|\||$)/g);
+        if(m1){
+          const first=m1[0].replace(/[^A-Z0-9]/gi,'').toUpperCase();
+          if(first.match(/^[A-Z]{2}\d{3,4}$/))return first;
+        }
+        // 2ª tentativa (reforço): mais tolerante, cobre variações de formatação
+        // que a 1ª não pega — usado só quando a 1ª não encontra nada.
+        const m2=texto.match(/\b([A-Z]{2,3})[\s\-\u2013.]{0,2}(\d{2,4})\b/i);
+        if(m2)return (m2[1]+m2[2]).toUpperCase();
+        return '';
       };
       const extrairHorarioVoo=(texto)=>{
         const match=texto.match(/(?:Nac|Int)\.?\s*(\d{1,2}:\d{2})/);
@@ -2924,7 +2980,10 @@ async function importarPlanilha(event){
         if(det){
           const voo=extrairVoo(servIn);
           const horVoo=extrairHorarioVoo(servIn);
-          const hsrv=voo?(voo+(horVoo?' Nac. '+horVoo:'')):'';
+          // Se não conseguir extrair voo nem horário, usa o texto original da
+          // planilha como fallback — melhor mostrar "cru" do que ficar vazio
+          // e a informação parecer que sumiu.
+          const hsrv=voo?(voo+(horVoo?' Nac. '+horVoo:'')):(servIn.trim()||'');
           // Calcula horário de apresentação: 30min antes do voo (ou horIn como fallback)
           let horApres=det.horarioPadrao||'';
           if(!det.horarioPadrao){
@@ -3643,6 +3702,14 @@ async function confirmarReset(){
       </div>
     </div>
     <div id="alerta-confirmacao" style="display:none;margin-bottom:1rem"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);padding:8px 12px">
+      <span style="font-size:14px">🔍</span>
+      <input type="text" id="busca-guia-escala" placeholder="Buscar guia nos serviços desta tela..." oninput="buscarGuiaEscala()" onkeydown="if(event.key==='Enter'){event.preventDefault();irProximoResultadoBusca(event.shiftKey?-1:1);}" style="flex:1;border:none;background:transparent;font-size:13px;padding:2px"/>
+      <span id="busca-guia-contador" style="font-size:12px;color:var(--muted);white-space:nowrap"></span>
+      <button onclick="irProximoResultadoBusca(-1)" title="Anterior" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);width:26px;height:26px;cursor:pointer;color:var(--muted)">↑</button>
+      <button onclick="irProximoResultadoBusca(1)" title="Próximo" style="background:none;border:1px solid var(--border);border-radius:var(--rsm);width:26px;height:26px;cursor:pointer;color:var(--muted)">↓</button>
+      <button onclick="limparBuscaGuiaEscala()" title="Limpar" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px">✕</button>
+    </div>
     <div id="escala-linhas"></div>
     <div id="escala-publicada"></div>
 
