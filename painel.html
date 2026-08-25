@@ -174,8 +174,8 @@ function entrar(){
     document.getElementById('f-inicio').value=inicioMes();
     document.getElementById('f-fim').value=hoje();
     const escDataEl=document.getElementById('escala-data');
-    escDataEl.value=hoje();
-    escDataEl.dataset.prev=hoje();
+    escDataEl.value=amanha();
+    escDataEl.dataset.prev=amanha();
     setTimeout(verificarRascunho,600);
     document.getElementById('escala-inicio').value=hoje();
     document.getElementById('escala-fim').value=hoje();
@@ -4114,7 +4114,7 @@ if(localStorage.getItem('luck_admin')==='1'&&typeof entrar==='function'){
   document.getElementById('painel').style.display='block';
   document.getElementById('f-inicio').value=inicioMes();
   document.getElementById('f-fim').value=hoje();
-  document.getElementById('escala-data').value=hoje();
+  document.getElementById('escala-data').value=amanha();
   document.getElementById('escala-inicio').value=hoje();
   document.getElementById('escala-fim').value=hoje();
   document.getElementById('disp-data').value=amanha();
