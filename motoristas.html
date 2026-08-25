@@ -690,7 +690,9 @@ function renderEscala() {
     if (m.vespera) chip += ' <span class="chip alerta">véspera</span>';
     html += '<tr>' +
       '<td id="celNome-' + i + '">' + m.nome + (m.substituto ? ' <span class="chip alerta">trocado</span>' : '') + '</td>' +
-      '<td><span class="horario">' + (m.horarioMin !== null ? hhmm(m.horarioMin) : '—') + '</span></td>' +
+      '<td id="celHorario-' + i + '"><span class="horario" style="cursor:pointer; border-bottom:1px dashed var(--verde);" title="Clique para editar" onclick="editarHorario(' + i + ')">' +
+        (m.horarioMin !== null ? hhmm(m.horarioMin) : '—') + '</span>' +
+        (m.editado ? ' <span class="chip alerta">editado</span>' : '') + '</td>' +
       '<td class="mono">' + (m.telefone || '—') + '</td>' +
       '<td>' + chip + '</td>' +
       '<td><input type="checkbox" data-i="' + i + '" ' + (m.enviar ? 'checked' : '') +
@@ -746,6 +748,22 @@ function confirmarTroca(i, nome) {
   escala[i].situacao = cad.telefone ? 'ok' : 'sem-telefone';
   escala[i].enviar = !!cad.telefone && !escala[i].vespera;
   escala[i].substituto = true;
+  renderEscala();
+}
+
+function editarHorario(i) {
+  const cel = document.getElementById('celHorario-' + i);
+  const atual = escala[i].horarioMin !== null ? hhmm(escala[i].horarioMin) : '';
+  cel.innerHTML = '<input type="time" value="' + atual + '" style="padding:5px 7px; border:1px solid var(--borda); border-radius:8px; font-size:14.5px;" ' +
+    'onblur="confirmarHorario(' + i + ', this.value)" onkeydown="if(event.key===\'Enter\') this.blur();" autofocus>';
+  cel.querySelector('input').focus();
+}
+function confirmarHorario(i, valor) {
+  if (valor) {
+    const p = valor.split(':');
+    escala[i].horarioMin = parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+    escala[i].editado = true;
+  }
   renderEscala();
 }
 
