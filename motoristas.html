@@ -256,6 +256,22 @@ Qualquer dúvida, ligue para a coordenação.</textarea>
 <!-- ================= CADASTRO ================= -->
 <section id="secao-cadastro" class="secao">
   <div class="cartao">
+    <h2>Importar lista de telefones (em lote)</h2>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:12px;">
+      Envie um .csv com as colunas <span class="mono">nome, telefone, tipo</span> (a primeira linha de cabeçalho é ignorada).
+      Motoristas já cadastrados são atualizados; novos são criados.
+    </p>
+    <div class="linha-form">
+      <div class="campo">
+        <label>Arquivo .csv</label>
+        <input type="file" id="arquivoLote" accept=".csv">
+      </div>
+      <button class="acao" id="btnImportarLote">Importar</button>
+    </div>
+    <div id="avisoLote"></div>
+  </div>
+
+  <div class="cartao">
     <h2>Cadastrar motorista</h2>
     <div class="linha-form">
       <div class="campo" style="flex:2; min-width:200px;">
@@ -440,6 +456,72 @@ function excluirMotorista(id) {
   if (!confirm('Excluir este motorista do cadastro?')) return;
   db.collection('motoristas').doc(id).delete().then(carregarMotoristas);
 }
+
+// ============================ IMPORTAÇÃO EM LOTE ============================
+function parseCsvLinha(linha) {
+  // suporta valores simples separados por vírgula (sem aspas com vírgula interna)
+  return linha.split(',').map(function(c) { return c.trim().replace(/^"|"$/g, ''); });
+}
+
+document.getElementById('btnImportarLote').addEventListener('click', function() {
+  const arquivo = document.getElementById('arquivoLote').files[0];
+  if (!arquivo) { mostrarAviso('avisoLote', 'erro', 'Selecione o arquivo .csv.'); return; }
+
+  arquivo.text().then(function(texto) {
+    const linhas = texto.split(/\r?\n/).filter(function(l) { return l.trim(); });
+    if (linhas.length < 2) { mostrarAviso('avisoLote', 'erro', 'Arquivo vazio.'); return; }
+
+    const cab = parseCsvLinha(linhas[0]).map(function(c) { return c.toLowerCase(); });
+    const iNome = cab.indexOf('nome');
+    const iTel = cab.indexOf('telefone');
+    const iTipo = cab.indexOf('tipo');
+    if (iNome === -1 || iTel === -1) {
+      mostrarAviso('avisoLote', 'erro', 'O CSV precisa ter as colunas "nome" e "telefone".');
+      return;
+    }
+
+    const registros = [];
+    const porNome = {};
+    for (let i = 1; i < linhas.length; i++) {
+      const c = parseCsvLinha(linhas[i]);
+      const nome = normalizar(c[iNome]);
+      const telefone = String(c[iTel] || '').replace(/\D/g, '');
+      const tipo = iTipo > -1 && c[iTipo] ? c[iTipo].trim().toLowerCase() : 'casa';
+      if (!nome || !telefone) continue;
+      registros.push({ nome: nome, telefone: telefone, tipo: (tipo === 'terceirizado' ? 'terceirizado' : 'casa') });
+      (porNome[nome] = porNome[nome] || []).push(telefone);
+    }
+
+    const colisoes = Object.keys(porNome).filter(function(n) {
+      return new Set(porNome[n]).size > 1;
+    });
+
+    mostrarAviso('avisoLote', 'info', 'Importando ' + registros.length + ' motorista(s)...');
+    const lote = db.batch();
+    let gravados = 0;
+    const promessas = registros.map(function(r) {
+      return db.collection('motoristas').where('nome', '==', r.nome).limit(1).get().then(function(snap) {
+        const ref = snap.empty ? db.collection('motoristas').doc() : snap.docs[0].ref;
+        lote.set(ref, { nome: r.nome, telefone: r.telefone, tipo: r.tipo }, { merge: true });
+        gravados++;
+      });
+    });
+
+    Promise.all(promessas).then(function() {
+      return lote.commit();
+    }).then(function() {
+      let msg = gravados + ' motorista(s) importado(s)/atualizado(s) com sucesso.';
+      if (colisoes.length) {
+        msg += '<br><br><strong>Atenção — apelidos com mais de um telefone no arquivo (só o último foi salvo):</strong><br>' +
+          colisoes.join(', ') + '. Ajuste manualmente na lista abaixo.';
+      }
+      mostrarAviso('avisoLote', colisoes.length ? 'atencao' : 'info', msg);
+      carregarMotoristas();
+    }).catch(function(e) {
+      mostrarAviso('avisoLote', 'erro', 'Erro na importação: ' + e.message);
+    });
+  });
+});
 
 // ============================ ESCALA ============================
 let escala = []; // [{nome, horarioMin, vespera, telefone, situacao, enviar}]
