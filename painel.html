@@ -2615,6 +2615,7 @@ async function importarPlanilha(event){
     const COL_SERV_OUT=7, COL_SERV_IN=8, COL_PAX_OUT=9, COL_PAX_IN=10;
 
     const itensImportados=[];
+    const naoReconhecidos=[];
     const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 
     for(let i=1;i<rows.length;i++){
@@ -2631,6 +2632,16 @@ async function importarPlanilha(event){
       // e nesse caso escolhe o candidato mais específico (nome mais próximo em tamanho)
       // para não confundir nomes parecidos como "FABIO" e "FABIO COZZI".
       const guiaNomeN=norm(guiaNome);
+      // Distância de edição simples (Levenshtein), usada só como último recurso
+      const _levenshtein=(a,b)=>{
+        const m=a.length,n=b.length;
+        const dp=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);
+        for(let j=0;j<=n;j++)dp[0][j]=j;
+        for(let i=1;i<=m;i++)for(let j=1;j<=n;j++){
+          dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+        }
+        return dp[m][n];
+      };
       const _matchGuia=(list)=>{
         const exato=list.find(g=>norm(g)===guiaNomeN);
         if(exato)return exato;
@@ -2638,18 +2649,32 @@ async function importarPlanilha(event){
           const gN=norm(g);
           return guiaNomeN.startsWith(gN)||gN.startsWith(guiaNomeN);
         });
-        if(!candidatos.length)return null;
-        candidatos.sort((a,b)=>Math.abs(norm(a).length-guiaNomeN.length)-Math.abs(norm(b).length-guiaNomeN.length));
-        return candidatos[0];
+        if(candidatos.length){
+          candidatos.sort((a,b)=>Math.abs(norm(a).length-guiaNomeN.length)-Math.abs(norm(b).length-guiaNomeN.length));
+          return candidatos[0];
+        }
+        // Último recurso: nome muito parecido (ex: acento corrompido vindo do Excel).
+        // Só aceita se a diferença for pequena (até 2 caracteres) E for o único candidato
+        // próximo o suficiente, pra não arriscar confundir dois guias diferentes.
+        if(guiaNomeN.length>=4){
+          const comDist=list.map(g=>({g,d:_levenshtein(norm(g),guiaNomeN)})).filter(x=>x.d<=1).sort((a,b)=>a.d-b.d);
+          if(comDist.length===1||(comDist.length>1&&comDist[0].d<comDist[1].d))return comDist[0].g;
+        }
+        return null;
       };
       const guiaMatch=_matchGuia(GUIAS);
       let guiaMatchFila=null;
       if(!guiaMatch){
         // Tenta também contra GUIAS_FILA (lista completa)
         guiaMatchFila=_matchGuia(GUIAS_FILA);
-        if(!guiaMatchFila)continue;
+        if(!guiaMatchFila){
+          if(!naoReconhecidos.includes(guiaRaw))naoReconhecidos.push(guiaRaw);
+          continue;
+        }
       }
-      const guiaFinal=normNome(guiaMatch||guiaMatchFila||guiaNome);
+      // Usa o nome EXATO como está cadastrado na lista (com acento) — não remover
+      // acentos aqui, senão desfaz o match e obriga a rodar "Corrigir nomes" toda vez.
+      const guiaFinal=guiaMatch||guiaMatchFila;
 
       const motorista=(row[COL_MOT]||'').toString().trim();
       const veiculo=(row[COL_VEI]||'').toString().trim();
@@ -2785,8 +2810,13 @@ async function importarPlanilha(event){
     hideLoad();
 
     if(!itensImportados.length){
-      alert('Nenhum guia da Luck encontrado na planilha. Verifique se os nomes batem com o cadastro.');
+      let msg='Nenhum guia da Luck encontrado na planilha. Verifique se os nomes batem com o cadastro.';
+      if(naoReconhecidos.length)msg+='\n\nNomes que não bateram:\n'+naoReconhecidos.join('\n');
+      alert(msg);
       return;
+    }
+    if(naoReconhecidos.length){
+      alert('⚠️ Atenção: '+naoReconhecidos.length+' guia(s) da planilha NÃO foram reconhecidos e ficaram de fora:\n\n'+naoReconhecidos.join('\n')+'\n\nConfira o nome exato acima — pode ser um caractere estranho (acento com problema de codificação) ou um nome que ainda não está cadastrado. Adicione manualmente pelo "+ Avulso" se for o caso.');
     }
 
     // Agrupa por guia para preview
@@ -3515,6 +3545,7 @@ async function confirmarReset(){
             <option value="São José da Coroa Grande">🏖️ São José da Coroa Grande</option>
             <option value="Porto de Galinhas - Boramar">🏖️ Porto de Galinhas - Boramar</option>
             <option value="Porto de Galinhas - Itaoca">🏖️ Porto de Galinhas - Itaoca</option>
+            <option value="João Pessoa">🏖️ João Pessoa</option>
             <option value="outro">✏️ Outro destino...</option>
           </select>
           <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
@@ -3865,7 +3896,7 @@ if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
 <option value="JUAN">JUAN</option>
 <option value="EUGENIO">EUGENIO</option>
 <option value="VALTER">VALTER</option>
-<option value="GONÇALVES">GONCALVES</option>
+<option value="GONÇALVES">GONÇALVES</option>
 <option value="ANTONIO">ANTONIO</option>
 <option value="GERARDO">GERARDO</option>
 <option value="HUGO">HUGO</option>
