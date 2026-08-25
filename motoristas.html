@@ -223,7 +223,7 @@
           <th style="width:13%">Apresentação</th>
           <th style="width:17%">Telefone</th>
           <th style="width:15%">Situação</th>
-          <th style="width:10%">Enviar</th>
+          <th style="width:10%">Enviar<br><label style="font-weight:400; text-transform:none; font-size:11.5px; cursor:pointer;"><input type="checkbox" id="marcarTodos" style="vertical-align:middle;"> todos</label></th>
           <th style="width:15%"></th>
         </tr>
       </thead>
@@ -700,13 +700,34 @@ function renderEscala() {
   });
   document.getElementById('tabelaEscala').innerHTML = html;
   document.querySelectorAll('#tabelaEscala input[type=checkbox]').forEach(function(cb) {
-    cb.addEventListener('change', function() { escala[parseInt(cb.dataset.i, 10)].enviar = cb.checked; });
+    cb.addEventListener('change', function() {
+      escala[parseInt(cb.dataset.i, 10)].enviar = cb.checked;
+      sincronizarMarcarTodos();
+    });
   });
+  sincronizarMarcarTodos();
 
   document.getElementById('cartaoRevisao').style.display = 'block';
   document.getElementById('cartaoEnvio').style.display = 'block';
   atualizarPrevia();
 }
+
+function sincronizarMarcarTodos() {
+  const mestre = document.getElementById('marcarTodos');
+  const caixas = Array.prototype.slice.call(document.querySelectorAll('#tabelaEscala input[type=checkbox]:not(:disabled)'));
+  if (!caixas.length) { mestre.checked = false; mestre.indeterminate = false; return; }
+  const marcadas = caixas.filter(function(cb) { return cb.checked; }).length;
+  mestre.checked = marcadas === caixas.length;
+  mestre.indeterminate = marcadas > 0 && marcadas < caixas.length;
+}
+document.getElementById('marcarTodos').addEventListener('change', function() {
+  const ligar = this.checked;
+  document.querySelectorAll('#tabelaEscala input[type=checkbox]:not(:disabled)').forEach(function(cb) {
+    cb.checked = ligar;
+    escala[parseInt(cb.dataset.i, 10)].enviar = ligar;
+  });
+  atualizarPrevia();
+});
 
 function trocarMotorista(i) {
   const cel = document.getElementById('celNome-' + i);
