@@ -308,7 +308,7 @@ function trocarAba(aba){
   if(aba==='senhas')carregarSenhas();
   if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();verificarPendentes();setTimeout(verificarRascunho,400);}
   if(aba==='disp')carregarDisp();
-  if(aba==='passeios'){carregarPasseios();document.getElementById('passeio-filtro-data').value=amanha();}
+  if(aba==='passeios'){carregarPasseios();document.getElementById('passeio-filtro-data').value=amanha();atualizarBadgeBonus();}
 }
 
 // ===== ESCALA =====
@@ -1048,6 +1048,91 @@ function toggleResumoGuia(){
   const visible=wrap.style.display!=='none';
   wrap.style.display=visible?'none':'block';
   btn.textContent='📊 Resumo por guia no período '+(visible?'▾':'▴');
+}
+
+// ===== BÔNUS DOS GUIAS =====
+function toggleBonusGuia(){
+  const wrap=document.getElementById('bonus-guia-wrap');
+  const visible=wrap.style.display!=='none';
+  wrap.style.display=visible?'none':'block';
+  if(!visible)carregarBonusGuia();
+  atualizarBadgeBonus();
+}
+
+async function adicionarBonusGuia(){
+  const guia=document.getElementById('bonus-guia-nome').value.trim().toUpperCase();
+  const qtd=parseInt(document.getElementById('bonus-qtd').value)||1;
+  const passeio=document.getElementById('bonus-passeio').value.trim();
+  const motivo=document.getElementById('bonus-motivo').value.trim();
+  if(!guia){alert('Informe o nome do guia.');return}
+  if(!passeio){alert('Informe qual passeio.');return}
+  showLoad();
+  try{
+    await window._ad(window._col(window._db,'bonusGuias'),{
+      guia,qtd,passeio,motivo,status:'pendente',criadoEm:new Date().toISOString()
+    });
+    hideLoad();
+    document.getElementById('bonus-guia-nome').value='';
+    document.getElementById('bonus-qtd').value='1';
+    document.getElementById('bonus-passeio').value='';
+    document.getElementById('bonus-motivo').value='';
+    carregarBonusGuia();
+    atualizarBadgeBonus();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
+async function carregarBonusGuia(){
+  const wrap=document.getElementById('bonus-lista');
+  wrap.innerHTML='<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px">Carregando...</div>';
+  try{
+    const snap=await window._gds(window._col(window._db,'bonusGuias'));
+    const itens=snap.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(b=>b.status!=='pago')
+      .sort((a,b)=>(a.guia||'').localeCompare(b.guia||''));
+    if(!itens.length){wrap.innerHTML='<div style="font-size:13px;color:var(--muted);text-align:center;padding:14px">🎉 Nenhum bônus pendente no momento.</div>';return}
+    wrap.innerHTML=itens.map(b=>{
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:6px;gap:10px">'
+        +'<div style="font-size:13px"><strong>'+b.qtd+'x</strong> Bônus '+b.passeio+(b.motivo?' <span style="color:var(--muted)">— '+b.motivo+'</span>':'')+'<div style="font-weight:600;margin-top:2px">'+b.guia+'</div></div>'
+        +'<div style="display:flex;gap:6px;flex-shrink:0">'
+        +'<button onclick="pagarBonusGuia(\''+b.id+'\',\''+b.guia+'\')" style="padding:5px 12px;background:#0f6e56;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer;font-weight:600">✅ Pago</button>'
+        +'<button onclick="apagarBonusGuia(\''+b.id+'\')" style="padding:5px 9px;background:none;border:1px solid #fcc;border-radius:99px;font-size:11px;cursor:pointer;color:#e74c3c">🗑️</button>'
+        +'</div></div>';
+    }).join('');
+  }catch(e){wrap.innerHTML='<div style="font-size:12px;color:var(--red)">Erro ao carregar bônus.</div>'}
+}
+
+async function pagarBonusGuia(id,guia){
+  if(!confirm('Marcar como pago o bônus de '+guia+'?\n\nEle sai da lista de pendentes.'))return;
+  showLoad();
+  try{
+    await window._sd(window._doc(window._db,'bonusGuias',id),{status:'pago',pagoEm:new Date().toISOString()},{merge:true});
+    hideLoad();
+    carregarBonusGuia();
+    atualizarBadgeBonus();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
+async function apagarBonusGuia(id){
+  if(!confirm('Apagar este registro de bônus? Esta ação não pode ser desfeita.'))return;
+  showLoad();
+  try{
+    await window._dd(window._doc(window._db,'bonusGuias',id));
+    hideLoad();
+    carregarBonusGuia();
+    atualizarBadgeBonus();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
+async function atualizarBadgeBonus(){
+  const btn=document.getElementById('btn-bonus-guia');
+  if(!btn)return;
+  try{
+    const snap=await window._gds(window._col(window._db,'bonusGuias'));
+    const n=snap.docs.filter(d=>d.data().status!=='pago').length;
+    const aberto=document.getElementById('bonus-guia-wrap').style.display!=='none';
+    btn.textContent='🎁 Bônus dos guias'+(n?' ('+n+' pendente'+(n>1?'s':'')+')':'')+' '+(aberto?'▴':'▾');
+  }catch(e){}
 }
 
 
@@ -3598,6 +3683,28 @@ async function confirmarReset(){
       <h3 style="margin:0">🏖️ Passeios</h3>
       <button onclick="togglePasseioForm()" id="btn-toggle-passeio" style="padding:8px 16px;background:#e67e22;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">+ Adicionar passeio</button>
     </div>
+
+    <button class="btn-outline" onclick="toggleBonusGuia()" id="btn-bonus-guia" style="width:100%;text-align:left;padding:10px 14px;font-size:13px;margin-bottom:1rem">🎁 Bônus dos guias ▾</button>
+    <div id="bonus-guia-wrap" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:1rem">
+      <div style="background:#fdf6e3;border:1px solid #f0d98c;border-radius:var(--rsm);padding:10px 14px;font-size:12.5px;color:#8a6d1a;margin-bottom:14px">💡 Registre aqui quando um guia ganha um passeio de bônus (serviço vip, famtour, congresso, evento...). Fica guardado até vocês terem disponibilidade pra pagar.</div>
+      <div style="display:grid;grid-template-columns:1fr 90px 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label>Guia</label>
+          <input type="text" id="bonus-guia-nome" placeholder="Nome do guia..." style="background:#fff"/>
+        </div>
+        <div><label>Qtd.</label>
+          <input type="number" id="bonus-qtd" value="1" min="1" style="background:#fff"/>
+        </div>
+        <div><label>Passeio</label>
+          <input type="text" id="bonus-passeio" placeholder="ex: Maragogi, Carneiros..." style="background:#fff"/>
+        </div>
+        <div><label>Motivo</label>
+          <input type="text" id="bonus-motivo" placeholder="ex: famtour, evento sou porto..." style="background:#fff"/>
+        </div>
+      </div>
+      <button onclick="adicionarBonusGuia()" style="padding:8px 16px;background:#8a6d1a;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600;margin-bottom:14px">➕ Registrar bônus</button>
+      <div id="bonus-lista"></div>
+    </div>
+
     <div id="passeio-form" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:1rem">
       <div style="background:#e7f3ee;border:1px solid #b8ddce;border-radius:var(--rsm);padding:10px 14px;font-size:12.5px;color:#0f6e56;margin-bottom:12px;display:flex;align-items:center;gap:8px">💡 Monte vários destinos e clique em "Salvar todos" no final — sem repetir a tela a cada um.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
