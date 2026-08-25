@@ -2291,6 +2291,8 @@ async function carregarDisp(){
       const trabalhando=guiasTrabalhandoNaData.has(g)||guiasEmPasseio.has(g);
       if(filtStatus==='trabalhando'){
         if(!trabalhando)return false;
+      } else if(filtStatus==='obs'){
+        if(!dispObs[g])return false;
       } else if(filtStatus==='nao'){if(status!=='nao'&&status!=='passeio')return false;} else if(filtStatus&&filtStatus!==status)return false;
       if(filtIdioma){
         const idiomas=(guiasData[g]&&guiasData[g].idiomas)||[];
@@ -2311,7 +2313,7 @@ async function carregarDisp(){
     // Aviso obs do guia
     const avisoObs=TODOS_GUIAS_DISP.filter(g=>dispObs[g]).length;
     const avisoEl=document.getElementById('disp-aviso-obs');
-    if(avisoEl)avisoEl.innerHTML=avisoObs?'<div style="background:#fff3cd;border:1px solid #f0c040;border-radius:var(--rsm);padding:10px 16px;font-size:13px;color:#7c5c00;display:flex;align-items:center;gap:8px;margin-bottom:12px">⚠️ <strong>'+avisoObs+' guia'+(avisoObs>1?'s têm':' tem')+'</strong> observação pendente — verifique abaixo.</div>':'';
+    if(avisoEl)avisoEl.innerHTML=avisoObs?'<div onclick="filtrarObs()" style="cursor:pointer;background:#fff3cd;border:1px solid #f0c040;border-radius:var(--rsm);padding:10px 16px;font-size:13px;color:#7c5c00;display:flex;align-items:center;gap:8px;margin-bottom:12px">⚠️ <strong>'+avisoObs+' guia'+(avisoObs>1?'s têm':' tem')+'</strong> observação pendente — verifique abaixo.</div>':'';
 
     // Renderização em seções Porto / Recife
     const renderLinhaGuia=(g,i)=>{
@@ -2401,6 +2403,7 @@ async function carregarDisp(){
 }
 
 function filtrarTrabalhando(){document.getElementById('disp-status').value='trabalhando';carregarDisp();}
+function filtrarObs(){document.getElementById('disp-status').value='obs';carregarDisp();}
 
 async function toggleNaoConvidar(guia){
   const ref=window._doc(window._db,'guias',guia);
@@ -3753,6 +3756,7 @@ async function confirmarReset(){
           <option value="passeio">🏖️ Passeio</option>
           <option value="sem">⬜ Sem resposta</option>
           <option value="trabalhando">🔧 Trabalhando hoje</option>
+          <option value="obs">📝 Com observação</option>
         </select>
       </div>
       <button class="btn-sm" onclick="carregarDisp()">🔍 Buscar</button>
