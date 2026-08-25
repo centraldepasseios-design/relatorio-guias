@@ -1069,7 +1069,7 @@ async function adicionarBonusGuia(){
   showLoad();
   try{
     await window._ad(window._col(window._db,'bonusGuias'),{
-      guia,qtd,passeio,motivo,status:'pendente',criadoEm:new Date().toISOString()
+      guia,qtd,qtdPaga:0,passeio,motivo,criadoEm:new Date().toISOString()
     });
     hideLoad();
     document.getElementById('bonus-guia-nome').value='';
@@ -1083,34 +1083,43 @@ async function adicionarBonusGuia(){
 
 async function carregarBonusGuia(){
   const wrap=document.getElementById('bonus-lista');
+  const mostrarPagos=document.getElementById('bonus-mostrar-pagos').checked;
   wrap.innerHTML='<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px">Carregando...</div>';
   try{
     const snap=await window._gds(window._col(window._db,'bonusGuias'));
-    const itens=snap.docs
-      .map(d=>({id:d.id,...d.data()}))
-      .filter(b=>b.status!=='pago')
-      .sort((a,b)=>(a.guia||'').localeCompare(b.guia||''));
+    let itens=snap.docs.map(d=>({id:d.id,...d.data(),qtdPaga:d.data().qtdPaga||0}));
+    if(!mostrarPagos)itens=itens.filter(b=>b.qtdPaga<b.qtd);
+    itens.sort((a,b)=>(a.guia||'').localeCompare(b.guia||''));
     if(!itens.length){wrap.innerHTML='<div style="font-size:13px;color:var(--muted);text-align:center;padding:14px">🎉 Nenhum bônus pendente no momento.</div>';return}
     wrap.innerHTML=itens.map(b=>{
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:6px;gap:10px">'
-        +'<div style="font-size:13px"><strong>'+b.qtd+'x</strong> Bônus '+b.passeio+(b.motivo?' <span style="color:var(--muted)">— '+b.motivo+'</span>':'')+'<div style="font-weight:600;margin-top:2px">'+b.guia+'</div></div>'
-        +'<div style="display:flex;gap:6px;flex-shrink:0">'
-        +'<button onclick="pagarBonusGuia(\''+b.id+'\',\''+b.guia+'\')" style="padding:5px 12px;background:#0f6e56;color:#fff;border:none;border-radius:99px;font-size:11px;cursor:pointer;font-weight:600">✅ Pago</button>'
+      const restante=b.qtd-b.qtdPaga;
+      const completo=restante<=0;
+      const statusTxt=completo
+        ?'<span style="color:#0f6e56;font-weight:600">✅ Pago</span>'
+        :('<span style="color:#e67e22;font-weight:600">'+restante+' pendente'+(restante>1?'s':'')+(b.qtdPaga>0?' ('+b.qtdPaga+' já pago'+(b.qtdPaga>1?'s':'')+')':'')+'</span>');
+      const stepper=completo?'':'<div style="display:flex;align-items:center;gap:6px">'
+        +'<button onclick="pagarUmBonus(\''+b.id+'\')" title="Marcar 1 como pago" style="width:26px;height:26px;background:#0f6e56;color:#fff;border:none;border-radius:99px;font-size:15px;font-weight:700;cursor:pointer;line-height:1">−</button>'
+        +'</div>';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:'+(completo?'#f4f9f7':'var(--bg)')+';border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:6px;gap:10px'+(completo?';opacity:0.75':'')+'">'
+        +'<div style="font-size:13px"><strong>'+b.qtd+'x</strong> Bônus '+b.passeio+(b.motivo?' <span style="color:var(--muted)">— '+b.motivo+'</span>':'')+'<div style="font-weight:600;margin-top:2px">'+b.guia+'</div><div style="font-size:11px;margin-top:2px">'+statusTxt+'</div></div>'
+        +'<div style="display:flex;gap:8px;flex-shrink:0;align-items:center">'
+        +stepper
         +'<button onclick="apagarBonusGuia(\''+b.id+'\')" style="padding:5px 9px;background:none;border:1px solid #fcc;border-radius:99px;font-size:11px;cursor:pointer;color:#e74c3c">🗑️</button>'
         +'</div></div>';
     }).join('');
   }catch(e){wrap.innerHTML='<div style="font-size:12px;color:var(--red)">Erro ao carregar bônus.</div>'}
 }
 
-async function pagarBonusGuia(id,guia){
-  if(!confirm('Marcar como pago o bônus de '+guia+'?\n\nEle sai da lista de pendentes.'))return;
-  showLoad();
+async function pagarUmBonus(id){
   try{
-    await window._sd(window._doc(window._db,'bonusGuias',id),{status:'pago',pagoEm:new Date().toISOString()},{merge:true});
-    hideLoad();
+    const ref=window._doc(window._db,'bonusGuias',id);
+    const snap=await window._gd(ref);
+    const dados=snap.data();
+    const novaQtdPaga=Math.min((dados.qtdPaga||0)+1,dados.qtd);
+    await window._sd(ref,{qtdPaga:novaQtdPaga,ultimoPagamentoEm:new Date().toISOString()},{merge:true});
     carregarBonusGuia();
     atualizarBadgeBonus();
-  }catch(e){hideLoad();alert('Erro: '+e.message)}
+  }catch(e){alert('Erro: '+e.message)}
 }
 
 async function apagarBonusGuia(id){
@@ -1129,7 +1138,7 @@ async function atualizarBadgeBonus(){
   if(!btn)return;
   try{
     const snap=await window._gds(window._col(window._db,'bonusGuias'));
-    const n=snap.docs.filter(d=>d.data().status!=='pago').length;
+    const n=snap.docs.filter(d=>(d.data().qtdPaga||0)<d.data().qtd).length;
     const aberto=document.getElementById('bonus-guia-wrap').style.display!=='none';
     btn.textContent='🎁 Bônus dos guias'+(n?' ('+n+' pendente'+(n>1?'s':'')+')':'')+' '+(aberto?'▴':'▾');
   }catch(e){}
@@ -3702,6 +3711,12 @@ async function confirmarReset(){
         </div>
       </div>
       <button onclick="adicionarBonusGuia()" style="padding:8px 16px;background:#8a6d1a;color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600;margin-bottom:14px">➕ Registrar bônus</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <label style="margin:0">Bônus</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;font-weight:400;text-transform:none">
+          <input type="checkbox" id="bonus-mostrar-pagos" onchange="carregarBonusGuia()" style="cursor:pointer"/> Mostrar já pagos
+        </label>
+      </div>
       <div id="bonus-lista"></div>
     </div>
 
