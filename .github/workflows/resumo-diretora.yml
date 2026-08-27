@@ -2,8 +2,9 @@ name: Resumo Diário Diretora
 
 on:
   schedule:
-    # 09:00 UTC = 06:00 em Recife (America/Recife = UTC-3, sem horário de verão)
-    - cron: '0 9 * * *'
+    # 08:53 UTC = 05:53 em Recife. Evita a hora cheia (0 9 * * *), horário mais
+    # concorrido do GitHub Actions e por isso mais sujeito a atraso.
+    - cron: '53 8 * * *'
   workflow_dispatch:
 
 jobs:

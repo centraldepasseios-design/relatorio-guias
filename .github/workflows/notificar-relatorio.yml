@@ -2,7 +2,11 @@ name: Notificar Relatório Pendente
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    # 23:47 UTC = 20:47 em Recife. Evita a hora cheia (0 0 * * *), que é o
+    # horário mais concorrido do GitHub Actions no mundo inteiro e por isso
+    # o mais sujeito a atraso — deixa também uma folga maior antes da
+    # meia-noite, caso ainda assim atrase um pouco.
+    - cron: '47 23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -34,7 +38,15 @@ jobs:
           const ZAPI_URL = 'https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/token/ECA321B4DA2EB4B2FF4CB937/send-text';
           const ZAPI_CLIENT_TOKEN = 'F1b7c26e0ce09416fbc813a307ce5f298S';
 
-          const hoje = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Recife'}));
+          const agoraRecife = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Recife'}));
+          // Proteção contra atraso do agendador do GitHub: esse aviso é pensado
+          // pra rodar no fim da tarde/noite, checando o relatório DO MESMO DIA.
+          // Se por algum motivo ele disparar de madrugada (ex: atraso do cron
+          // passando da meia-noite), a data "de hoje" já teria virado — então
+          // nesse caso a checagem correta é sobre ONTEM, não sobre hoje.
+          const hoje = agoraRecife.getHours() < 6
+            ? new Date(agoraRecife.getFullYear(), agoraRecife.getMonth(), agoraRecife.getDate() - 1)
+            : agoraRecife;
           const data = hoje.toISOString().slice(0, 10);
           const dataFmt = String(hoje.getDate()).padStart(2,'0') + '/' + String(hoje.getMonth()+1).padStart(2,'0');
           console.log('Verificando:', data);
