@@ -223,10 +223,19 @@
   <div class="cartao" id="cartaoPasseios" style="display:none;">
     <h2>1. Motoristas dos passeios</h2>
     <p style="color:var(--muted); font-size:14px; margin-bottom:12px;">
-      Selecione o motorista e o horário. Use <strong>Duplicar</strong> para repetir o mesmo horário com outro motorista.
+      Selecione o motorista, o passeio e o horário. Use <strong>Duplicar</strong> para repetir o mesmo passeio/horário com outro motorista.
     </p>
+    <div style="background:var(--fundo); border:1px solid var(--borda); border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+      <label style="font-size:12.5px; font-weight:600; color:var(--muted); display:block; margin-bottom:8px;">Passeios cadastrados</label>
+      <div id="listaPasseiosFixos" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;"></div>
+      <div style="display:flex; gap:8px; max-width:620px; flex-wrap:wrap;">
+        <input type="text" id="novoPasseioNome" placeholder="Nome do novo passeio">
+        <button class="secundario" id="btnAddPasseioFixo" style="white-space:nowrap;">+ Adicionar</button>
+        <button class="secundario" id="btnSeedPasseios" style="white-space:nowrap;" title="Adiciona os 9 passeios já definidos, pulando os que já existem">Carregar lista padrão</button>
+      </div>
+    </div>
     <table style="margin-bottom:12px;">
-      <thead><tr><th style="width:45%">Motorista</th><th style="width:25%">Horário</th><th style="width:30%"></th></tr></thead>
+      <thead><tr><th style="width:26%">Motorista</th><th style="width:30%">Passeio</th><th style="width:18%">Horário</th><th style="width:26%"></th></tr></thead>
       <tbody id="linhasPasseios"></tbody>
     </table>
     <button class="secundario" id="btnAddPasseio">+ Adicionar motorista</button>
@@ -265,7 +274,7 @@
       </select>
     </div>
     <div class="campo" style="margin-bottom:10px;">
-      <label>Modelo da mensagem — use {nome}, {data}, {diasemana}, {horario} e {coordenador}</label>
+      <label>Modelo da mensagem — use {nome}, {data}, {diasemana}, {horario}, {passeio} (só em Passeios) e {coordenador}</label>
       <textarea id="modeloMensagem" rows="6" style="width:100%;">LUCK RECEPTIVO
 
 {nome}, sua APRESENTAÇÃO:
@@ -827,6 +836,7 @@ function montarMensagem(m) {
     .split('{data}').join(dataBR(iso))
     .split('{diasemana}').join(diaSemana(iso))
     .split('{horario}').join(m.horarioMin !== null ? hhmm(m.horarioMin) : '')
+    .split('{passeio}').join(m.passeio || '')
     .split('{coordenador}').join(coord);
 }
 function atualizarPrevia() {
@@ -911,6 +921,12 @@ document.querySelectorAll('.tab-modo').forEach(function(btn) {
     document.getElementById('cartaoPasseios').style.display = ehPasseios ? 'block' : 'none';
     if (!ehPasseios) document.getElementById('textoImportar').innerHTML = textosImportar[modoEscala];
     else if (!document.getElementById('linhasPasseios').children.length) adicionarLinhaPasseio();
+    // trocar de sub-aba limpa a revisão/envio para não misturar dados de outra aba
+    escala = [];
+    document.getElementById('cartaoRevisao').style.display = 'none';
+    document.getElementById('cartaoEnvio').style.display = 'none';
+    document.getElementById('avisoImportacao').innerHTML = '';
+    document.getElementById('avisoPasseios').innerHTML = '';
   });
 });
 
@@ -924,13 +940,97 @@ function optionsMotoristas(selecionado) {
   });
   return html;
 }
-function adicionarLinhaPasseio(horarioPreenchido) {
+
+// ============================ LISTA FIXA DE PASSEIOS ============================
+let passeiosFixos = [];
+function carregarPasseiosFixos() {
+  db.collection('passeios').get().then(function(snap) {
+    passeiosFixos = [];
+    snap.forEach(function(doc) { passeiosFixos.push({ id: doc.id, nome: doc.data().nome }); });
+    passeiosFixos.sort(function(a, b) { return a.nome.localeCompare(b.nome); });
+    renderListaPasseiosFixos();
+    document.querySelectorAll('#linhasPasseios select.select-passeio').forEach(function(sel) {
+      const atual = sel.value;
+      sel.innerHTML = optionsPasseios(atual);
+    });
+  }).catch(function(e) {
+    mostrarAviso('avisoPasseios', 'erro', 'Falha ao carregar passeios: ' + e.message);
+  });
+}
+function optionsPasseios(selecionado) {
+  let html = '<option value="">— selecione —</option>';
+  passeiosFixos.forEach(function(p) {
+    html += '<option value="' + p.nome + '"' + (p.nome === selecionado ? ' selected' : '') + '>' + p.nome + '</option>';
+  });
+  return html;
+}
+function renderListaPasseiosFixos() {
+  const cont = document.getElementById('listaPasseiosFixos');
+  if (!passeiosFixos.length) {
+    cont.innerHTML = '<span style="color:var(--muted); font-size:13px;">Nenhum passeio cadastrado ainda — adicione abaixo.</span>';
+    return;
+  }
+  cont.innerHTML = passeiosFixos.map(function(p) {
+    return '<span class="chip casa" style="display:inline-flex; align-items:center; gap:6px;">' + p.nome +
+      ' <button onclick="removerPasseioFixo(\'' + p.id + '\')" style="border:none; background:none; color:inherit; cursor:pointer; font-weight:700; font-size:14px; line-height:1;" title="Remover">×</button></span>';
+  }).join('');
+}
+function removerPasseioFixo(id) {
+  if (!confirm('Remover este passeio da lista?')) return;
+  db.collection('passeios').doc(id).delete().then(carregarPasseiosFixos);
+}
+document.getElementById('btnAddPasseioFixo').addEventListener('click', function() {
+  const nome = document.getElementById('novoPasseioNome').value.trim();
+  if (!nome) return;
+  if (passeiosFixos.some(function(p) { return p.nome.toLowerCase() === nome.toLowerCase(); })) {
+    document.getElementById('novoPasseioNome').value = '';
+    return;
+  }
+  db.collection('passeios').add({ nome: nome }).then(function() {
+    document.getElementById('novoPasseioNome').value = '';
+    carregarPasseiosFixos();
+  }).catch(function(e) { mostrarAviso('avisoPasseios', 'erro', 'Erro ao salvar passeio: ' + e.message); });
+});
+document.getElementById('novoPasseioNome').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('btnAddPasseioFixo').click();
+});
+const PASSEIOS_PADRAO = [
+  'Cabo de Santo Agostinho (Porto de Galinhas)',
+  'Cabo de Santo Agostinho (Boa Viagem/Piedade)',
+  'Maragogi (Porto de Galinhas)',
+  'Maragogi (Boa Viagem/Piedade)',
+  'Litoral Norte (Porto de Galinhas)',
+  'Litoral Norte (Boa Viagem/Piedade)',
+  'Porto de Galinhas',
+  'Porto de Galinhas (Cabo de Santo Agostinho)',
+  'São José da Coroa Grande (Porto de Galinhas)',
+  'Carneiros (Porto de Galinhas)',
+  'Carneiros (Boa Viagem/Piedade)',
+  'City Tour Recife e Olinda (Boa Viagem/Piedade)',
+  'City Tour Recife e Olinda (Porto de Galinhas)',
+  'João Pessoa (Boa Viagem/Piedade)'
+];
+document.getElementById('btnSeedPasseios').addEventListener('click', function() {
+  const existentes = passeiosFixos.map(function(p) { return p.nome.toLowerCase(); });
+  const faltando = PASSEIOS_PADRAO.filter(function(n) { return existentes.indexOf(n.toLowerCase()) === -1; });
+  if (!faltando.length) { mostrarAviso('avisoPasseios', 'info', 'Os 9 passeios padrão já estão todos cadastrados.'); return; }
+  Promise.all(faltando.map(function(n) { return db.collection('passeios').add({ nome: n }); }))
+    .then(function() {
+      mostrarAviso('avisoPasseios', 'info', faltando.length + ' passeio(s) adicionado(s).');
+      carregarPasseiosFixos();
+    })
+    .catch(function(e) { mostrarAviso('avisoPasseios', 'erro', 'Erro ao carregar lista padrão: ' + e.message); });
+});
+carregarPasseiosFixos();
+
+function adicionarLinhaPasseio(horarioPreenchido, passeioPreenchido) {
   const id = linhasPasseiosCount++;
   const tbody = document.getElementById('linhasPasseios');
   const tr = document.createElement('tr');
   tr.id = 'linhaPasseio-' + id;
   tr.innerHTML =
     '<td><select id="passeioMot-' + id + '" style="width:100%; padding:7px; border:1px solid var(--borda); border-radius:8px;">' + optionsMotoristas('') + '</select></td>' +
+    '<td><select id="passeioNome-' + id + '" class="select-passeio" style="width:100%; padding:7px; border:1px solid var(--borda); border-radius:8px;">' + optionsPasseios(passeioPreenchido || '') + '</select></td>' +
     '<td><input type="time" id="passeioHor-' + id + '" value="' + (horarioPreenchido || '') + '" style="padding:7px; border:1px solid var(--borda); border-radius:8px;"></td>' +
     '<td><button class="secundario" style="padding:5px 10px; font-size:13px;" onclick="duplicarLinhaPasseio(' + id + ')">Duplicar</button> ' +
     '<button class="perigo" onclick="removerLinhaPasseio(' + id + ')">remover</button></td>';
@@ -938,7 +1038,8 @@ function adicionarLinhaPasseio(horarioPreenchido) {
 }
 function duplicarLinhaPasseio(id) {
   const horario = document.getElementById('passeioHor-' + id).value;
-  adicionarLinhaPasseio(horario);
+  const passeio = document.getElementById('passeioNome-' + id).value;
+  adicionarLinhaPasseio(horario, passeio);
 }
 function removerLinhaPasseio(id) {
   const el = document.getElementById('linhaPasseio-' + id);
@@ -955,12 +1056,14 @@ document.getElementById('btnContinuarPasseios').addEventListener('click', functi
   linhas.forEach(function(tr) {
     const id = tr.id.replace('linhaPasseio-', '');
     const nome = document.getElementById('passeioMot-' + id).value;
+    const passeio = document.getElementById('passeioNome-' + id).value.trim();
     const hor = document.getElementById('passeioHor-' + id).value;
     if (!nome || !hor) { vazios++; return; }
     const cad = motoristas[nome];
     const p = hor.split(':');
     novos.push({
       nome: nome,
+      passeio: passeio,
       horarioMin: parseInt(p[0], 10) * 60 + parseInt(p[1], 10),
       vespera: false,
       telefone: cad ? cad.telefone : '',
