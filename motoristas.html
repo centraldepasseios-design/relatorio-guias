@@ -192,9 +192,21 @@
 
 <!-- ================= ESCALA DO DIA ================= -->
 <section id="secao-escala" class="secao ativa">
-  <div class="cartao">
+  <div class="cartao" style="padding-bottom:14px;">
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="tab-modo ativa" data-modo="dia" style="border-radius:8px; padding:9px 18px; border:1px solid var(--verde); background:var(--verde); color:#fff; font-weight:600; cursor:pointer; font-size:14px;">☀️ Dia (06h–17h)</button>
+      <button class="tab-modo" data-modo="noite" style="border-radius:8px; padding:9px 18px; border:1px solid var(--verde); background:#fff; color:var(--verde); font-weight:600; cursor:pointer; font-size:14px;">🌙 Noite (18h–05h)</button>
+      <button class="tab-modo" data-modo="passeios" style="border-radius:8px; padding:9px 18px; border:1px solid var(--verde); background:#fff; color:var(--verde); font-weight:600; cursor:pointer; font-size:14px;">🗺️ Passeios</button>
+    </div>
+    <div class="campo" style="max-width:220px;">
+      <label>Data do aviso (dia da escala)</label>
+      <input type="date" id="dataEscala">
+    </div>
+  </div>
+
+  <div class="cartao" id="cartaoImportar">
     <h2>1. Importar a escala</h2>
-    <p style="color:var(--muted); font-size:14px; margin-bottom:12px;">
+    <p style="color:var(--muted); font-size:14px; margin-bottom:12px;" id="textoImportar">
       Selecione a <strong>Prévia de Escala</strong> (.xlsx) ou o export do sistema (IN e OUT). Os dois formatos são reconhecidos automaticamente.
       O aviso enviado contém apenas o <strong>primeiro horário de apresentação</strong> de cada motorista.
     </p>
@@ -203,13 +215,25 @@
         <label>Arquivo(s) do export (.xls)</label>
         <input type="file" id="arquivoEscala" accept=".xls,.xlsx,.html" multiple>
       </div>
-      <div class="campo">
-        <label>Data do aviso (dia da escala)</label>
-        <input type="date" id="dataEscala">
-      </div>
       <button class="acao" id="btnProcessar">Processar escala</button>
     </div>
     <div id="avisoImportacao"></div>
+  </div>
+
+  <div class="cartao" id="cartaoPasseios" style="display:none;">
+    <h2>1. Motoristas dos passeios</h2>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:12px;">
+      Selecione o motorista e o horário. Use <strong>Duplicar</strong> para repetir o mesmo horário com outro motorista.
+    </p>
+    <table style="margin-bottom:12px;">
+      <thead><tr><th style="width:45%">Motorista</th><th style="width:25%">Horário</th><th style="width:30%"></th></tr></thead>
+      <tbody id="linhasPasseios"></tbody>
+    </table>
+    <button class="secundario" id="btnAddPasseio">+ Adicionar motorista</button>
+    <div id="avisoPasseios"></div>
+    <div style="margin-top:16px; border-top:1px solid var(--borda); padding-top:14px;">
+      <button class="acao" id="btnContinuarPasseios">Revisar antes de enviar</button>
+    </div>
   </div>
 
   <div class="cartao" id="cartaoRevisao" style="display:none;">
@@ -233,21 +257,29 @@
 
   <div class="cartao" id="cartaoEnvio" style="display:none;">
     <h2>3. Enviar os avisos</h2>
+    <div class="campo" style="margin-bottom:12px; max-width:260px;">
+      <label>Coordenadora de plantão hoje</label>
+      <select id="coordenadorDia">
+        <option value="renata">Renata — (81) 99970-6387</option>
+        <option value="julia">Julia — (81) 98600-2325</option>
+      </select>
+    </div>
     <div class="campo" style="margin-bottom:10px;">
-      <label>Modelo da mensagem — use {nome}, {data}, {diasemana} e {horario}</label>
-      <textarea id="modeloMensagem" rows="3" style="width:100%;">LUCK RECEPTIVO
+      <label>Modelo da mensagem — use {nome}, {data}, {diasemana}, {horario} e {coordenador}</label>
+      <textarea id="modeloMensagem" rows="6" style="width:100%;">LUCK RECEPTIVO
 
 {nome}, sua APRESENTAÇÃO:
 
 📅 {diasemana}, {data}
 🕒 {horario}
 
-Qualquer dúvida, ligue para a coordenação.</textarea>
+Dúvidas? Fale com a coordenação: {coordenador}</textarea>
     </div>
     <div style="font-size:13.5px; color:var(--muted); margin-bottom:10px;">
       Prévia:<pre id="previaMensagem" class="mono" style="white-space:pre-wrap; background:var(--fundo); border:1px solid var(--borda); border-radius:8px; padding:10px; margin-top:6px;"></pre>
     </div>
     <button class="acao" id="btnEnviar">Enviar avisos via WhatsApp</button>
+
     <div class="progresso" style="display:none;" id="barraProgresso"><div></div></div>
     <div id="logEnvio" class="mono" style="max-height:220px; overflow:auto; margin-top:10px;"></div>
   </div>
@@ -406,6 +438,10 @@ function carregarMotoristas() {
       motoristas[normalizar(d.nome)] = { id: doc.id, nome: d.nome, telefone: d.telefone || '', tipo: d.tipo || 'casa' };
     });
     renderMotoristas();
+    document.querySelectorAll('#linhasPasseios select').forEach(function(sel) {
+      const atual = sel.value;
+      sel.innerHTML = optionsMotoristas(atual);
+    });
   }).catch(function(e) {
     mostrarAviso('avisoCadastro', 'erro', 'Falha ao carregar motoristas: ' + e.message +
       '. Confira o firebaseConfig no arquivo.');
@@ -549,7 +585,12 @@ document.getElementById('btnProcessar').addEventListener('click', function() {
 
     pastas.forEach(function(wb) {
       // ===== FORMATO 1: Prévia de Escala (abas "Prévia Escala ...") =====
-      const abasPrevia = wb.SheetNames.filter(function(n) { return n.indexOf('Prévia Escala') === 0; });
+      const abasPrevia = wb.SheetNames.filter(function(n) {
+        if (n.indexOf('Prévia Escala') !== 0) return false;
+        if (modoEscala === 'dia') return n.indexOf('(Dia)') > -1;
+        if (modoEscala === 'noite') return n.indexOf('(Noite)') > -1;
+        return true;
+      });
       if (abasPrevia.length) {
         abasPrevia.forEach(function(nomeAba) {
           const linhas = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { header: 1, raw: false });
@@ -773,20 +814,27 @@ function diaSemana(iso) {
   const p = iso.split('-');
   return dias[new Date(parseInt(p[0],10), parseInt(p[1],10)-1, parseInt(p[2],10)).getDay()];
 }
+const COORDENADORES = {
+  renata: 'Renata (81) 99970-6387',
+  julia: 'Julia (81) 98600-2325'
+};
 function montarMensagem(m) {
   const modelo = document.getElementById('modeloMensagem').value;
   const iso = document.getElementById('dataEscala').value;
+  const coord = COORDENADORES[document.getElementById('coordenadorDia').value];
   return modelo
     .split('{nome}').join(primeiroNome(m.nome))
     .split('{data}').join(dataBR(iso))
     .split('{diasemana}').join(diaSemana(iso))
-    .split('{horario}').join(m.horarioMin !== null ? hhmm(m.horarioMin) : '');
+    .split('{horario}').join(m.horarioMin !== null ? hhmm(m.horarioMin) : '')
+    .split('{coordenador}').join(coord);
 }
 function atualizarPrevia() {
   const alvo = escala.find(function(m) { return m.enviar; }) || escala[0];
   document.getElementById('previaMensagem').textContent = alvo ? montarMensagem(alvo) : '';
 }
 document.getElementById('modeloMensagem').addEventListener('input', atualizarPrevia);
+document.getElementById('coordenadorDia').addEventListener('change', atualizarPrevia);
 
 function pausa(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
@@ -843,7 +891,90 @@ document.getElementById('btnSalvarZapi').addEventListener('click', function() {
   mostrarAviso('avisoConfig', 'info', 'Dados da Z-API salvos neste navegador.');
 });
 
-// data padrão: amanhã
+// ============================ SUB-ABAS DIA / NOITE / PASSEIOS ============================
+let modoEscala = 'dia';
+const textosImportar = {
+  dia: 'Selecione a <strong>Prévia de Escala</strong> (.xlsx) ou o export do sistema (IN e OUT). Lê apenas a aba "Prévia Escala (Dia)". O aviso enviado contém apenas o <strong>primeiro horário de apresentação</strong> de cada motorista.',
+  noite: 'Selecione a <strong>Prévia de Escala</strong> (.xlsx) ou o export do sistema (IN e OUT). Lê apenas a aba "Prévia Escala (Noite)". O aviso enviado contém apenas o <strong>primeiro horário de apresentação</strong> de cada motorista.'
+};
+document.querySelectorAll('.tab-modo').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    modoEscala = btn.dataset.modo;
+    document.querySelectorAll('.tab-modo').forEach(function(b) {
+      const ativa = b === btn;
+      b.classList.toggle('ativa', ativa);
+      b.style.background = ativa ? 'var(--verde)' : '#fff';
+      b.style.color = ativa ? '#fff' : 'var(--verde)';
+    });
+    const ehPasseios = modoEscala === 'passeios';
+    document.getElementById('cartaoImportar').style.display = ehPasseios ? 'none' : 'block';
+    document.getElementById('cartaoPasseios').style.display = ehPasseios ? 'block' : 'none';
+    if (!ehPasseios) document.getElementById('textoImportar').innerHTML = textosImportar[modoEscala];
+    else if (!document.getElementById('linhasPasseios').children.length) adicionarLinhaPasseio();
+  });
+});
+
+// ============================ PASSEIOS (cadastro manual) ============================
+let linhasPasseiosCount = 0;
+function optionsMotoristas(selecionado) {
+  const nomes = Object.keys(motoristas).sort();
+  let html = '<option value="">— selecione —</option>';
+  nomes.forEach(function(n) {
+    html += '<option value="' + n + '"' + (n === selecionado ? ' selected' : '') + '>' + n + '</option>';
+  });
+  return html;
+}
+function adicionarLinhaPasseio(horarioPreenchido) {
+  const id = linhasPasseiosCount++;
+  const tbody = document.getElementById('linhasPasseios');
+  const tr = document.createElement('tr');
+  tr.id = 'linhaPasseio-' + id;
+  tr.innerHTML =
+    '<td><select id="passeioMot-' + id + '" style="width:100%; padding:7px; border:1px solid var(--borda); border-radius:8px;">' + optionsMotoristas('') + '</select></td>' +
+    '<td><input type="time" id="passeioHor-' + id + '" value="' + (horarioPreenchido || '') + '" style="padding:7px; border:1px solid var(--borda); border-radius:8px;"></td>' +
+    '<td><button class="secundario" style="padding:5px 10px; font-size:13px;" onclick="duplicarLinhaPasseio(' + id + ')">Duplicar</button> ' +
+    '<button class="perigo" onclick="removerLinhaPasseio(' + id + ')">remover</button></td>';
+  tbody.appendChild(tr);
+}
+function duplicarLinhaPasseio(id) {
+  const horario = document.getElementById('passeioHor-' + id).value;
+  adicionarLinhaPasseio(horario);
+}
+function removerLinhaPasseio(id) {
+  const el = document.getElementById('linhaPasseio-' + id);
+  if (el) el.remove();
+}
+document.getElementById('btnAddPasseio').addEventListener('click', function() { adicionarLinhaPasseio(); });
+
+document.getElementById('btnContinuarPasseios').addEventListener('click', function() {
+  const dataAviso = document.getElementById('dataEscala').value;
+  if (!dataAviso) { mostrarAviso('avisoPasseios', 'erro', 'Informe a data do aviso.'); return; }
+  const linhas = Array.prototype.slice.call(document.querySelectorAll('#linhasPasseios tr'));
+  const novos = [];
+  let vazios = 0;
+  linhas.forEach(function(tr) {
+    const id = tr.id.replace('linhaPasseio-', '');
+    const nome = document.getElementById('passeioMot-' + id).value;
+    const hor = document.getElementById('passeioHor-' + id).value;
+    if (!nome || !hor) { vazios++; return; }
+    const cad = motoristas[nome];
+    const p = hor.split(':');
+    novos.push({
+      nome: nome,
+      horarioMin: parseInt(p[0], 10) * 60 + parseInt(p[1], 10),
+      vespera: false,
+      telefone: cad ? cad.telefone : '',
+      situacao: !cad ? 'sem-cadastro' : (!cad.telefone ? 'sem-telefone' : 'ok'),
+      enviar: !!cad && !!cad.telefone
+    });
+  });
+  if (!novos.length) { mostrarAviso('avisoPasseios', 'erro', 'Adicione ao menos um motorista com horário.'); return; }
+  if (vazios) mostrarAviso('avisoPasseios', 'atencao', vazios + ' linha(s) incompleta(s) foram ignoradas.');
+  escala = novos;
+  renderEscala();
+});
+
+
 (function() {
   const amanha = new Date(Date.now() + 24 * 3600 * 1000);
   document.getElementById('dataEscala').value = amanha.toISOString().slice(0, 10);
