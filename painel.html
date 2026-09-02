@@ -185,6 +185,7 @@ function entrar(){
     carregarEscalaPublicada();
     carregarConfirmacoes();
     verificarPendentes();
+    verificarNovidadesDisp(false);
   }else{
     document.getElementById('login-err').style.display='block';
     document.getElementById('senha-input').value='';
@@ -309,7 +310,7 @@ function trocarAba(aba){
   });
   if(aba==='senhas')carregarSenhas();
   if(aba==='escala'){carregarEscalaPublicada();carregarConfirmacoes();verificarPendentes();setTimeout(verificarRascunho,400);}
-  if(aba==='disp')carregarDisp();
+  if(aba==='disp'){carregarDisp();verificarNovidadesDisp(true);}
   if(aba==='passeios'){carregarPasseios();document.getElementById('passeio-filtro-data').value=amanha();atualizarBadgeBonus();}
 }
 
@@ -1191,6 +1192,52 @@ async function atualizarBadgeBonus(){
     const aberto=document.getElementById('bonus-guia-wrap').style.display!=='none';
     btn.textContent='🎁 Bônus dos guias'+(n?' ('+n+' pendente'+(n>1?'s':'')+')':'')+' '+(aberto?'▴':'▾');
   }catch(e){}
+}
+
+// ===== NOVIDADES NA DISPONIBILIDADE =====
+// Avisa quando um guia atualiza a própria disponibilidade (indisponível,
+// restrição ou observação) desde a última vez que a coordenação checou esta aba.
+const CHAVE_ULTIMA_VISITA_DISP='luck_disp_ultima_visita';
+
+async function verificarNovidadesDisp(mostrarPopup){
+  try{
+    const ultimaVisita=localStorage.getItem(CHAVE_ULTIMA_VISITA_DISP)||'2000-01-01T00:00:00.000Z';
+    const snap=await window._gds(window._col(window._db,'disponibilidades'));
+    const novidades=snap.docs
+      .map(d=>d.data())
+      .filter(dd=>dd.atualizadoEm&&dd.atualizadoEm>ultimaVisita)
+      .sort((a,b)=>b.atualizadoEm.localeCompare(a.atualizadoEm));
+
+    const badge=document.getElementById('disp-badge');
+    if(badge){
+      if(novidades.length){badge.textContent=novidades.length>9?'9+':novidades.length;badge.style.display='block';}
+      else{badge.style.display='none';}
+    }
+
+    if(mostrarPopup&&novidades.length){
+      const lista=document.getElementById('novidades-disp-lista');
+      lista.innerHTML=novidades.map(n=>{
+        const dataFmt=n.data?new Date(n.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'—';
+        const statusBadge=n.status==='nao'
+          ?'<span style="background:#fde8e8;color:#c0392b;border-radius:99px;padding:2px 10px;font-size:11px;font-weight:600">❌ Indisponível</span>'
+          :'<span style="background:#faeeda;color:#854f0b;border-radius:99px;padding:2px 10px;font-size:11px;font-weight:600">⚠️ Restrição</span>';
+        const quando=n.atualizadoEm?new Date(n.atualizadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+        return '<div style="padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:8px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong style="font-size:13px">'+(n.guia||'—')+'</strong>'+statusBadge+'</div>'
+          +'<div style="font-size:12px;color:var(--muted)">📅 Dia '+dataFmt+(n.obs?' — '+n.obs:'')+'</div>'
+          +'<div style="font-size:10.5px;color:var(--hint);margin-top:3px">atualizado em '+quando+'</div>'
+          +'</div>';
+      }).join('');
+      document.getElementById('modal-novidades-disp').style.display='flex';
+    }
+  }catch(e){console.log('verificarNovidadesDisp:',e.message)}
+}
+
+function fecharModalNovidadesDisp(){
+  document.getElementById('modal-novidades-disp').style.display='none';
+  localStorage.setItem(CHAVE_ULTIMA_VISITA_DISP,new Date().toISOString());
+  const badge=document.getElementById('disp-badge');
+  if(badge)badge.style.display='none';
 }
 
 
@@ -2887,9 +2934,15 @@ async function importarPlanilha(event){
           continue;
         }
       }
-      // Usa o nome EXATO como está cadastrado na lista (com acento) — não remover
-      // acentos aqui, senão desfaz o match e obriga a rodar "Corrigir nomes" toda vez.
-      const guiaFinal=guiaMatch||guiaMatchFila;
+      // Usa o nome EXATO como está cadastrado — não remover acentos aqui,
+      // senão desfaz o match e obriga a rodar "Corrigir nomes" toda vez.
+      let guiaFinal=guiaMatch||guiaMatchFila;
+      // Proteção extra: se o cadastro no Firebase (GUIAS) estiver sem acento
+      // por algum motivo (ex: "GONCALVES"), mas a nossa lista de apoio
+      // (GUIAS_FILA) tiver a grafia correta ("GONÇALVES"), prefere essa —
+      // evita que o problema volte mesmo depois de já ter sido corrigido.
+      const grafiaCorreta=GUIAS_FILA.find(g=>norm(g)===norm(guiaFinal)&&g!==guiaFinal);
+      if(grafiaCorreta)guiaFinal=grafiaCorreta;
 
       const motorista=(row[COL_MOT]||'').toString().trim();
       const veiculo=(row[COL_VEI]||'').toString().trim();
@@ -3672,7 +3725,7 @@ async function confirmarReset(){
     <button class="tab active" onclick="trocarAba('escala')">📅 Escala</button>
     <button class="tab" onclick="trocarAba('passeios')">🏖️ Passeios</button>
     <button class="tab" onclick="trocarAba('relatorios')">📋 Relatórios</button>
-    <button class="tab" onclick="trocarAba('disp')">👥 Disponibilidade</button>
+    <button class="tab" onclick="trocarAba('disp')" style="position:relative">👥 Disponibilidade<span id="disp-badge" style="display:none;position:absolute;top:2px;right:2px;background:#e74c3c;color:#fff;border-radius:99px;font-size:10px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px;font-weight:700"></span></button>
     <button class="tab" onclick="trocarAba('senhas')">🔑 Senhas</button>
   </div>
 
@@ -4013,6 +4066,17 @@ async function confirmarReset(){
 </div>
 
 <!-- MODAL BLOQUEIO -->
+<div class="modal-overlay" id="modal-novidades-disp" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <h3>🔔 Novidades na disponibilidade</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:1rem">Atualizações feitas pelos guias desde a sua última visita a esta aba.</p>
+    <div id="novidades-disp-lista" style="max-height:400px;overflow-y:auto;margin-bottom:1rem"></div>
+    <div class="modal-btns">
+      <button class="btn-sm" style="width:100%" onclick="fecharModalNovidadesDisp()">✅ Marcar como visto</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-bloqueio" style="display:none">
   <div class="modal" style="max-width:420px">
     <h3>🔒 Bloquear agenda</h3>
@@ -4125,6 +4189,7 @@ if(localStorage.getItem('luck_admin')==='1'&&typeof entrar==='function'){
 if(typeof carregarEscalaPublicada==='function') carregarEscalaPublicada();
 if(typeof carregarConfirmacoes==='function') setTimeout(carregarConfirmacoes,300);
 if(typeof verificarPendentes==='function') setTimeout(verificarPendentes,600);
+if(typeof verificarNovidadesDisp==='function') setTimeout(()=>verificarNovidadesDisp(false),800);
 </script>
 
 

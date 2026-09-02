@@ -1,0 +1,123 @@
+name: Notificar Relatório Pendente
+
+on:
+  schedule:
+    # 23:47 UTC = 20:47 em Recife. Evita a hora cheia (0 0 * * *), que é o
+    # horário mais concorrido do GitHub Actions no mundo inteiro e por isso
+    # o mais sujeito a atraso — deixa também uma folga maior antes da
+    # meia-noite, caso ainda assim atrase um pouco.
+    - cron: '47 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  notificar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Instalar firebase-admin
+        run: npm install firebase-admin
+
+      - name: Criar arquivo de credenciais
+        run: echo '${{ secrets.FIREBASE_CREDENTIALS }}' > credentials.json
+
+      - name: Notificar guias sem relatório
+        run: |
+          node << 'EOF'
+          const admin = require('firebase-admin');
+          const https = require('https');
+          const fs = require('fs');
+
+          const credentials = JSON.parse(fs.readFileSync('credentials.json', 'utf8'));
+          admin.initializeApp({ credential: admin.credential.cert(credentials) });
+          const db = admin.firestore();
+
+          const ZAPI_URL = 'https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/token/ECA321B4DA2EB4B2FF4CB937/send-text';
+          const ZAPI_CLIENT_TOKEN = 'F1b7c26e0ce09416fbc813a307ce5f298S';
+
+          const agoraRecife = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Recife'}));
+          // Proteção contra atraso do agendador do GitHub: esse aviso é pensado
+          // pra rodar no fim da tarde/noite, checando o relatório DO MESMO DIA.
+          // Se por algum motivo ele disparar de madrugada (ex: atraso do cron
+          // passando da meia-noite), a data "de hoje" já teria virado — então
+          // nesse caso a checagem correta é sobre ONTEM, não sobre hoje.
+          const hoje = agoraRecife.getHours() < 6
+            ? new Date(agoraRecife.getFullYear(), agoraRecife.getMonth(), agoraRecife.getDate() - 1)
+            : agoraRecife;
+          const data = hoje.toISOString().slice(0, 10);
+          const dataFmt = String(hoje.getDate()).padStart(2,'0') + '/' + String(hoje.getMonth()+1).padStart(2,'0');
+          console.log('Verificando:', data);
+
+          function enviarWpp(phone, message) {
+            return new Promise((resolve, reject) => {
+              const body = JSON.stringify({ phone, message });
+              const url = new URL(ZAPI_URL);
+              const options = {
+                hostname: url.hostname,
+                path: url.pathname,
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Client-Token': ZAPI_CLIENT_TOKEN,
+                  'Content-Length': Buffer.byteLength(body)
+                }
+              };
+              const req = https.request(options, res => {
+                let d = '';
+                res.on('data', x => d += x);
+                res.on('end', () => { console.log('WPP:', d); resolve(d); });
+              });
+              req.on('error', reject);
+              req.write(body);
+              req.end();
+            });
+          }
+
+          async function main() {
+            const escSnap = await db.collection('escalas').where('data', '==', data).get();
+            const guiasEscala = new Set();
+            escSnap.forEach(doc => guiasEscala.add(doc.data().guia));
+            console.log('Na escala:', [...guiasEscala].join(', ') || 'Nenhum');
+            if (!guiasEscala.size) return;
+
+            const relSnap = await db.collection('relatorios').where('data', '==', data).get();
+            const guiasComRel = new Set();
+            relSnap.forEach(doc => guiasComRel.add(doc.data().guia));
+
+            const pendentes = [...guiasEscala].filter(g => !guiasComRel.has(g));
+            console.log('Pendentes:', pendentes.join(', ') || 'Nenhum');
+            if (!pendentes.length) { console.log('Todos enviaram!'); return; }
+
+            const guiasSnap = await db.collection('guias').get();
+            const fones = {};
+            guiasSnap.forEach(doc => {
+              const d = doc.data();
+              if (d.whatsapp) fones[doc.id] = d.whatsapp;
+            });
+
+            let enviados = 0;
+            for (const guia of pendentes) {
+              const fone = fones[guia];
+              if (!fone) { console.log('Sem número:', guia); continue; }
+              const msg = '*LUCK RECEPTIVO*\n\n⚠️ Olá, *' + guia + '*!\n\nVocê ainda não enviou o relatório do dia *' + dataFmt + '*.\n\nAcesse o app:\nhttps://centraldepasseios-design.github.io/relatorio-guias/';
+              try {
+                await enviarWpp(fone, msg);
+                console.log('✅', guia);
+                enviados++;
+                await new Promise(r => setTimeout(r, 600));
+              } catch(e) {
+                console.log('❌', guia, e.message);
+              }
+            }
+            console.log('Enviados:', enviados, '/', pendentes.length);
+          }
+
+          main().catch(e => { console.error(e); process.exit(1); });
+          EOF
+
+      - name: Limpar credenciais
+        if: always()
+        run: rm -f credentials.json

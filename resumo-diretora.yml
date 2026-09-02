@@ -1,0 +1,159 @@
+name: Resumo Diário Diretora
+
+on:
+  schedule:
+    # 09:54 UTC = 06:54 em Recife. Evita a hora cheia (horário mais concorrido
+    # do GitHub Actions), e deixa uma folga de ~6min antes das 7h — mesmo com
+    # um pequeno atraso, a mensagem ainda chega perto do horário desejado.
+    - cron: '54 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  resumo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Instalar firebase-admin
+        run: npm install firebase-admin
+
+      - name: Criar arquivo de credenciais
+        run: echo '${{ secrets.FIREBASE_CREDENTIALS }}' > credentials.json
+
+      - name: Enviar resumo do dia anterior para a diretora
+        run: |
+          node << 'EOF'
+          const admin = require('firebase-admin');
+          const https = require('https');
+          const fs = require('fs');
+
+          const credentials = JSON.parse(fs.readFileSync('credentials.json', 'utf8'));
+          admin.initializeApp({ credential: admin.credential.cert(credentials) });
+          const db = admin.firestore();
+
+          const ZAPI_URL = 'https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/token/ECA321B4DA2EB4B2FF4CB937/send-text';
+          const ZAPI_CLIENT_TOKEN = 'F1b7c26e0ce09416fbc813a307ce5f298S';
+
+          // >>> Número(s) que vão receber o resumo (formato 55 + DDD + número) <<<
+          const DESTINOS = ['5581999630174'];
+
+          const LINK_BASE = 'https://centraldepasseios-design.github.io/relatorio-guias/diretora.html';
+
+          // Data = ONTEM (fuso de Recife)
+          const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Recife' }));
+          const ontem = new Date(agora);
+          ontem.setDate(ontem.getDate() - 1);
+          const data = ontem.toISOString().slice(0, 10);
+          const dataFmt = String(ontem.getDate()).padStart(2,'0') + '/' + String(ontem.getMonth()+1).padStart(2,'0') + '/' + ontem.getFullYear();
+          const diaSemana = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][ontem.getDay()];
+          console.log('Resumo do dia:', data);
+
+          function fmtBRL(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+          function enviarWpp(phone, message) {
+            return new Promise((resolve, reject) => {
+              const body = JSON.stringify({ phone, message });
+              const url = new URL(ZAPI_URL);
+              const options = {
+                hostname: url.hostname, path: url.pathname, method: 'POST',
+                headers: { 'Content-Type':'application/json', 'Client-Token':ZAPI_CLIENT_TOKEN, 'Content-Length':Buffer.byteLength(body) }
+              };
+              const req = https.request(options, res => { let d=''; res.on('data',x=>d+=x); res.on('end',()=>{ console.log('WPP:', d); resolve(d); }); });
+              req.on('error', reject); req.write(body); req.end();
+            });
+          }
+
+          async function main() {
+            // ---- mesma lógica do painel da diretora (modo dia único) ----
+            const relSnap = await db.collection('relatorios').where('data','==',data).get();
+            const docs = relSnap.docs.map(d => d.data());
+
+            const escSnap = await db.collection('escalas').where('data','==',data).get();
+            const guiasNaDia = new Set();
+            escSnap.forEach(d => { const g = d.data().guia; if (g) guiasNaDia.add(g); });
+
+            if (docs.length === 0 && guiasNaDia.size === 0) {
+              console.log('Sem dados para', data, '- nada a enviar.');
+              return;
+            }
+
+            // guias em passeio (excluídos do "não venderam")
+            const guiasEmPasseio = new Set();
+            const passSnap = await db.collection('bloqueios').where('inicio','==',data).where('tipo','==','passeio').get();
+            passSnap.forEach(d => { const g = d.data().guia; if (g) guiasEmPasseio.add(g); });
+
+            // agrega por guia
+            const porGuia = {};
+            docs.forEach(rel => {
+              const g = rel.guia; if (!g) return;
+              if (!porGuia[g]) porGuia[g] = { guia:g, vendas:0, pax:0, noshow:0, chd:0, servicos:0 };
+              const itens = Array.isArray(rel.itens) ? rel.itens : (Array.isArray(rel.servicos) ? rel.servicos : [rel]);
+              itens.forEach(s => {
+                const v = parseFloat(s.vendas || s.totalVendas || 0);
+                porGuia[g].vendas += v;
+                if (s.servico === 'so-vendas') porGuia[g].posVenda = (porGuia[g].posVenda||0) + v;
+                porGuia[g].pax += parseInt(s.pax || 0);
+                porGuia[g].noshow += parseInt(s.noshow || s.noShow || 0);
+                porGuia[g].chd += parseInt(s.chd || 0);
+                porGuia[g].servicos++;
+              });
+            });
+            guiasNaDia.forEach(g => { if (!porGuia[g]) porGuia[g] = { guia:g, vendas:0, pax:0, noshow:0, chd:0, servicos:0 }; });
+
+            const guias = Object.values(porGuia);
+            const comVenda = guias.filter(g => g.vendas > 0).sort((a,b) => b.vendas - a.vendas);
+            const semVenda = guias.filter(g => g.vendas <= 0 && !guiasEmPasseio.has(g.guia));
+            const totalVendas = guias.reduce((s,g) => s + g.vendas, 0);
+            const totalPosVenda = guias.reduce((s,g) => s + (g.posVenda||0), 0);
+            const totalPax = guias.reduce((s,g) => s + g.pax, 0);
+            const totalGuias = guias.length;
+
+            const validos = comVenda.length + semVenda.length;
+            const pctVendeu = validos > 0 ? Math.round(comVenda.length / validos * 100) : 0;
+            const pctNao = 100 - pctVendeu;
+
+            // ---- monta a mensagem ----
+            let msg = '📊 *RESUMO DO DIA — LUCK RECEPTIVO*\n';
+            msg += '📅 ' + diaSemana + ', ' + dataFmt + '\n';
+            msg += '━━━━━━━━━━━━━━━\n\n';
+            msg += '👥 *Guias no dia:* ' + totalGuias + '\n';
+            msg += '✅ *Venderam:* ' + comVenda.length + ' (' + pctVendeu + '%)\n';
+            msg += '❌ *Não venderam:* ' + semVenda.length + ' (' + pctNao + '%)\n\n';
+            msg += '💰 *Faturamento:* ' + fmtBRL(totalVendas) + '\n';
+            if (totalPosVenda > 0) msg += '🎯 *Pós-venda:* ' + fmtBRL(totalPosVenda) + '\n';
+            msg += '🧳 *Total pax:* ' + totalPax + '\n';
+
+            if (comVenda.length) {
+              msg += '\n🏆 *Ranking de vendas*\n';
+              comVenda.slice(0, 10).forEach((g, i) => {
+                const medalha = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) + 'º';
+                msg += medalha + ' ' + g.guia + ' — ' + fmtBRL(g.vendas) + '\n';
+              });
+              if (comVenda.length > 10) msg += '_...e mais ' + (comVenda.length - 10) + ' guia(s)_\n';
+            }
+
+            msg += '\n🔗 Ver painel completo:\n' + LINK_BASE + '?data=' + data;
+
+            let enviados = 0;
+            for (const fone of DESTINOS) {
+              try {
+                await enviarWpp(fone, msg);
+                console.log('✅ enviado para', fone);
+                enviados++;
+                await new Promise(r => setTimeout(r, 600));
+              } catch (e) {
+                console.log('❌ erro para', fone, e.message);
+              }
+            }
+            console.log('Total enviados:', enviados, '/', DESTINOS.length);
+          }
+
+          main().catch(e => { console.error(e); process.exit(1); });
+          EOF
+
+      - name: Limpar credenciais
+        if: always()
+        run: rm -f credentials.json
