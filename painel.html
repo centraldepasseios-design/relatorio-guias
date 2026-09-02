@@ -1196,27 +1196,48 @@ async function atualizarBadgeBonus(){
 
 // ===== NOVIDADES NA DISPONIBILIDADE =====
 // Avisa quando um guia atualiza a própria disponibilidade (indisponível,
-// restrição ou observação) desde a última vez que a coordenação checou esta aba.
-const CHAVE_ULTIMA_VISITA_DISP='luck_disp_ultima_visita';
+// restrição ou observação) que ainda não foi vista pela coordenação.
+// O badge da aba conta TUDO que é novo (qualquer dia); o popup mostra só
+// as novidades do dia que está selecionado no filtro de Disponibilidade.
+const CHAVE_VISTOS_DISP='luck_disp_vistos';
+
+function _chaveNovidade(n){return (n.guia||'')+'|'+(n.data||'')+'|'+(n.atualizadoEm||'');}
+
+function _getVistosDisp(){
+  try{return new Set(JSON.parse(localStorage.getItem(CHAVE_VISTOS_DISP)||'[]'));}catch(e){return new Set();}
+}
+function _addVistosDisp(chaves){
+  const set=_getVistosDisp();
+  chaves.forEach(c=>set.add(c));
+  // Limita o histórico salvo pra não crescer pra sempre
+  const arr=[...set].slice(-800);
+  localStorage.setItem(CHAVE_VISTOS_DISP,JSON.stringify(arr));
+}
+
+window._novidadesDispAtuais=[];
 
 async function verificarNovidadesDisp(mostrarPopup){
   try{
-    const ultimaVisita=localStorage.getItem(CHAVE_ULTIMA_VISITA_DISP)||'2000-01-01T00:00:00.000Z';
+    const vistos=_getVistosDisp();
     const snap=await window._gds(window._col(window._db,'disponibilidades'));
-    const novidades=snap.docs
+    const todasNovidades=snap.docs
       .map(d=>d.data())
-      .filter(dd=>dd.atualizadoEm&&dd.atualizadoEm>ultimaVisita)
+      .filter(dd=>dd.atualizadoEm&&!vistos.has(_chaveNovidade(dd)))
       .sort((a,b)=>b.atualizadoEm.localeCompare(a.atualizadoEm));
 
     const badge=document.getElementById('disp-badge');
     if(badge){
-      if(novidades.length){badge.textContent=novidades.length>9?'9+':novidades.length;badge.style.display='block';}
+      if(todasNovidades.length){badge.textContent=todasNovidades.length>9?'9+':todasNovidades.length;badge.style.display='block';}
       else{badge.style.display='none';}
     }
 
-    if(mostrarPopup&&novidades.length){
+    if(mostrarPopup){
+      const dataFiltro=document.getElementById('disp-data')?.value||'';
+      const novidadesDoDia=dataFiltro?todasNovidades.filter(n=>n.data===dataFiltro):todasNovidades;
+      window._novidadesDispAtuais=novidadesDoDia;
+      if(!novidadesDoDia.length)return;
       const lista=document.getElementById('novidades-disp-lista');
-      lista.innerHTML=novidades.map(n=>{
+      lista.innerHTML=novidadesDoDia.map(n=>{
         const dataFmt=n.data?new Date(n.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'—';
         const statusBadge=n.status==='nao'
           ?'<span style="background:#fde8e8;color:#c0392b;border-radius:99px;padding:2px 10px;font-size:11px;font-weight:600">❌ Indisponível</span>'
@@ -1235,9 +1256,11 @@ async function verificarNovidadesDisp(mostrarPopup){
 
 function fecharModalNovidadesDisp(){
   document.getElementById('modal-novidades-disp').style.display='none';
-  localStorage.setItem(CHAVE_ULTIMA_VISITA_DISP,new Date().toISOString());
-  const badge=document.getElementById('disp-badge');
-  if(badge)badge.style.display='none';
+  // Marca como vistas só as novidades que estavam no popup (do dia filtrado) —
+  // as de outros dias continuam pendentes até você abrir aquele dia específico.
+  _addVistosDisp(window._novidadesDispAtuais.map(_chaveNovidade));
+  window._novidadesDispAtuais=[];
+  verificarNovidadesDisp(false);
 }
 
 
@@ -4000,7 +4023,7 @@ async function confirmarReset(){
           <option value="obs">📝 Com observação</option>
         </select>
       </div>
-      <button class="btn-sm" onclick="carregarDisp()">🔍 Buscar</button>
+      <button class="btn-sm" onclick="carregarDisp();verificarNovidadesDisp(true)">🔍 Buscar</button>
     </div>
     <div id="disp-resumo" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem"></div>
     <div id="disp-aviso-obs"></div>
