@@ -785,7 +785,8 @@ function renderEscala() {
       '<td>' + chip + '</td>' +
       '<td><input type="checkbox" data-i="' + i + '" ' + (m.enviar ? 'checked' : '') +
         (m.situacao !== 'ok' ? ' disabled' : '') + '></td>' +
-      '<td><button class="secundario" style="padding:5px 10px; font-size:13px;" onclick="trocarMotorista(' + i + ')">Trocar</button></td>' +
+      '<td><button class="secundario" style="padding:5px 10px; font-size:13px;" onclick="trocarMotorista(' + i + ')">Trocar</button> ' +
+        '<button class="perigo" style="font-size:15px;" title="Remover da lista (ex.: escala cancelada)" onclick="removerDaEscala(' + i + ')">🗑️</button></td>' +
       '</tr>';
   });
   document.getElementById('tabelaEscala').innerHTML = html;
@@ -822,6 +823,11 @@ document.getElementById('marcarTodos').addEventListener('change', function() {
   salvarRascunho();
 });
 
+function removerDaEscala(i) {
+  if (!confirm('Remover ' + escala[i].nome + ' da lista? (use quando a escala dele for cancelada)')) return;
+  escala.splice(i, 1);
+  renderEscala();
+}
 function trocarMotorista(i) {
   const cel = document.getElementById('celNome-' + i);
   const nomes = Object.keys(motoristas).sort();
