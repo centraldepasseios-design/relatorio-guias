@@ -897,7 +897,15 @@ document.getElementById('btnEnviar').addEventListener('click', async function() 
         body: JSON.stringify({ phone: m.telefone, message: montarMensagem(m) })
       });
       if (resp.ok) { ok++; log.innerHTML += '✅ ' + m.nome + ' (' + hhmm(m.horarioMin) + ')<br>'; }
-      else { falha++; log.innerHTML += '❌ ' + m.nome + ' — HTTP ' + resp.status + '<br>'; }
+      else {
+        falha++;
+        let detalhe = '';
+        try {
+          const corpo = await resp.json();
+          detalhe = (corpo && (corpo.message || corpo.error || corpo.value)) || JSON.stringify(corpo);
+        } catch (e2) { /* corpo não veio em JSON */ }
+        log.innerHTML += '❌ ' + m.nome + ' — HTTP ' + resp.status + (detalhe ? ' — ' + detalhe : '') + '<br>';
+      }
     } catch (e) {
       falha++; log.innerHTML += '❌ ' + m.nome + ' — ' + e.message + '<br>';
     }
