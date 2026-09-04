@@ -266,21 +266,34 @@
 
   <div class="cartao" id="cartaoEnvio" style="display:none;">
     <h2>3. Enviar os avisos</h2>
-    <div class="campo" style="margin-bottom:12px; max-width:260px;">
-      <label>Coordenadora de plantão hoje</label>
-      <select id="coordenadorDia">
-        <option value="renata">Renata — (81) 99970-6387</option>
-        <option value="julia">Julia — (81) 98600-2325</option>
-      </select>
+    <div class="linha-form" style="margin-bottom:12px;">
+      <div class="campo" style="max-width:280px;">
+        <label>Coordenador(a) de plantão hoje</label>
+        <select id="coordenadorDia">
+          <option value="renata">Renata — (81) 99970-6387</option>
+          <option value="julia">Julia — (81) 98600-2325</option>
+          <option value="silvania">Silvania — (81) 98885-6850</option>
+          <option value="felipe">Felipe — (81) 99861-5895</option>
+          <option value="karla">Karla — (81) 99918-5752</option>
+        </select>
+      </div>
+      <div class="campo" style="max-width:220px;">
+        <label>Local de apresentação</label>
+        <select id="localApresentacao">
+          <option value="Garagem Prazeres">Garagem Prazeres</option>
+          <option value="Garagem Porto">Garagem Porto</option>
+        </select>
+      </div>
     </div>
     <div class="campo" style="margin-bottom:10px;">
-      <label>Modelo da mensagem — use {nome}, {data}, {diasemana}, {horario}, {passeio} (só em Passeios) e {coordenador}</label>
+      <label>Modelo da mensagem — use {nome}, {data}, {diasemana}, {horario}, {local}, {passeio} (só em Passeios) e {coordenador}</label>
       <textarea id="modeloMensagem" rows="6" style="width:100%;">LUCK RECEPTIVO
 
 {nome}, sua APRESENTAÇÃO:
 
 📅 {diasemana}, {data}
 🕒 {horario}
+📍 {local}
 
 Dúvidas? Fale com a coordenação: {coordenador}</textarea>
     </div>
@@ -825,17 +838,22 @@ function diaSemana(iso) {
 }
 const COORDENADORES = {
   renata: 'Renata (81) 99970-6387',
-  julia: 'Julia (81) 98600-2325'
+  julia: 'Julia (81) 98600-2325',
+  silvania: 'Silvania (81) 98885-6850',
+  felipe: 'Felipe (81) 99861-5895',
+  karla: 'Karla (81) 99918-5752'
 };
 function montarMensagem(m) {
   const modelo = document.getElementById('modeloMensagem').value;
   const iso = document.getElementById('dataEscala').value;
   const coord = COORDENADORES[document.getElementById('coordenadorDia').value];
+  const local = document.getElementById('localApresentacao').value;
   return modelo
     .split('{nome}').join(primeiroNome(m.nome))
     .split('{data}').join(dataBR(iso))
     .split('{diasemana}').join(diaSemana(iso))
     .split('{horario}').join(m.horarioMin !== null ? hhmm(m.horarioMin) : '')
+    .split('{local}').join(local)
     .split('{passeio}').join(m.passeio || '')
     .split('{coordenador}').join(coord);
 }
@@ -845,6 +863,7 @@ function atualizarPrevia() {
 }
 document.getElementById('modeloMensagem').addEventListener('input', atualizarPrevia);
 document.getElementById('coordenadorDia').addEventListener('change', atualizarPrevia);
+document.getElementById('localApresentacao').addEventListener('change', atualizarPrevia);
 
 function pausa(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
@@ -907,6 +926,8 @@ const textosImportar = {
   dia: 'Selecione a <strong>Prévia de Escala</strong> (.xlsx) ou o export do sistema (IN e OUT). Lê apenas a aba "Prévia Escala (Dia)". O aviso enviado contém apenas o <strong>primeiro horário de apresentação</strong> de cada motorista.',
   noite: 'Selecione a <strong>Prévia de Escala</strong> (.xlsx) ou o export do sistema (IN e OUT). Lê apenas a aba "Prévia Escala (Noite)". O aviso enviado contém apenas o <strong>primeiro horário de apresentação</strong> de cada motorista.'
 };
+const TEMPLATE_TRANSFER = 'LUCK RECEPTIVO\n\n{nome}, sua APRESENTAÇÃO:\n\n📅 {diasemana}, {data}\n🕒 {horario}\n📍 {local}\n\nDúvidas? Fale com a coordenação: {coordenador}';
+const TEMPLATE_PASSEIO = 'LUCK RECEPTIVO\n\n{nome}, seu PASSEIO:\n\n🗺️ {passeio}\n📅 {diasemana}, {data}\n🕒 {horario}\n📍 {local}\n\nDúvidas? Fale com a coordenação: {coordenador}';
 document.querySelectorAll('.tab-modo').forEach(function(btn) {
   btn.addEventListener('click', function() {
     modoEscala = btn.dataset.modo;
@@ -921,6 +942,7 @@ document.querySelectorAll('.tab-modo').forEach(function(btn) {
     document.getElementById('cartaoPasseios').style.display = ehPasseios ? 'block' : 'none';
     if (!ehPasseios) document.getElementById('textoImportar').innerHTML = textosImportar[modoEscala];
     else if (!document.getElementById('linhasPasseios').children.length) adicionarLinhaPasseio();
+    document.getElementById('modeloMensagem').value = ehPasseios ? TEMPLATE_PASSEIO : TEMPLATE_TRANSFER;
     // trocar de sub-aba limpa a revisão/envio para não misturar dados de outra aba
     escala = [];
     document.getElementById('cartaoRevisao').style.display = 'none';
