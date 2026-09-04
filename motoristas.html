@@ -185,6 +185,7 @@
 <nav class="tabs">
   <button class="tab ativa" data-secao="escala">Escala do dia</button>
   <button class="tab" data-secao="cadastro">Motoristas</button>
+  <button class="tab" data-secao="historico">Histórico</button>
   <button class="tab" data-secao="config">Configuração</button>
 </nav>
 
@@ -371,6 +372,17 @@ Dúvidas? Fale com a coordenação: {coordenador}</textarea>
   </div>
 </section>
 
+<!-- ================= HISTÓRICO ================= -->
+<section id="secao-historico" class="secao">
+  <div class="cartao">
+    <h2>Histórico de envios</h2>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:14px;">
+      Fica registrado automaticamente sempre que um lote de avisos é enviado. Clique num item para ver os detalhes.
+    </p>
+    <div id="listaHistorico"><p style="color:var(--muted); font-size:14px;">Carregando…</p></div>
+  </div>
+</section>
+
 <!-- ================= CONFIGURAÇÃO ================= -->
 <section id="secao-config" class="secao">
   <div class="cartao">
@@ -458,6 +470,7 @@ document.querySelectorAll('.tab').forEach(function(tab) {
     document.querySelectorAll('.secao').forEach(function(s) { s.classList.remove('ativa'); });
     tab.classList.add('ativa');
     document.getElementById('secao-' + tab.dataset.secao).classList.add('ativa');
+    if (tab.dataset.secao === 'historico') carregarHistorico();
   });
 });
 
@@ -902,6 +915,7 @@ document.getElementById('btnEnviar').addEventListener('click', async function() 
   const log = document.getElementById('logEnvio');
   log.innerHTML = '';
   let ok = 0, falha = 0;
+  const resultados = [];
 
   for (let i = 0; i < fila.length; i++) {
     const m = fila[i];
@@ -911,8 +925,10 @@ document.getElementById('btnEnviar').addEventListener('click', async function() 
         headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken || '' },
         body: JSON.stringify({ phone: m.telefone, message: montarMensagem(m) })
       });
-      if (resp.ok) { ok++; log.innerHTML += '✅ ' + m.nome + ' (' + hhmm(m.horarioMin) + ')<br>'; }
-      else {
+      if (resp.ok) {
+        ok++; log.innerHTML += '✅ ' + m.nome + ' (' + hhmm(m.horarioMin) + ')<br>';
+        resultados.push({ nome: m.nome, telefone: m.telefone, horario: hhmm(m.horarioMin), passeio: m.passeio || null, status: 'ok' });
+      } else {
         falha++;
         let detalhe = '';
         try {
@@ -920,9 +936,11 @@ document.getElementById('btnEnviar').addEventListener('click', async function() 
           detalhe = (corpo && (corpo.message || corpo.error || corpo.value)) || JSON.stringify(corpo);
         } catch (e2) { /* corpo não veio em JSON */ }
         log.innerHTML += '❌ ' + m.nome + ' — HTTP ' + resp.status + (detalhe ? ' — ' + detalhe : '') + '<br>';
+        resultados.push({ nome: m.nome, telefone: m.telefone, horario: hhmm(m.horarioMin), passeio: m.passeio || null, status: 'falha', detalhe: 'HTTP ' + resp.status + (detalhe ? ' — ' + detalhe : '') });
       }
     } catch (e) {
       falha++; log.innerHTML += '❌ ' + m.nome + ' — ' + e.message + '<br>';
+      resultados.push({ nome: m.nome, telefone: m.telefone, horario: hhmm(m.horarioMin), passeio: m.passeio || null, status: 'falha', detalhe: e.message });
     }
     preenchimento.style.width = Math.round(((i + 1) / fila.length) * 100) + '%';
     log.scrollTop = log.scrollHeight;
@@ -931,6 +949,16 @@ document.getElementById('btnEnviar').addEventListener('click', async function() 
   log.innerHTML += '<br><strong>Concluído: ' + ok + ' enviados, ' + falha + ' com falha.</strong>';
   btn.disabled = false;
   descartarRascunho();
+  db.collection('historico').add({
+    modo: modoEscala,
+    data: document.getElementById('dataEscala').value,
+    quando: Date.now(),
+    coordenador: COORDENADORES[document.getElementById('coordenadorDia').value],
+    local: document.getElementById('localApresentacao').value,
+    totalOk: ok,
+    totalFalha: falha,
+    resultados: resultados
+  }).catch(function(e) { console.error('Falha ao gravar histórico:', e.message); });
 });
 
 // ============================ CONFIG ============================
@@ -993,6 +1021,63 @@ document.getElementById('btnDescartarRascunho').addEventListener('click', functi
   if (confirm('Descartar o rascunho salvo? Essa ação não pode ser desfeita.')) descartarRascunho();
 });
 
+// ============================ HISTÓRICO DE ENVIOS ============================
+const NOMES_MODO = { dia: '☀️ Dia', noite: '🌙 Noite', passeios: '🗺️ Passeios' };
+let historicoCache = {};
+function carregarHistorico() {
+  const cont = document.getElementById('listaHistorico');
+  cont.innerHTML = '<p style="color:var(--muted); font-size:14px;">Carregando…</p>';
+  db.collection('historico').orderBy('quando', 'desc').limit(30).get().then(function(snap) {
+    if (snap.empty) {
+      cont.innerHTML = '<p style="color:var(--muted); font-size:14px;">Nenhum envio registrado ainda.</p>';
+      return;
+    }
+    historicoCache = {};
+    let html = '';
+    snap.forEach(function(doc) {
+      const h = doc.data();
+      historicoCache[doc.id] = h;
+      const d = new Date(h.quando);
+      const quando = d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      html += '<div class="cartao" style="margin-bottom:10px; padding:14px 16px; cursor:pointer;" onclick="alternarHistoricoItem(\'' + doc.id + '\')">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
+          '<div>' +
+            '<strong>' + (NOMES_MODO[h.modo] || h.modo) + '</strong> — escala de ' + (h.data || '—') +
+            '<div style="font-size:12.5px; color:var(--muted); margin-top:2px;">Enviado em ' + quando + (h.coordenador ? ' · ' + h.coordenador : '') + (h.local ? ' · ' + h.local : '') + '</div>' +
+          '</div>' +
+          '<div>' +
+            '<span class="chip ok">' + h.totalOk + ' enviados</span> ' +
+            (h.totalFalha ? '<span class="chip erro">' + h.totalFalha + ' falha(s)</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div id="detalheHist-' + doc.id + '" style="display:none; margin-top:12px; border-top:1px solid var(--borda); padding-top:10px;"></div>' +
+      '</div>';
+    });
+    cont.innerHTML = html;
+  }).catch(function(e) {
+    cont.innerHTML = '<div class="aviso erro">Falha ao carregar histórico: ' + e.message + '</div>';
+  });
+}
+function alternarHistoricoItem(id) {
+  const div = document.getElementById('detalheHist-' + id);
+  if (div.style.display === 'block') { div.style.display = 'none'; return; }
+  if (!div.dataset.montado) {
+    const h = historicoCache[id];
+    let linhas = '';
+    h.resultados.forEach(function(r) {
+      linhas += '<tr>' +
+        '<td>' + r.nome + '</td>' +
+        '<td>' + r.horario + '</td>' +
+        '<td>' + (r.passeio || '—') + '</td>' +
+        '<td>' + (r.status === 'ok' ? '<span class="chip ok">enviado</span>' : '<span class="chip erro" title="' + (r.detalhe || '') + '">falha</span>') + '</td>' +
+      '</tr>';
+    });
+    div.innerHTML = '<table><thead><tr><th>Motorista</th><th>Horário</th><th>Passeio</th><th>Status</th></tr></thead><tbody>' + linhas + '</tbody></table>';
+    div.dataset.montado = '1';
+  }
+  div.style.display = 'block';
+}
+
 let modoEscala = 'dia';
 const textosImportar = {
   dia: 'Selecione a <strong>Prévia de Escala</strong> (.xlsx) ou o export do sistema (IN e OUT). Lê apenas a aba "Prévia Escala (Dia)". O aviso enviado contém apenas o <strong>primeiro horário de apresentação</strong> de cada motorista.',
@@ -1021,6 +1106,7 @@ document.querySelectorAll('.tab-modo').forEach(function(btn) {
     document.getElementById('cartaoEnvio').style.display = 'none';
     document.getElementById('avisoImportacao').innerHTML = '';
     document.getElementById('avisoPasseios').innerHTML = '';
+    document.getElementById('dataEscala').value = dataPadraoPara(modoEscala);
     verificarRascunho();
   });
 });
@@ -1173,10 +1259,11 @@ document.getElementById('btnContinuarPasseios').addEventListener('click', functi
 });
 
 
-(function() {
-  const amanha = new Date(Date.now() + 24 * 3600 * 1000);
-  document.getElementById('dataEscala').value = amanha.toISOString().slice(0, 10);
-})();
+function dataPadraoPara(modo) {
+  const base = modo === 'noite' ? new Date() : new Date(Date.now() + 24 * 3600 * 1000);
+  return base.toISOString().slice(0, 10);
+}
+document.getElementById('dataEscala').value = dataPadraoPara(modoEscala);
 carregarMotoristas();
 verificarRascunho();
 </script>
