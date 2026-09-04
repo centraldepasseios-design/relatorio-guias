@@ -204,6 +204,18 @@
     </div>
   </div>
 
+  <div id="avisoRascunho" style="display:none;" class="cartao">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+      <div style="font-size:14px; color:var(--ink);">
+        📝 Encontramos alterações não enviadas salvas automaticamente <span id="rascunhoQuando" class="mono"></span>.
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="acao" id="btnRestaurarRascunho" style="padding:8px 14px; font-size:13.5px;">Restaurar</button>
+        <button class="secundario" id="btnDescartarRascunho" style="padding:8px 14px; font-size:13.5px;">Descartar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="cartao" id="cartaoImportar">
     <h2>1. Importar a escala</h2>
     <p style="color:var(--muted); font-size:14px; margin-bottom:12px;" id="textoImportar">
@@ -768,6 +780,7 @@ function renderEscala() {
     cb.addEventListener('change', function() {
       escala[parseInt(cb.dataset.i, 10)].enviar = cb.checked;
       sincronizarMarcarTodos();
+      salvarRascunho();
     });
   });
   sincronizarMarcarTodos();
@@ -775,6 +788,7 @@ function renderEscala() {
   document.getElementById('cartaoRevisao').style.display = 'block';
   document.getElementById('cartaoEnvio').style.display = 'block';
   atualizarPrevia();
+  salvarRascunho();
 }
 
 function sincronizarMarcarTodos() {
@@ -792,6 +806,7 @@ document.getElementById('marcarTodos').addEventListener('change', function() {
     escala[parseInt(cb.dataset.i, 10)].enviar = ligar;
   });
   atualizarPrevia();
+  salvarRascunho();
 });
 
 function trocarMotorista(i) {
@@ -915,6 +930,7 @@ document.getElementById('btnEnviar').addEventListener('click', async function() 
   }
   log.innerHTML += '<br><strong>Concluído: ' + ok + ' enviados, ' + falha + ' com falha.</strong>';
   btn.disabled = false;
+  descartarRascunho();
 });
 
 // ============================ CONFIG ============================
@@ -929,6 +945,54 @@ document.getElementById('btnSalvarZapi').addEventListener('click', function() {
 });
 
 // ============================ SUB-ABAS DIA / NOITE / PASSEIOS ============================
+// ============================ RASCUNHO AUTOMÁTICO (Firestore — sincroniza entre computadores) ============================
+let rascunhoTimer = null;
+let rascunhoPayloadAtual = null;
+function salvarRascunho() {
+  if (!escala.length) return;
+  clearTimeout(rascunhoTimer);
+  rascunhoTimer = setTimeout(function() {
+    db.collection('rascunhos').doc(modoEscala).set({
+      escala: escala,
+      data: document.getElementById('dataEscala').value,
+      quando: Date.now()
+    }).catch(function(e) {
+      console.error('Falha ao salvar rascunho:', e.message);
+    });
+  }, 800);
+}
+function descartarRascunho() {
+  db.collection('rascunhos').doc(modoEscala).delete().catch(function() {});
+  document.getElementById('avisoRascunho').style.display = 'none';
+  rascunhoPayloadAtual = null;
+}
+function verificarRascunho() {
+  const modoNaChamada = modoEscala;
+  db.collection('rascunhos').doc(modoNaChamada).get().then(function(doc) {
+    if (modoNaChamada !== modoEscala) return; // usuário já trocou de aba de novo antes da resposta chegar
+    const banner = document.getElementById('avisoRascunho');
+    const salvo = doc.exists ? doc.data() : null;
+    if (!salvo || !salvo.escala || !salvo.escala.length) { banner.style.display = 'none'; rascunhoPayloadAtual = null; return; }
+    const d = new Date(salvo.quando);
+    document.getElementById('rascunhoQuando').textContent =
+      'em ' + d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    banner.style.display = 'block';
+    rascunhoPayloadAtual = salvo;
+  }).catch(function(e) {
+    console.error('Falha ao verificar rascunho:', e.message);
+  });
+}
+document.getElementById('btnRestaurarRascunho').addEventListener('click', function() {
+  if (!rascunhoPayloadAtual) return;
+  escala = rascunhoPayloadAtual.escala;
+  if (rascunhoPayloadAtual.data) document.getElementById('dataEscala').value = rascunhoPayloadAtual.data;
+  document.getElementById('avisoRascunho').style.display = 'none';
+  renderEscala();
+});
+document.getElementById('btnDescartarRascunho').addEventListener('click', function() {
+  if (confirm('Descartar o rascunho salvo? Essa ação não pode ser desfeita.')) descartarRascunho();
+});
+
 let modoEscala = 'dia';
 const textosImportar = {
   dia: 'Selecione a <strong>Prévia de Escala</strong> (.xlsx) ou o export do sistema (IN e OUT). Lê apenas a aba "Prévia Escala (Dia)". O aviso enviado contém apenas o <strong>primeiro horário de apresentação</strong> de cada motorista.',
@@ -957,6 +1021,7 @@ document.querySelectorAll('.tab-modo').forEach(function(btn) {
     document.getElementById('cartaoEnvio').style.display = 'none';
     document.getElementById('avisoImportacao').innerHTML = '';
     document.getElementById('avisoPasseios').innerHTML = '';
+    verificarRascunho();
   });
 });
 
@@ -1113,6 +1178,7 @@ document.getElementById('btnContinuarPasseios').addEventListener('click', functi
   document.getElementById('dataEscala').value = amanha.toISOString().slice(0, 10);
 })();
 carregarMotoristas();
+verificarRascunho();
 </script>
 </body>
 </html>
