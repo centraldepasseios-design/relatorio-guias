@@ -439,7 +439,9 @@ const db = firebase.firestore();
 <script>
 // ============================ UTILIDADES ============================
 function normalizar(nome) {
-  return String(nome || '').toUpperCase().replace(/\s+/g, ' ').trim();
+  return String(nome || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .toUpperCase().replace(/\s+/g, ' ').trim();
 }
 function minutos(str) {
   const m = /(\d{1,2}):(\d{2})/.exec(String(str || ''));
@@ -781,7 +783,8 @@ function renderEscala() {
       '<td id="celHorario-' + i + '"><span class="horario" style="cursor:pointer; border-bottom:1px dashed var(--verde);" title="Clique para editar" onclick="editarHorario(' + i + ')">' +
         (m.horarioMin !== null ? hhmm(m.horarioMin) : '—') + '</span>' +
         (m.editado ? ' <span class="chip alerta">editado</span>' : '') + '</td>' +
-      '<td class="mono">' + (m.telefone || '—') + '</td>' +
+      '<td id="celTel-' + i + '" class="mono">' + (m.telefone ||
+        '<span style="cursor:pointer; color:var(--verde); text-decoration:underline; font-family:inherit;" onclick="adicionarTelefoneInline(' + i + ')">+ adicionar telefone</span>') + '</td>' +
       '<td>' + chip + '</td>' +
       '<td><input type="checkbox" data-i="' + i + '" ' + (m.enviar ? 'checked' : '') +
         (m.situacao !== 'ok' ? ' disabled' : '') + '></td>' +
@@ -823,6 +826,34 @@ document.getElementById('marcarTodos').addEventListener('change', function() {
   salvarRascunho();
 });
 
+function adicionarTelefoneInline(i) {
+  const cel = document.getElementById('celTel-' + i);
+  cel.innerHTML = '<input type="tel" id="telInline-' + i + '" placeholder="5581999998888" style="padding:6px 8px; border:1px solid var(--borda); border-radius:8px; font-family:inherit; width:150px;" ' +
+    'onkeydown="if(event.key===\'Enter\') confirmarTelefoneInline(' + i + ');">' +
+    ' <button class="secundario" style="padding:5px 10px; font-size:13px;" onclick="confirmarTelefoneInline(' + i + ')">Salvar</button>';
+  document.getElementById('telInline-' + i).focus();
+}
+function confirmarTelefoneInline(i) {
+  const input = document.getElementById('telInline-' + i);
+  const telefone = input.value.replace(/\D/g, '');
+  if (telefone.length < 12) { alert('Telefone incompleto — use DDI+DDD+número (ex.: 5581999998888).'); return; }
+  const nome = escala[i].nome;
+  const existente = motoristas[nome];
+  const dados = { nome: nome, telefone: telefone, tipo: existente ? existente.tipo : 'casa' };
+  const op = existente
+    ? db.collection('motoristas').doc(existente.id).set(dados)
+    : db.collection('motoristas').add(dados);
+  op.then(function(ref) {
+    motoristas[nome] = { id: existente ? existente.id : ref.id, nome: nome, telefone: telefone, tipo: dados.tipo };
+    escala[i].telefone = telefone;
+    escala[i].situacao = 'ok';
+    escala[i].enviar = !escala[i].vespera;
+    renderEscala();
+    renderMotoristas();
+  }).catch(function(e) {
+    alert('Erro ao salvar telefone: ' + e.message);
+  });
+}
 function removerDaEscala(i) {
   if (!confirm('Remover ' + escala[i].nome + ' da lista? (use quando a escala dele for cancelada)')) return;
   escala.splice(i, 1);
