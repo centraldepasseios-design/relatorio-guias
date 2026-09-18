@@ -1001,7 +1001,7 @@ function aplicarFiltros(){
 
 // ===== PENDENTES / REDISTRIBUIÇÃO =====
 const HORA_LIMITE=20; // 20h do dia anterior
-const GUIAS_FILA=["ADIANES", "ADRIANE", "ALBERTO", "ALEX", "ALICE", "ALVARO", "AMAURY", "ANA FLAVIA", "ANDRE", "ANTONIO", "ARLENE", "ARLINDO", "ARTHUR", "BRENO", "BRUNO", "BRUNO MICHELOTI", "CAMILA DOS PRAZERES", "CAMILLA", "CARLA", "CARLOS", "CHICO DINIZ", "CHICO LIMA", "DANIEL", "DEYVISON", "DRIELLY", "EDMILTON", "EDSON", "ELISIO", "ENEZIANE", "ERLON", "EUGENIO", "EVILAZIO", "FABIO", "FABIO COZZI", "FELIPE", "FRANCA", "FRANCINALDO", "FREITAS", "GEORGE", "GERARDO", "GESSYCA", "GIL", "GLORINHA", "GONÇALVES", "GUILHERME", "HENRIQUE FARIAS", "HENRIQUE JUNIOR", "HUGO", "HUMBERTO", "IANNE", "ISADORA", "JACIANE", "JOEL", "JOELMA", "JUAN", "JULIANA", "JUNIOR", "KATARINA", "LIDIANE", "LUCIA VERONICA", "LUCIENE", "LUIZ CARLOS", "LUIZ FELIPE", "MADALENA", "MADSON", "MARCOS", "MARI", "MATHEUS", "NATALIA", "NEIDE", "OLIVEIRA", "POLLY", "RAFAEL", "RAISSA", "REBECA", "RENATINHA", "RODRIGO", "RUTH", "SANTIAGO", "SERGIO", "SIDNEI", "TALES", "TATIANA", "TAVARES", "TOM", "VALTER", "VITOR", "WIRON", "XIMENES", "ZENA"];
+const GUIAS_FILA=["ADIANES", "ADRIANE", "ALBERTO", "ALEX", "ALICE", "ALVARO", "AMAURY", "ANA FLAVIA", "ANDRE", "ANTONIO", "ARLENE", "ARLINDO", "ARTHUR", "BRENO", "BRUNO", "BRUNO MICHELOTI", "CAMILA DOS PRAZERES", "CAMILLA", "CARLA", "CARLOS", "CHICO DINIZ", "CHICO LIMA", "CRIS", "DANIEL", "DEYVISON", "DRIELLY", "EDMILTON", "EDSON", "ELISIO", "ENEZIANE", "ERLON", "EUGENIO", "EVILAZIO", "FABIO", "FABIO COZZI", "FELIPE", "FRANCA", "FRANCINALDO", "FREITAS", "GEORGE", "GERARDO", "GESSYCA", "GIL", "GLORINHA", "GONÇALVES", "GUILHERME", "HENRIQUE FARIAS", "HENRIQUE JUNIOR", "HUGO", "HUMBERTO", "IANNE", "ISADORA", "JACIANE", "JOEL", "JOELMA", "JUAN", "JULIANA", "JUNIOR", "KATARINA", "LIDIANE", "LUCIA VERONICA", "LUCIENE", "LUIZ CARLOS", "LUIZ FELIPE", "MADALENA", "MADSON", "MARCOS", "MARI", "MATHEUS", "NATALIA", "NEIDE", "OLIVEIRA", "POLLY", "RAFAEL", "RAISSA", "REBECA", "RENATINHA", "RODRIGO", "RUTH", "SANTIAGO", "SERGIO", "SIDNEI", "TALES", "TATIANA", "TAVARES", "TOM", "VALTER", "VITOR", "WIRON", "XIMENES", "ZENA"];
 
 async function verificarPendentes(){
   const agora=new Date();
@@ -2387,14 +2387,17 @@ const GUIAS_PORTO=[
   "GESSYCA","TAVARES","MATHEUS","ALICE","LIDIANE","CARLA","ALBERTO","XIMENES",
   "SIDNEI","DRIELLY","RAISSA","ISADORA","SANTIAGO","ARTHUR","GIL","HUMBERTO",
   "FABIO COZZI","BRENO","LUIZ CARLOS","RODRIGO","JOELMA","OLIVEIRA","BRUNO MICHELOTI",
-  "TALES","FRANCINALDO","AMAURY","ARLENE","JACIANE","FRANCA","FREITAS",
-  "LUIZ FELIPE","RAFAEL","JULIANA","DEYVISON","ALEX","RUTH","CAMILA DOS PRAZERES"
+  "CRIS","TALES","FRANCINALDO","AMAURY","ARLENE","JACIANE","FRANCA","FREITAS",
+  "LUIZ FELIPE","RAFAEL"
 ];
+// Estagiários — separados do quadro geral de Porto, mas ainda contam pra
+// disponibilidade/escala normalmente, só ficam numa seção própria na tela.
+const GUIAS_ESTAGIARIOS=["JULIANA","DEYVISON","ALEX","RUTH","CAMILA DOS PRAZERES"];
 const GUIAS_RECIFE=[
   "GLORINHA","ELISIO","REBECA","ENEZIANE","BRUNO","ALVARO","ZENA","CARLOS",
   "CHICO LIMA","SERGIO","LUCIA VERONICA","MARCOS","MADALENA","ARLINDO"
 ];
-const TODOS_GUIAS_DISP=[...GUIAS_PORTO,...GUIAS_RECIFE];
+const TODOS_GUIAS_DISP=[...GUIAS_PORTO,...GUIAS_ESTAGIARIOS,...GUIAS_RECIFE];
 const FLAG_IDIOMA={'Português':'🇧🇷','Inglês':'🇺🇸','Espanhol':'🇪🇸','Francês':'🇫🇷','Italiano':'🇮🇹','Alemão':'🇩🇪'};
 
 async function carregarDisp(){
@@ -2598,8 +2601,9 @@ async function carregarDisp(){
     };
 
     const htmlPorto=renderSecao('🚢 Guias Porto',GUIAS_PORTO,'#1a6b9a');
+    const htmlEstagiarios=renderSecao('🎓 Guias Estagiários',GUIAS_ESTAGIARIOS,'#8e44ad');
     const htmlRecife=renderSecao('🌆 Guias Recife',GUIAS_RECIFE,'#2c3e50');
-    document.getElementById('disp-lista').innerHTML=(htmlPorto+htmlRecife)||'<p class="empty">Nenhum guia encontrado.</p>';
+    document.getElementById('disp-lista').innerHTML=(htmlPorto+htmlEstagiarios+htmlRecife)||'<p class="empty">Nenhum guia encontrado.</p>';
 
     // Guias há mais tempo sem ser escalados
     const rankSemEscala=TODOS_GUIAS_DISP
@@ -3235,6 +3239,7 @@ const WHATSAPP_GUIAS={
   "CARLOS":"5581999652676",
   "CHICO DINIZ":"5581999633624",
   "CHICO LIMA":"5581989697246",
+  "CRIS":"5581995001331",
   "DANIEL":"5581996453150",
   "DEYVISON":"5581985336696",
   "DRIELLY":"5581994318483",
@@ -4300,6 +4305,7 @@ if(typeof verificarNovidadesDisp==='function') setTimeout(()=>verificarNovidades
 <option value="OLIVEIRA">OLIVEIRA</option>
 <option value="BRUNO MICHELOTI">BRUNO MICHELOTI</option>
 <option value="BRUNO">BRUNO</option>
+<option value="CRIS">CRIS</option>
 <option value="TALES">TALES</option>
 <option value="FRANCINALDO">FRANCINALDO</option>
 <option value="AMAURY">AMAURY</option>
