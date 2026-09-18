@@ -2663,7 +2663,10 @@ async function salvarObsGuia(guia,obs){
 async function carregarListasGuias(){
   try{
     const snap=await window._gds(window._col(window._db,'guias'));
-    GUIAS=snap.docs.map(d=>d.id).sort();
+    // Une quem já tem cadastro no Firebase (já logou pelo menos uma vez) com a
+    // nossa lista fixa de guias — assim um guia novo aparece nos dropdowns de
+    // edição mesmo antes de ele fazer o primeiro login e criar a senha.
+    GUIAS=[...new Set([...snap.docs.map(d=>d.id),...GUIAS_FILA])].sort();
     // Popula selects dinamicamente
     ['av-guia','edit-item-guia','rg-guia','f-guia'].forEach(selId=>{
       const sel=document.getElementById(selId);
