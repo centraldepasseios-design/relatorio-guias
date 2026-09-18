@@ -411,7 +411,10 @@ async function carregarNomesFirebase(){
     if(!window._fbReady)return;
     const snap=await window._getDocs(window._collection(window._db,'guias'));
     if(snap.docs.length>0){
-      TODOS_NOMES=snap.docs.map(d=>d.id).sort();
+      // Une quem já logou (tem doc no Firebase) com a lista fixa — assim um
+      // guia novo continua aparecendo na busca do login mesmo antes do
+      // primeiro acesso dele.
+      TODOS_NOMES=[...new Set([...snap.docs.map(d=>d.id),...TODOS_NOMES])].sort();
     }
   }catch(e){console.warn('Usando lista local:',e)}
 }
