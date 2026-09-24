@@ -2631,6 +2631,26 @@ async function carregarDisp(){
   }catch(e){hideLoad();console.error(e);document.getElementById('disp-lista').innerHTML='<p class="empty">Erro: '+e.message+'</p>';}
 }
 
+// Remove a indisponibilidade/restrição do guia naquele dia (ex: lançada por engano
+// ou o guia voltou atrás). Apaga o registro — o guia volta a ficar sem marcação.
+async function removerDispAdmin(guia,dataFiltro,dataFmt){
+  showLoad();
+  try{
+    const snap=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('guia','==',guia),window._w('data','==',dataFiltro)));
+    hideLoad();
+    if(snap.empty){alert('Nada lançado para '+guia+' em '+dataFmt+'.');return}
+    const atual=snap.docs[0].data();
+    const desc=atual.status==='nao'?'❌ Indisponível':atual.status==='restricao'?'⚠️ Restrição':atual.status;
+    if(!confirm('Remover "'+desc+(atual.obs?': '+atual.obs:'')+'" de '+guia+' em '+dataFmt+'?'))return;
+    showLoad();
+    for(const d of snap.docs)await window._dd(d.ref);
+    hideLoad();
+    alert('✅ Removido para '+guia+' em '+dataFmt+'!');
+    logAuditoria('Disponibilidade removida pelo admin ('+dataFmt+')','disponibilidade',desc+(atual.obs?': '+atual.obs:''),guia);
+    carregarDisp();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
+
 function filtrarTrabalhando(){document.getElementById('disp-status').value='trabalhando';carregarDisp();}
 function filtrarObs(){document.getElementById('disp-status').value='obs';carregarDisp();}
 
@@ -2642,9 +2662,10 @@ async function lancarDispAdmin(guia){
   const dataFiltro=document.getElementById('disp-data').value;
   if(!dataFiltro){alert('Selecione uma data no filtro da Disponibilidade primeiro.');return}
   const dataFmt=new Date(dataFiltro+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-  const tipo=prompt('Lançar para '+guia+' no dia '+dataFmt+':\n\nDigite 1 para ❌ Indisponível, ou 2 para ⚠️ Restrição de horário.','1');
+  const tipo=prompt('Lançar para '+guia+' no dia '+dataFmt+':\n\nDigite 1 para ❌ Indisponível, 2 para ⚠️ Restrição de horário, ou 3 para 🗑️ Remover o que foi lançado.','1');
   if(tipo===null)return;
-  if(tipo!=='1'&&tipo!=='2'){alert('Digite 1 ou 2.');return}
+  if(tipo==='3'){removerDispAdmin(guia,dataFiltro,dataFmt);return}
+  if(tipo!=='1'&&tipo!=='2'){alert('Digite 1, 2 ou 3.');return}
   const status=tipo==='1'?'nao':'restricao';
   let obs='';
   if(status==='restricao'){
