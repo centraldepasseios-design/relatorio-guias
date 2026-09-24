@@ -2462,9 +2462,20 @@ async function carregarDisp(){
       if(nc&&nc>=hoje2)naoConvidarMap[d.id]={ate:nc};
     });
 
-    // Carrega última escala de cada guia (inclui datas futuras — mesmo comportamento dos passeios)
+    // Calcula, por guia, o PRÓXIMO compromisso (a data mais cedo que ainda não
+    // passou, seja escala ou bloqueio/passeio) — e só cai pro histórico (a
+    // data mais recente já passada) se não tiver nada agendado no futuro.
+    // Importante: aqui é sempre a menor data futura, nunca a maior — senão um
+    // bloqueio distante (ex: dia 30) esconderia um serviço de amanhã, que é
+    // o que realmente importa pra quem está olhando a disponibilidade.
+    const hojeUlt=hoje();
+    const datasPorGuia={}; // guiaKey -> Set de datas (escala + bloqueio)
+    const _addData=(guiaKey,dt)=>{
+      if(!datasPorGuia[guiaKey])datasPorGuia[guiaKey]=new Set();
+      datasPorGuia[guiaKey].add(dt);
+    };
+
     const escSnap=await window._gds(window._col(window._db,'escalas'));
-    const ultimaEscala={};
     // Guias escalados exatamente na data selecionada — para o status "Trabalhando"
     const guiasTrabalhandoNaData=new Set();
     escSnap.docs.forEach(d=>{
@@ -2472,12 +2483,10 @@ async function carregarDisp(){
       const guiaN=_normDisp(it.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||it.guia;
       if(it.data===data)guiasTrabalhandoNaData.add(guiaKey);
-      if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
+      _addData(guiaKey,it.data);
     });
 
-    // Carrega todos os bloqueios (passeios + admin) — conta como último/próximo
-    // compromisso do guia, incluindo datas futuras (mesmo tratamento pros dois
-    // tipos: um bloqueio de evento amanhã é tão relevante quanto um passeio amanhã).
+    // Todos os bloqueios (passeios + admin) também entram na mesma conta
     const todosPasseiosSnap=await window._gds(window._col(window._db,'bloqueios'));
     todosPasseiosSnap.docs.forEach(d=>{
       const dd=d.data();
@@ -2485,7 +2494,17 @@ async function carregarDisp(){
       const dataFimBlq=dd.fim||dd.inicio;
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
-      if(!ultimaEscala[guiaKey]||dataFimBlq>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dataFimBlq;
+      _addData(guiaKey,dataFimBlq);
+    });
+
+    const ultimaEscala={};
+    Object.keys(datasPorGuia).forEach(guiaKey=>{
+      const datas=[...datasPorGuia[guiaKey]];
+      const futStrict=datas.filter(dt=>dt>hojeUlt).sort(); // estritamente depois de hoje, menor primeiro
+      if(futStrict.length){ultimaEscala[guiaKey]=futStrict[0];return}
+      if(datas.includes(hojeUlt)){ultimaEscala[guiaKey]=hojeUlt;return}
+      const passadas=datas.filter(dt=>dt<hojeUlt).sort().reverse(); // maior primeiro
+      if(passadas.length)ultimaEscala[guiaKey]=passadas[0];
     });
     // Passeios do dia selecionado
     const passeioSnap=await window._gds(window._q(window._col(window._db,'bloqueios'),window._w('tipo','==','passeio'),window._w('inicio','==',data)));
@@ -3970,6 +3989,7 @@ async function confirmarReset(){
             <option value="Porto de Galinhas - Boramar">🏖️ Porto de Galinhas - Boramar</option>
             <option value="Porto de Galinhas - Itaoca">🏖️ Porto de Galinhas - Itaoca</option>
             <option value="João Pessoa">🏖️ João Pessoa</option>
+            <option value="Experiência Muro Alto">🏖️ Experiência Muro Alto</option>
             <option value="outro">✏️ Outro destino...</option>
           </select>
           <input type="text" id="passeio-nome" placeholder="Digite o destino..." style="background:#fff;display:none"/>
