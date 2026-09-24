@@ -1001,7 +1001,7 @@ function aplicarFiltros(){
 
 // ===== PENDENTES / REDISTRIBUIÇÃO =====
 const HORA_LIMITE=20; // 20h do dia anterior
-const GUIAS_FILA=["ADIANES", "ADRIANE", "ALBERTO", "ALEX", "ALICE", "ALVARO", "AMAURY", "ANA FLAVIA", "ANDRE", "ANTONIO", "ARLENE", "ARLINDO", "ARTHUR", "BRENO", "BRUNO", "BRUNO MICHELOTI", "CAMILA DOS PRAZERES", "CAMILLA", "CARLA", "CARLOS", "CHICO DINIZ", "CHICO LIMA", "CRIS", "DANIEL", "DEYVISON", "DRIELLY", "EDMILTON", "EDSON", "ELISIO", "ENEZIANE", "ERLON", "EUGENIO", "EVILAZIO", "FABIO", "FABIO COZZI", "FELIPE", "FRANCA", "FRANCINALDO", "FREITAS", "GEORGE", "GERARDO", "GESSYCA", "GIL", "GLORINHA", "GONÇALVES", "GUILHERME", "HENRIQUE FARIAS", "HENRIQUE JUNIOR", "HUGO", "HUMBERTO", "IANNE", "ISADORA", "JACIANE", "JOEL", "JOELMA", "JUAN", "JULIANA", "JUNIOR", "KATARINA", "LIDIANE", "LUCIA VERONICA", "LUCIENE", "LUIZ CARLOS", "LUIZ FELIPE", "MADALENA", "MADSON", "MARCOS", "MARI", "MATHEUS", "NATALIA", "NEIDE", "OLIVEIRA", "POLLY", "RAFAEL", "RAISSA", "REBECA", "RENATINHA", "RODRIGO", "RUTH", "SANTIAGO", "SERGIO", "SIDNEI", "TALES", "TATIANA", "TAVARES", "TOM", "VALTER", "VITOR", "WIRON", "XIMENES", "ZENA"];
+const GUIAS_FILA=["ADIANES", "ADRIANE", "ALBERTO", "ALEX", "ALICE", "ALVARO", "AMAURY", "ANA FLAVIA", "ANDRE", "ANTONIO", "ARLENE", "ARLINDO", "ARTHUR", "BRENO", "BRUNO", "BRUNO MICHELOTI", "CAMILA DOS PRAZERES", "CAMILLA", "CARLA", "CARLOS", "CHICO DINIZ", "CHICO LIMA", "CRIS", "DANIEL", "DEYVISON", "DRIELLY", "EDMILTON", "EDSON", "ELANE", "ELISIO", "ENEZIANE", "ERLON", "EUGENIO", "EVILAZIO", "FABIO", "FABIO COZZI", "FELIPE", "FRANCA", "FRANCINALDO", "FREITAS", "GEORGE", "GERARDO", "GESSYCA", "GIL", "GLORINHA", "GONÇALVES", "GUILHERME", "HENRIQUE FARIAS", "HENRIQUE JUNIOR", "HUGO", "HUMBERTO", "IANNE", "ISADORA", "JACIANE", "JOEL", "JOELMA", "JUAN", "JULIANA", "JUNIOR", "KATARINA", "LIDIANE", "LUCIA VERONICA", "LUCIENE", "LUIZ CARLOS", "LUIZ FELIPE", "MADALENA", "MADSON", "MARCOS", "MARI", "MATHEUS", "NATALIA", "NEIDE", "OLIVEIRA", "POLLY", "RAFAEL", "RAISSA", "REBECA", "RENATINHA", "RODRIGO", "RUTH", "SANTIAGO", "SERGIO", "SIDNEI", "TALES", "TATIANA", "TAVARES", "TOM", "VALTER", "VITOR", "WIRON", "XIMENES", "ZENA"];
 
 async function verificarPendentes(){
   const agora=new Date();
@@ -2388,7 +2388,7 @@ const GUIAS_PORTO=[
   "SIDNEI","DRIELLY","RAISSA","ISADORA","SANTIAGO","ARTHUR","GIL","HUMBERTO",
   "FABIO COZZI","BRENO","LUIZ CARLOS","RODRIGO","JOELMA","OLIVEIRA","BRUNO MICHELOTI",
   "CRIS","TALES","FRANCINALDO","AMAURY","ARLENE","JACIANE","FRANCA","FREITAS",
-  "LUIZ FELIPE","RAFAEL"
+  "LUIZ FELIPE","RAFAEL","ELANE"
 ];
 // Estagiários — separados do quadro geral de Porto, mas ainda contam pra
 // disponibilidade/escala normalmente, só ficam numa seção própria na tela.
@@ -2451,7 +2451,6 @@ async function carregarDisp(){
     });
 
     // Carrega última escala de cada guia (inclui datas futuras — mesmo comportamento dos passeios)
-    const hojeDisp=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Recife'});
     const escSnap=await window._gds(window._col(window._db,'escalas'));
     const ultimaEscala={};
     // Guias escalados exatamente na data selecionada — para o status "Trabalhando"
@@ -2464,14 +2463,14 @@ async function carregarDisp(){
       if(!ultimaEscala[guiaKey]||it.data>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=it.data;
     });
 
-    // Carrega todos os bloqueios (passeios + admin) — conta como último serviço (só passados/hoje)
+    // Carrega todos os bloqueios (passeios + admin) — conta como último/próximo
+    // compromisso do guia, incluindo datas futuras (mesmo tratamento pros dois
+    // tipos: um bloqueio de evento amanhã é tão relevante quanto um passeio amanhã).
     const todosPasseiosSnap=await window._gds(window._col(window._db,'bloqueios'));
     todosPasseiosSnap.docs.forEach(d=>{
       const dd=d.data();
       if(!dd.guia||!dd.inicio)return;
       const dataFimBlq=dd.fim||dd.inicio;
-      // Passeios: inclui futuros. Bloqueios admin: só passados/hoje
-      if(dd.tipo!=='passeio'&&dataFimBlq>hojeDisp)return;
       const guiaN=_normDisp(dd.guia);
       const guiaKey=TODOS_GUIAS_DISP.find(g=>_normDisp(g)===guiaN)||dd.guia;
       if(!ultimaEscala[guiaKey]||dataFimBlq>ultimaEscala[guiaKey])ultimaEscala[guiaKey]=dataFimBlq;
@@ -2576,6 +2575,7 @@ async function carregarDisp(){
           +'<input type="text" data-guia="'+g+'" placeholder="Observação admin..." value="'+(gData['obs_admin']||'')+'" onblur="salvarObsGuia(this.dataset.guia,this.value)" style="font-size:12px;padding:5px 8px;border:1px solid '+(gData['obs_admin']?'#2c3e50':'var(--border)')+';border-radius:var(--rsm);background:'+(gData['obs_admin']?'#eaf0f6':'var(--bg)')+';color:'+(gData['obs_admin']?'#2c3e50':'var(--text)')+';width:100%"/>'
         +'</td>'
         +'<td style="padding:4px 4px;text-align:center;white-space:nowrap">'
+          +'<button data-guia="'+g+'" onclick="lancarDispAdmin(this.dataset.guia)" title="Lançar indisponível/restrição em nome do guia (ex: avisou por WhatsApp)" style="padding:2px 7px;font-size:11px;background:#856404;color:#fff;border:none;border-radius:99px;cursor:pointer;margin-right:3px">📵</button>'
           +'<button data-guia="'+g+'" onclick="abrirModalBloqueio(this.dataset.guia)" title="Bloquear dias" style="padding:2px 7px;font-size:11px;background:#2c3e50;color:#fff;border:none;border-radius:99px;cursor:pointer;margin-right:3px">🔒</button>'
           +'<button data-guia="'+g+'" onclick="toggleNaoConvidar(this.dataset.guia)" title="Não convidar" style="padding:2px 7px;font-size:11px;background:'+(naoConvidar?'#7f0000':'#e0e0e0')+';color:'+(naoConvidar?'#fff':'#555')+';border:none;border-radius:99px;cursor:pointer">✖</button>'
         +'</td>'
@@ -2621,6 +2621,41 @@ async function carregarDisp(){
 
 function filtrarTrabalhando(){document.getElementById('disp-status').value='trabalhando';carregarDisp();}
 function filtrarObs(){document.getElementById('disp-status').value='obs';carregarDisp();}
+
+// Lança indisponível/restrição em nome do guia — usado quando ele avisa por
+// fora (WhatsApp, telefone) depois que o app já bloqueou o auto-lançamento
+// (ex: passou das 13h pro dia de amanhã). Grava no MESMO lugar que o app do
+// guia grava, então aparece igual em tudo — inclusive se ele olhar o próprio app.
+async function lancarDispAdmin(guia){
+  const dataFiltro=document.getElementById('disp-data').value;
+  if(!dataFiltro){alert('Selecione uma data no filtro da Disponibilidade primeiro.');return}
+  const dataFmt=new Date(dataFiltro+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  const tipo=prompt('Lançar para '+guia+' no dia '+dataFmt+':\n\nDigite 1 para ❌ Indisponível, ou 2 para ⚠️ Restrição de horário.','1');
+  if(tipo===null)return;
+  if(tipo!=='1'&&tipo!=='2'){alert('Digite 1 ou 2.');return}
+  const status=tipo==='1'?'nao':'restricao';
+  let obs='';
+  if(status==='restricao'){
+    obs=prompt('Descreva a restrição (ex: até 13h no aero):','')||'';
+    if(!obs.trim()){alert('Restrição precisa de uma descrição.');return}
+  } else {
+    obs=prompt('Observação (opcional — ex: avisou por WhatsApp às 14h):','')||'';
+  }
+  showLoad();
+  try{
+    const snap=await window._gds(window._q(window._col(window._db,'disponibilidades'),window._w('guia','==',guia),window._w('data','==',dataFiltro)));
+    const payload={guia,data:dataFiltro,status,obs:obs.trim(),atualizadoEm:new Date().toISOString(),lancadoPeloAdmin:true};
+    if(!snap.empty){
+      await window._sd(snap.docs[0].ref,payload,{merge:true});
+    }else{
+      await window._ad(window._col(window._db,'disponibilidades'),{...payload,criadoEm:new Date().toISOString()});
+    }
+    hideLoad();
+    alert('✅ Lançado para '+guia+' em '+dataFmt+'!');
+    logAuditoria('Disponibilidade lançada pelo admin ('+dataFmt+')','disponibilidade',(status==='nao'?'Indisponível':'Restrição')+(obs?': '+obs:''),guia);
+    carregarDisp();
+  }catch(e){hideLoad();alert('Erro: '+e.message)}
+}
 
 async function toggleNaoConvidar(guia){
   const ref=window._doc(window._db,'guias',guia);
@@ -3248,6 +3283,7 @@ const WHATSAPP_GUIAS={
   "DRIELLY":"5581994318483",
   "EDMILTON":"5581997480407",
   "EDSON":"5581979035513",
+  "ELANE":"5581999596356",
   "ELISIO":"5581999543713",
   "ENEZIANE":"5581989165005",
   "ERLON":"5581999638997",
@@ -4318,6 +4354,7 @@ if(typeof verificarNovidadesDisp==='function') setTimeout(()=>verificarNovidades
 <option value="FREITAS">FREITAS</option>
 <option value="LUIZ FELIPE">LUIZ FELIPE</option>
 <option value="RAFAEL">RAFAEL</option>
+<option value="ELANE">ELANE</option>
 <option value="JULIANA">JULIANA</option>
 <option value="DEYVISON">DEYVISON</option>
 <option value="ALEX">ALEX</option>

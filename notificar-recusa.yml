@@ -1,0 +1,96 @@
+name: Notificar Recusa de Escala
+
+on:
+  schedule:
+    # A cada 10 minutos, das 06:00 às 23:50 UTC (03:00 às 20:50 em Recife) —
+    # cobre o horário em que os guias normalmente abrem o app pra confirmar.
+    - cron: '*/10 6-23 * * *'
+  workflow_dispatch:
+
+jobs:
+  notificar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Instalar firebase-admin
+        run: npm install firebase-admin
+
+      - name: Criar arquivo de credenciais
+        run: echo '${{ secrets.FIREBASE_CREDENTIALS }}' > credentials.json
+
+      - name: Notificar recusas de escala
+        run: |
+          node << 'EOF'
+          const admin = require('firebase-admin');
+          const https = require('https');
+          const fs = require('fs');
+
+          const credentials = JSON.parse(fs.readFileSync('credentials.json', 'utf8'));
+          admin.initializeApp({ credential: admin.credential.cert(credentials) });
+          const db = admin.firestore();
+
+          const ZAPI_URL = 'https://api.z-api.io/instances/3F32A3E55237818FBDBE36ADC5527576/token/ECA321B4DA2EB4B2FF4CB937/send-text';
+          const ZAPI_CLIENT_TOKEN = 'F1b7c26e0ce09416fbc813a307ce5f298S';
+
+          // Números que recebem o aviso (mesmos do plantão já usados no app)
+          const DESTINOS = ['5581996393579', '5581989447955']; // Tânia, Ana
+
+          function enviarWpp(phone, message) {
+            return new Promise((resolve, reject) => {
+              const body = JSON.stringify({ phone, message });
+              const url = new URL(ZAPI_URL);
+              const options = {
+                hostname: url.hostname, path: url.pathname, method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Client-Token': ZAPI_CLIENT_TOKEN, 'Content-Length': Buffer.byteLength(body) }
+              };
+              const req = https.request(options, res => { let d = ''; res.on('data', x => d += x); res.on('end', () => { console.log('WPP:', d); resolve(d); }); });
+              req.on('error', reject); req.write(body); req.end();
+            });
+          }
+
+          async function main() {
+            // Só olha recusas dos últimos 3 dias — evita disparar uma enxurrada
+            // de avisos antigos caso alguma recusa passada nunca tenha sido notificada.
+            const limite = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Recife' }));
+            limite.setDate(limite.getDate() - 3);
+            const limiteStr = limite.toISOString().slice(0, 10);
+
+            const snap = await db.collection('confirmacoes')
+              .where('recusado', '==', true)
+              .where('data', '>=', limiteStr)
+              .get();
+
+            const pendentes = snap.docs.filter(d => !d.data().notificadoCoordenacao);
+            if (!pendentes.length) { console.log('Nenhuma recusa nova.'); return; }
+
+            for (const doc of pendentes) {
+              const c = doc.data();
+              const dataFmt = c.data ? new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : c.data;
+              const msg = '🚫 *LUCK RECEPTIVO — Recusa de escala*\n\n*' + c.guia + '* recusou a escala do dia *' + dataFmt + '*.\n\n📝 Motivo: ' + (c.motivo || 'não informado') + '\n\nVerifique e reorganize o serviço se necessário.';
+              let enviouAlgum = false;
+              for (const fone of DESTINOS) {
+                try {
+                  await enviarWpp(fone, msg);
+                  enviouAlgum = true;
+                  await new Promise(r => setTimeout(r, 500));
+                } catch (e) {
+                  console.log('❌ erro enviando para', fone, e.message);
+                }
+              }
+              if (enviouAlgum) {
+                await doc.ref.set({ notificadoCoordenacao: true }, { merge: true });
+                console.log('✅ notificado:', c.guia, dataFmt);
+              }
+            }
+          }
+
+          main().catch(e => { console.error(e); process.exit(1); });
+          EOF
+
+      - name: Limpar credenciais
+        if: always()
+        run: rm -f credentials.json

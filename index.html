@@ -403,7 +403,7 @@ async function registrarPush(guia){
 }
 
 // Lista de nomes carregada do Firebase dinamicamente
-let TODOS_NOMES=["ADIANES","ADRIANE","ALBERTO","ALEX","ALICE","ALVARO","AMAURY","ANA FLAVIA","ANDRE","ANTONIO","ARLENE","ARLINDO","ARTHUR","BRENO","BRUNO MICHELOTI","BRUNO","CAMILA","CAMILLA","CARLA","CARLOS M","CHICO DINIZ","CHICO LIMA","CRIS","DANIEL","DEYVISON","DRIELLY","EDMILTON","EDSON","ELISIO","ENEZIANE","ERLON","EUGENIO","EVILAZIO","FABIO GOMES","FABIO COZZI","FELIPE","FRANCA","FRANCINALDO","FREITAS","GEORGE","GERARDO","GESSYCA","GIL","GLORINHA","GONÇALVES","GUILHERME","HENRIQUE FARIAS","HENRIQUE JR","HUGO","HUMBERTO","IANNE","ISADORA","JACIANE","JOEL","JOELMA","JUAN","JULIANA","JUNIOR","KATARINA","LIDIANE","LUCIA V","LUCIENE","LUIZ CARLOS","LUIZ FELIPE","MADALENA","MADSON","MARCOS F","MARILANDE","MATHEUS","NATALIA","NEIDE","OLIVEIRA","POLLY","RAFAEL","RAISSA","REBECA","RENATINHA","RODRIGO","RUTH","SANTIAGO","SERGIO","SIDNEI","TALES","TATIANA","TAVARES","TOM","VALTER","VITOR","WIRON","XIMENES","ZENA"].sort();
+let TODOS_NOMES=["ADIANES","ADRIANE","ALBERTO","ALEX","ALICE","ALVARO","AMAURY","ANA FLAVIA","ANDRE","ANTONIO","ARLENE","ARLINDO","ARTHUR","BRENO","BRUNO MICHELOTI","BRUNO","CAMILA","CAMILLA","CARLA","CARLOS M","CHICO DINIZ","CHICO LIMA","CRIS","DANIEL","DEYVISON","DRIELLY","EDMILTON","EDSON","ELANE","ELISIO","ENEZIANE","ERLON","EUGENIO","EVILAZIO","FABIO GOMES","FABIO COZZI","FELIPE","FRANCA","FRANCINALDO","FREITAS","GEORGE","GERARDO","GESSYCA","GIL","GLORINHA","GONÇALVES","GUILHERME","HENRIQUE FARIAS","HENRIQUE JR","HUGO","HUMBERTO","IANNE","ISADORA","JACIANE","JOEL","JOELMA","JUAN","JULIANA","JUNIOR","KATARINA","LIDIANE","LUCIA V","LUCIENE","LUIZ CARLOS","LUIZ FELIPE","MADALENA","MADSON","MARCOS F","MARILANDE","MATHEUS","NATALIA","NEIDE","OLIVEIRA","POLLY","RAFAEL","RAISSA","REBECA","RENATINHA","RODRIGO","RUTH","SANTIAGO","SERGIO","SIDNEI","TALES","TATIANA","TAVARES","TOM","VALTER","VITOR","WIRON","XIMENES","ZENA"].sort();
 async function carregarNomesFirebase(){
   try{
     let t=0;
@@ -1015,6 +1015,14 @@ async function apagarDisponibilidade(){
   }catch(e){hideLoading();alert('Erro: '+e.message)}
 }
 
+function _bloqueadoParaAmanha(data){
+  const amanha=new Date();amanha.setDate(amanha.getDate()+1);
+  const amanhaStr=amanha.toISOString().slice(0,10);
+  if(data!==amanhaStr)return false;
+  const agoraRecife=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Recife'}));
+  return agoraRecife.getHours()>=13;
+}
+
 async function carregarDisponibilidade(){
   const el=document.getElementById('disp-conteudo');
   if(!window._fbReady||!guiaAtual)return;
@@ -1109,6 +1117,22 @@ async function carregarDisponibilidade(){
       }
 
       // Dia livre — dois botões diretos (ação, não status: outline + verbo, pra não parecer que já está indisponível)
+      const bloqueadoAmanha=_bloqueadoParaAmanha(data);
+      if(bloqueadoAmanha){
+        return`<div class="disp-date-row" style="flex-direction:column;gap:6px" id="row-${data}">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+            <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
+            <span style="font-size:11px;color:var(--green);font-weight:600">✅ Disponível</span>
+          </div>
+          <div style="font-size:12.5px;color:#856404;background:#fff8e1;border:1px solid #f0d98c;border-radius:var(--rsm);padding:8px 10px;line-height:1.5">
+            ⏰ Passou do horário (13h) para adicionar restrição ou indisponibilidade para amanhã. A escala já está sendo montada — fale direto no WhatsApp com quem está de plantão:
+            <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+              <a href="https://wa.me/5581996393579" target="_blank" style="color:#0f6e56;font-weight:600;text-decoration:none">📱 Tânia — (81) 99639-3579</a>
+              <a href="https://wa.me/5581989447955" target="_blank" style="color:#0f6e56;font-weight:600;text-decoration:none">📱 Ana — (81) 98944-7955</a>
+            </div>
+          </div>
+        </div>`;
+      }
       return`<div class="disp-date-row" style="flex-direction:column;gap:6px" id="row-${data}">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
           <div class="disp-date"><span style="font-size:15px">${fmt}</span><small style="display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:1px">${diaSem}</small></div>
@@ -1144,6 +1168,7 @@ function abrirRestricao(data){
   if(el){el.style.display='flex';el.scrollIntoView({behavior:'smooth',block:'nearest'});}
 }
 async function salvarRestricaoHorario(data){
+  if(_bloqueadoParaAmanha(data)){alert('⏰ Passou do horário (13h) para adicionar restrição para amanhã. Fale com quem está de plantão: Tânia (81) 99639-3579 ou Ana (81) 98944-7955.');return}
   const obs=document.getElementById('obs-edit-'+data)?.value.trim()||'';
   showLoading();
   try{
@@ -1161,6 +1186,12 @@ function fecharEdicaoDisp(data){
   if(el)el.style.display='none';
 }
 async function marcarDispSimples(data,status,btn){
+  // Só bloqueia quando o dia ainda estava livre (primeira marcação) — editar
+  // uma restrição que já existia continua liberado.
+  if(status==='nao'&&!window.dispMap_global[data]&&_bloqueadoParaAmanha(data)){
+    alert('⏰ Passou do horário (13h) para marcar indisponibilidade para amanhã. Fale com quem está de plantão: Tânia (81) 99639-3579 ou Ana (81) 98944-7955.');
+    return;
+  }
   window.dispMap_global[data]=status;
   const painel=document.getElementById('edit-'+data);
   if(painel){
