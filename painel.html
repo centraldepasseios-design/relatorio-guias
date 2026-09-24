@@ -1147,8 +1147,9 @@ async function carregarBonusGuia(){
       const statusTxt=completo
         ?'<span style="color:#0f6e56;font-weight:600">✅ Pago</span>'
         :('<span style="color:#e67e22;font-weight:600">'+restante+' pendente'+(restante>1?'s':'')+(b.qtdPaga>0?' ('+b.qtdPaga+' já pago'+(b.qtdPaga>1?'s':'')+')':'')+'</span>');
-      const stepper=completo?'':'<div style="display:flex;align-items:center;gap:6px">'
-        +'<button onclick="pagarUmBonus(\''+b.id+'\')" title="Marcar 1 como pago" style="width:26px;height:26px;background:#0f6e56;color:#fff;border:none;border-radius:99px;font-size:15px;font-weight:700;cursor:pointer;line-height:1">−</button>'
+      const stepper='<div style="display:flex;align-items:center;gap:6px">'
+        +(completo?'':'<button onclick="pagarUmBonus(\''+b.id+'\')" title="Marcar 1 como pago" style="width:26px;height:26px;background:#0f6e56;color:#fff;border:none;border-radius:99px;font-size:15px;font-weight:700;cursor:pointer;line-height:1">−</button>')
+        +'<button onclick="somarUmBonus(\''+b.id+'\')" title="Adicionar mais 1 bônus" style="width:26px;height:26px;background:#8a6d1a;color:#fff;border:none;border-radius:99px;font-size:15px;font-weight:700;cursor:pointer;line-height:1">+</button>'
         +'</div>';
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:'+(completo?'#f4f9f7':'var(--bg)')+';border:1px solid var(--border);border-radius:var(--rsm);margin-bottom:6px;gap:10px'+(completo?';opacity:0.75':'')+'">'
         +'<div style="font-size:13px"><strong>'+b.qtd+'x</strong> Bônus '+b.passeio+(b.motivo?' <span style="color:var(--muted)">— '+b.motivo+'</span>':'')+'<div style="font-weight:600;margin-top:2px">'+b.guia+'</div><div style="font-size:11px;margin-top:2px">'+statusTxt+'</div></div>'
@@ -1167,6 +1168,17 @@ async function pagarUmBonus(id){
     const dados=snap.data();
     const novaQtdPaga=Math.min((dados.qtdPaga||0)+1,dados.qtd);
     await window._sd(ref,{qtdPaga:novaQtdPaga,ultimoPagamentoEm:new Date().toISOString()},{merge:true});
+    carregarBonusGuia();
+    atualizarBadgeBonus();
+  }catch(e){alert('Erro: '+e.message)}
+}
+
+async function somarUmBonus(id){
+  try{
+    const ref=window._doc(window._db,'bonusGuias',id);
+    const snap=await window._gd(ref);
+    const dados=snap.data();
+    await window._sd(ref,{qtd:(dados.qtd||0)+1,ultimoAcrescimoEm:new Date().toISOString()},{merge:true});
     carregarBonusGuia();
     atualizarBadgeBonus();
   }catch(e){alert('Erro: '+e.message)}
