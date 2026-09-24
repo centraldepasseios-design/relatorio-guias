@@ -2640,6 +2640,13 @@ async function removerDispAdmin(guia,dataFiltro,dataFmt){
     hideLoad();
     if(snap.empty){alert('Nada lançado para '+guia+' em '+dataFmt+'.');return}
     const atual=snap.docs[0].data();
+    // Só remove o que foi lançado manualmente por aqui (lancadoPeloAdmin:true).
+    // Se o próprio guia marcou pelo app dele, não deixa apagar — evita que a
+    // gente mexa sem querer numa marcação que é dele.
+    if(!atual.lancadoPeloAdmin){
+      alert('⚠️ Esse registro foi marcado pelo próprio '+guia+' no app dele, não por aqui.\n\nNão é possível remover por este botão — só o que foi lançado manualmente pela coordenação pode ser apagado assim. Se precisar mudar, fale com o guia ou peça pra ele ajustar no app dele.');
+      return;
+    }
     const desc=atual.status==='nao'?'❌ Indisponível':atual.status==='restricao'?'⚠️ Restrição':atual.status;
     if(!confirm('Remover "'+desc+(atual.obs?': '+atual.obs:'')+'" de '+guia+' em '+dataFmt+'?'))return;
     showLoad();
