@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Escala por Guia - Phoenix</title>
+    <style>
+      :root {
+        --bg:#f4f5f7; --card:#ffffff; --txt:#1f2933; --muted:#6b7280;
+        --linha:#e5e7eb; --verde:#0f766e; --verde-claro:#e6f4f1;
+        --azul:#1d4ed8; --azul-claro:#e8effe;
+      }
+      * { box-sizing:border-box; }
+      body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+        background:var(--bg); color:var(--txt); padding:20px 16px 60px; }
+      .wrap { max-width:1150px; margin:0 auto; }
+      h1 { font-size:1.4rem; margin:0 0 6px; }
+      .topo { display:flex; flex-wrap:wrap; align-items:center; gap:12px; justify-content:space-between; }
+      .controles { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+      .controles label { font-size:.85rem; color:var(--muted); }
+      input[type="date"] { padding:6px 10px; border:1px solid var(--linha); border-radius:8px; font-size:.9rem; }
+      .resumo { color:var(--muted); font-size:.9rem; margin:4px 0 14px; }
+
+      .abas { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+      .aba { padding:8px 16px; border:1px solid var(--linha); background:var(--card);
+        border-radius:999px; cursor:pointer; font-size:.9rem; }
+      .aba.ativa { background:var(--verde); color:#fff; border-color:var(--verde); }
+      .aba .n { font-size:.78rem; opacity:.85; margin-left:4px; }
+
+      /* Sub-abas base (so nos passeios) */
+      .bases { display:flex; gap:6px; margin-bottom:16px; }
+      .base { padding:5px 14px; border:1px solid var(--linha); background:var(--card);
+        border-radius:8px; cursor:pointer; font-size:.84rem; color:var(--muted); }
+      .base.ativa { background:var(--azul-claro); color:var(--azul); border-color:var(--azul); font-weight:600; }
+
+      /* Colunas de guias, para nao espalhar */
+      .colunas { column-width:330px; column-gap:14px; }
+      .guia { background:var(--card); border:1px solid var(--linha); border-radius:12px;
+        overflow:hidden; break-inside:avoid; margin-bottom:14px; display:inline-block; width:100%; }
+      .guia h2 { margin:0; padding:11px 14px; font-size:.98rem; background:var(--verde-claro);
+        color:var(--verde); display:flex; justify-content:space-between; align-items:center; }
+      .guia h2 .qtd { font-size:.78rem; background:var(--verde); color:#fff; border-radius:999px; padding:2px 8px; }
+      .guia.apoio h2 { background:#fdeeda; color:#c2670f; }
+      .guia.apoio h2 .qtd { background:#c2670f; }
+      .servico { padding:9px 14px; border-top:1px solid var(--linha); font-size:.88rem; }
+      .servico:first-of-type { border-top:none; }
+      .servico .l1 { display:flex; gap:8px; align-items:baseline; }
+      .servico .hora { font-weight:700; white-space:nowrap; }
+      .servico .passeio { color:var(--txt); }
+      .servico .meta { color:var(--muted); font-size:.77rem; margin-top:3px; display:flex; flex-wrap:wrap; gap:4px 10px; }
+      .servico .roteiro { color:var(--muted); font-size:.71rem; margin-top:2px; }
+
+      .vazio,.erro { color:var(--muted); padding:10px 0; }
+      .erro { color:#c2410c; }
+      .rodape { color:var(--muted); font-size:.8rem; margin-top:18px; }
+      .barra-envio { max-width:1150px; margin:0 auto 14px; display:none; }
+      .btn-enviar { padding:9px 18px; border:none; border-radius:8px; background:#128c7e;
+        color:#fff; font-size:.9rem; cursor:pointer; font-weight:600; }
+      .btn-enviar:disabled { opacity:.5; cursor:default; }
+      .btn-ind { margin-left:auto; padding:3px 10px; border:1px solid #128c7e; background:#fff;
+        color:#128c7e; border-radius:999px; font-size:.72rem; cursor:pointer; }
+      .btn-ind:hover { background:#e6f4f1; }
+      .msg-envio { margin-top:8px; font-size:.85rem; color:var(--muted); }
+      .guia h2 .acoes { display:flex; align-items:center; gap:8px; }
+
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topo">
+        <h1>Escala por Guia</h1>
+        <div class="controles">
+          <label for="data">Dia:</label>
+          <input type="date" id="data" />
+        </div>
+      </div>
+      <div class="resumo" id="resumo"></div>
+
+      <div class="abas">
+        <div class="aba ativa" data-aba="passeio">Passeios <span class="n" id="n-passeio"></span></div>
+        <div class="aba" data-aba="transfer">Transfers <span class="n" id="n-transfer"></span></div>
+      </div>
+
+      <div class="bases" id="bases">
+        <div class="base ativa" data-base="porto">Porto <span id="n-porto"></span></div>
+        <div class="base" data-base="recife">Recife <span id="n-recife"></span></div>
+      </div>
+
+      <div class="barra-envio" id="barraEnvio">
+        <button class="btn-enviar" id="btnTodos" onclick="enviarTodos()">
+          📲 Enviar escala de passeio para todos os guias de Porto
+        </button>
+        <div class="msg-envio" id="msgEnvio"></div>
+      </div>
+
+      <div class="colunas" id="grade"></div>
+      <div class="vazio" id="vazio"></div>
+      <div class="rodape" id="rodape"></div>
+    </div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+      import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyCFom_SD6rklJ3hTJHC5_VF34TiDYKn-ak",
+        authDomain: "relatorio-guias.firebaseapp.com",
+        projectId: "relatorio-guias",
+        storageBucket: "relatorio-guias.firebasestorage.app",
+        messagingSenderId: "1078535122546",
+        appId: "1:1078535122546:web:fb1669ddaa66a4e5a1dceb",
+      };
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      const grade = document.getElementById("grade");
+      const vazio = document.getElementById("vazio");
+      const resumo = document.getElementById("resumo");
+      const rodape = document.getElementById("rodape");
+      const inputData = document.getElementById("data");
+      const divBases = document.getElementById("bases");
+
+      let dadosDia = null;
+      let abaAtual = "passeio";
+      let baseAtual = "porto";
+
+      function ehPasseio(s){ return (s.tipo||"").toUpperCase()==="TOUR"; }
+      // Base pela ORIGEM do servico
+      function ehPorto(s){
+        const o = (s.origem||"").toUpperCase();
+        return o.includes("PORTO") || o.includes("GALINHAS");
+      }
+
+      function hojeRecife(off=0){
+        const d=new Date(Date.now()-3*3600*1000); d.setUTCDate(d.getUTCDate()+off);
+        return d.toISOString().slice(0,10);
+      }
+      function rotuloData(iso){
+        const [a,m,d]=iso.split("-"); const dt=new Date(+a,+m-1,+d);
+        return `${dt.toLocaleDateString("pt-BR",{weekday:"long"})}, ${d}/${m}`;
+      }
+
+      async function carregar(dataISO){
+        grade.innerHTML=""; vazio.textContent="Carregando..."; resumo.textContent=""; rodape.textContent="";
+        dadosDia=null;
+        try{
+          const snap=await getDoc(doc(db,"phoenix_dias",dataISO));
+          if(!snap.exists()){
+            vazio.textContent="Ainda nao ha escala para esse dia no Phoenix.";
+            ["n-passeio","n-transfer","n-porto","n-recife"].forEach(id=>document.getElementById(id).textContent="");
+            return;
+          }
+          dadosDia=snap.data();
+          const svc=Array.isArray(dadosDia.servicos)?dadosDia.servicos:[];
+          document.getElementById("n-passeio").textContent=svc.filter(ehPasseio).length;
+          document.getElementById("n-transfer").textContent=svc.filter(s=>!ehPasseio(s)).length;
+          if(dadosDia.atualizadoEm&&dadosDia.atualizadoEm.seconds){
+            rodape.textContent="Ultima sincronizacao: "+new Date(dadosDia.atualizadoEm.seconds*1000).toLocaleString("pt-BR");
+          }
+          render();
+        }catch(e){ vazio.innerHTML=`<span class="erro">Erro ao carregar: ${e.message}</span>`; }
+      }
+
+      function render(){
+        grade.innerHTML=""; vazio.textContent="";
+        if(!dadosDia) return;
+        const todos=dadosDia.servicos||[];
+
+        // filtra por aba
+        let svc = todos.filter(s=> abaAtual==="passeio" ? ehPasseio(s) : !ehPasseio(s));
+
+        // mostra as sub-abas de base so nos passeios
+        divBases.style.display = abaAtual==="passeio" ? "flex" : "none";
+        // barra de envio so em Passeios + Porto
+        const barraEnvio = document.getElementById("barraEnvio");
+        barraEnvio.style.display = (abaAtual==="passeio" && baseAtual==="porto") ? "block" : "none";
+        document.getElementById("msgEnvio").textContent = "";
+
+        // conta por base (dentro da aba atual)
+        document.getElementById("n-porto").textContent  = `(${svc.filter(ehPorto).length})`;
+        document.getElementById("n-recife").textContent = `(${svc.filter(s=>!ehPorto(s)).length})`;
+
+        // nos passeios, filtra pela base escolhida
+        if(abaAtual==="passeio"){
+          svc = svc.filter(s=> baseAtual==="porto" ? ehPorto(s) : !ehPorto(s));
+        }
+
+        resumo.textContent = `${rotuloData(dadosDia.data)} - ${todos.length} servicos no total`;
+
+        if(svc.length===0){ vazio.textContent="Nada nessa aba."; return; }
+
+        // Em PASSEIOS de PORTO, os servicos sem guia sao APOIO (carro que
+        // vai buscar o pax quando o principal nao entra). Em Recife nao ha apoio.
+        const apoio = [];
+        const comGuia = [];
+        for(const s of svc){
+          const semGuia = !(s.guia && String(s.guia).trim());
+          if(abaAtual==="passeio" && baseAtual==="porto" && semGuia){
+            apoio.push(s);
+          } else {
+            comGuia.push(s);
+          }
+        }
+
+        const porGuia={};
+        for(const s of comGuia){ const g=s.guia||"Sem guia"; (porGuia[g]=porGuia[g]||[]).push(s); }
+        const guias=Object.keys(porGuia).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+
+        function linhaServico(s){
+          const partes=[];
+          if(s.motorista) partes.push(`🚐 ${s.motorista}`);
+          if(s.veiculo) partes.push(s.veiculo);
+          if(s.pax) partes.push(`${s.pax} pax`);
+          return `
+            <div class="servico">
+              <div class="l1"><span class="hora">${s.inicio||"--:--"}</span>
+                <span class="passeio">${s.passeio||s.tipo||"-"}</span></div>
+              ${partes.length?`<div class="meta">${partes.map(p=>`<span>${p}</span>`).join("")}</div>`:""}
+              <div class="roteiro">${s.roteiro||""}</div>
+            </div>`;
+        }
+
+        for(const g of guias){
+          const lista=porGuia[g].sort((a,b)=>(a.inicio||"").localeCompare(b.inicio||""));
+          const card=document.createElement("div"); card.className="guia";
+          const mostraBtn = (abaAtual==="passeio" && baseAtual==="porto");
+          const btnInd = mostraBtn
+            ? `<button class="btn-ind" onclick="enviarIndividual('${g.replace(/'/g,"")}')">enviar</button>` : "";
+          let html=`<h2><span>${g}</span><span class="acoes">${btnInd}<span class="qtd">${lista.length}</span></span></h2>`;
+          for(const s of lista){ html+=linhaServico(s); }
+          card.innerHTML=html; grade.appendChild(card);
+        }
+
+        // Card de APOIO no fim (so Porto / passeios)
+        if(apoio.length){
+          const lista=apoio.sort((a,b)=>(a.inicio||"").localeCompare(b.inicio||""));
+          const card=document.createElement("div"); card.className="guia apoio";
+          let html=`<h2>APOIO<span class="qtd">${lista.length}</span></h2>`;
+          for(const s of lista){ html+=linhaServico(s); }
+          card.innerHTML=html; grade.appendChild(card);
+        }
+      }
+
+      document.querySelectorAll(".aba").forEach(el=>el.addEventListener("click",()=>{
+        document.querySelectorAll(".aba").forEach(x=>x.classList.remove("ativa"));
+        el.classList.add("ativa"); abaAtual=el.dataset.aba; render();
+      }));
+      document.querySelectorAll(".base").forEach(el=>el.addEventListener("click",()=>{
+        document.querySelectorAll(".base").forEach(x=>x.classList.remove("ativa"));
+        el.classList.add("ativa"); baseAtual=el.dataset.base; render();
+      }));
+
+
+      // ---- Envio via despachante (Vercel) ----
+      const DESPACHANTE = "https://phoenix-despachante.vercel.app/api/enviar";
+      const SENHA_ENVIO = "luck1960";
+
+      function dataAlvoEnvio() {
+        // envia sempre para o dia que esta aberto no seletor
+        return inputData.value;
+      }
+
+      async function dispararEnvio(alvo, textoConfirma) {
+        if (!confirm(textoConfirma)) return;
+        const msg = document.getElementById("msgEnvio");
+        const btn = document.getElementById("btnTodos");
+        if (btn) btn.disabled = true;
+        if (msg) msg.textContent = "Enviando pedido...";
+        try {
+          const r = await fetch(DESPACHANTE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ senha: SENHA_ENVIO, alvo, data: dataAlvoEnvio() }),
+          });
+          const j = await r.json();
+          if (r.ok) {
+            if (msg) msg.textContent = "✅ Envio iniciado. Os guias vao receber em alguns minutos.";
+          } else {
+            if (msg) msg.textContent = "❌ Erro: " + (j.erro || "tente de novo");
+          }
+        } catch (e) {
+          if (msg) msg.textContent = "❌ Falhou: " + e.message;
+        }
+        if (btn) btn.disabled = false;
+      }
+
+      function enviarTodos() {
+        // conta quantos guias de passeio Porto existem na tela
+        const svc = (dadosDia && dadosDia.servicos || [])
+          .filter(s => (s.tipo||"").toUpperCase()==="TOUR" && s.guia && ehPorto(s));
+        const guias = new Set(svc.map(s => s.guia));
+        const n = guias.size;
+        if (n === 0) { alert("Nenhum guia de passeio de Porto nesse dia."); return; }
+        dispararEnvio("todos", `Enviar a escala de passeio para ${n} guias de Porto (dia ${dataAlvoEnvio()})?`);
+      }
+
+      function enviarIndividual(guia) {
+        const nome = guia.replace(/\s*-\s*GUIA\s*$/i,"").trim();
+        dispararEnvio(guia, `Enviar a escala de passeio para ${nome} (dia ${dataAlvoEnvio()})?`);
+      }
+      window.enviarIndividual = enviarIndividual;
+
+      const amanha=hojeRecife(1);
+      inputData.value=amanha; carregar(amanha);
+      inputData.addEventListener("change",()=>carregar(inputData.value));
+    </script>
+  </body>
+</html>
