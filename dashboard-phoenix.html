@@ -72,6 +72,7 @@
         <div class="controles">
           <label for="data">Dia:</label>
           <input type="date" id="data" />
+          <button class="btn-ind" id="btnAtualizar" style="padding:7px 14px;font-size:.82rem" onclick="atualizarAgora()">🔄 Atualizar</button>
         </div>
       </div>
       <div class="resumo" id="resumo"></div>
@@ -300,9 +301,45 @@
       }
       window.enviarIndividual = enviarIndividual;
 
+
+      // ---- Sincronizacao via despachante ----
+      const SINCRONIZAR = "https://phoenix-despachante.vercel.app/api/sincronizar";
+
+      async function pedirSync() {
+        try {
+          await fetch(SINCRONIZAR, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ senha: SENHA_ENVIO }),
+          });
+        } catch (_) {}
+      }
+
+      async function atualizarAgora() {
+        const btn = document.getElementById("btnAtualizar");
+        const rod = document.getElementById("rodape");
+        btn.disabled = true;
+        const txtAntes = rod.textContent;
+        rod.textContent = "Atualizando com o Phoenix... (aguarde ~1 min)";
+        await pedirSync();
+        // espera o robo rodar e relê os dados
+        setTimeout(async () => {
+          await carregar(inputData.value);
+          btn.disabled = false;
+        }, 70000);
+      }
+
+      // Ao abrir a pagina, dispara uma sincronizacao em segundo plano
+      // (nao trava a tela; os dados atuais aparecem e logo sao atualizados)
+      function syncAoAbrir() {
+        pedirSync();
+        setTimeout(() => carregar(inputData.value), 70000);
+      }
+
       const amanha=hojeRecife(1);
       inputData.value=amanha; carregar(amanha);
       inputData.addEventListener("change",()=>carregar(inputData.value));
+      syncAoAbrir();
     </script>
   </body>
 </html>
