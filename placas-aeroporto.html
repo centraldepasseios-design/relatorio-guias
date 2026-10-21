@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Placas de Recepção - Aeroporto</title>
+<style>
+  :root{
+    --verde:#1f7a6d; --verde2:#2a9d8c; --tinta:#13403a; --bg:#eef1f0; --card:#fff;
+    --linha:#e3e8e6; --muted:#6b7280; --areia:#f3ede1;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:linear-gradient(180deg,#e8efed 0%,#eef1f0 100%);color:#1f2933;min-height:100vh;}
+  .top-bar{background:var(--card);border-bottom:1px solid var(--linha);padding:14px 22px;
+    display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10;}
+  .top-bar .logo{width:30px;height:30px;}
+  .top-bar h1{font-size:1.05rem;margin:0;color:var(--tinta);}
+  .top-bar .sub{font-size:.8rem;color:var(--muted);margin-top:1px;}
+  .layout{display:grid;grid-template-columns:1fr 420px;gap:0;min-height:calc(100vh - 60px);}
+  @media(max-width:900px){.layout{grid-template-columns:1fr;}}
+
+  /* coluna esquerda: selecao */
+  .esq{padding:20px 22px;overflow:auto;}
+  .filtros{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;}
+  .filtros label{font-size:.82rem;color:var(--muted);}
+  input[type="date"]{padding:7px 11px;border:1px solid var(--linha);border-radius:9px;font-size:.9rem;}
+  .mini{padding:7px 12px;border:1px solid var(--linha);background:var(--card);border-radius:9px;cursor:pointer;font-size:.82rem;color:var(--verde);}
+  .mini:hover{background:#e6f2f0;}
+  .seg{display:inline-flex;background:#e3e8e6;border-radius:10px;padding:3px;}
+  .seg div{padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.82rem;color:var(--muted);}
+  .seg div.ativo{background:var(--card);color:var(--verde);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+
+  .contagem{font-size:.82rem;color:var(--muted);margin-bottom:10px;}
+  .voo{background:var(--card);border:1px solid var(--linha);border-radius:14px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.03);}
+  .voo h2{margin:0;padding:12px 16px;font-size:.95rem;display:flex;gap:10px;align-items:center;
+    background:linear-gradient(90deg,#f0f6f4,#fff);border-bottom:1px solid var(--linha);}
+  .voo h2 .ico{color:var(--verde);}
+  .voo h2 .vnum{font-weight:700;color:var(--tinta);}
+  .voo h2 .n{font-size:.74rem;color:var(--muted);font-weight:400;margin-left:auto;
+    background:#eef2f1;padding:3px 9px;border-radius:999px;}
+  .res{display:flex;gap:11px;align-items:center;padding:9px 16px;font-size:.9rem;border-top:1px solid #f0f3f2;cursor:pointer;}
+  .res:hover{background:#f8faf9;}
+  .res:first-of-type{border-top:none;}
+  .res input{width:17px;height:17px;accent-color:var(--verde);cursor:pointer;}
+  .res .nome{font-weight:600;color:#1f2933;}
+  .res .meta{color:var(--muted);font-size:.76rem;margin-left:auto;}
+  .vazio,.erro{color:var(--muted);padding:20px 4px;}
+  .erro{color:#c2410c;}
+  .rodape{color:var(--muted);font-size:.78rem;margin-top:14px;}
+
+  /* coluna direita: previa + acao */
+  .dir{background:#dfe6e3;padding:20px;display:flex;flex-direction:column;gap:14px;position:sticky;top:60px;height:calc(100vh - 60px);}
+  .dir .titulo{font-size:.82rem;color:var(--muted);text-transform:none;}
+  .temas{display:flex;gap:6px;}
+  .tema{flex:1;padding:7px;text-align:center;border:1px solid var(--linha);background:var(--card);
+    border-radius:9px;cursor:pointer;font-size:.8rem;color:var(--muted);}
+  .tema.ativo{background:#e6f2f0;color:var(--verde);border-color:var(--verde);font-weight:600;}
+  .previa-wrap{background:#cfd8d4;border-radius:12px;padding:14px;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .mini-placa{width:100%;aspect-ratio:297/209;background:#fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.15);
+    position:relative;overflow:hidden;padding:5% 6%;display:flex;flex-direction:column;}
+  .mp-top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .mp-marca{display:flex;gap:5px;align-items:center;}
+  .mp-marca svg{width:18px;height:18px;}
+  .mp-marca b{font-size:7px;color:var(--tinta);}
+  .mp-voo{font-size:10px;font-weight:700;color:var(--tinta);}
+  .mp-centro{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
+  .mp-bv{font-family:Georgia,serif;font-style:italic;font-size:9px;color:var(--verde);margin-bottom:4px;}
+  .mp-nome{font-size:21px;font-weight:800;color:#1a1a1a;text-transform:uppercase;line-height:1.05;}
+  .mp-ilustra{position:absolute;left:0;right:0;bottom:0;height:28%;opacity:.45;}
+  .btn-gerar{padding:13px;border:none;border-radius:11px;background:var(--verde);color:#fff;
+    font-size:.95rem;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(31,122,109,.3);}
+  .btn-gerar:hover{background:#1a6b5f;}
+  .btn-gerar:disabled{opacity:.5;}
+  .resumo-sel{font-size:.82rem;color:#3a4a46;text-align:center;}
+
+  /* placa impressao (escondida na tela) */
+  #area-impressao{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #area-impressao, #area-impressao *{visibility:visible;}
+    #area-impressao{display:block;position:absolute;left:0;top:0;width:100%;}
+    .placa{page-break-after:always;}
+  }
+  .placa{width:297mm;height:209mm;background:#fff;position:relative;overflow:hidden;padding:18mm 20mm;display:flex;flex-direction:column;}
+  .placa-top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .marca{display:flex;gap:10px;align-items:center;}
+  .marca svg{width:46px;height:46px;}
+  .marca .txt b{display:block;font-size:15pt;color:var(--tinta);letter-spacing:.5px;}
+  .marca .txt span{font-size:9pt;color:var(--muted);}
+  .voo-canto{text-align:right;}
+  .voo-canto .lbl{font-size:7pt;letter-spacing:3px;color:var(--muted);}
+  .voo-canto .num{font-size:20pt;font-weight:700;color:var(--tinta);}
+  .placa-centro{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
+  .bemvindo{font-family:Georgia,serif;font-style:italic;font-size:22pt;color:var(--verde);margin-bottom:6mm;}
+  .nome-grande{font-size:52pt;font-weight:800;color:#1a1a1a;line-height:1.05;text-transform:uppercase;letter-spacing:1px;}
+  .nomes-colecao{display:flex;flex-direction:column;gap:4mm;}
+  .nomes-colecao .nome-grande{font-size:34pt;}
+  .ilustra{position:absolute;left:0;right:0;bottom:0;height:60mm;opacity:.5;}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <svg class="logo" viewBox="0 0 100 100"><g>
+    <circle cx="50" cy="26" r="15" fill="none" stroke="#1f7a6d" stroke-width="7"/>
+    <circle cx="26" cy="62" r="15" fill="none" stroke="#1f7a6d" stroke-width="7"/>
+    <circle cx="74" cy="62" r="15" fill="none" stroke="#1f7a6d" stroke-width="7"/>
+  </g></svg>
+  <div>
+    <h1>Placas de Recepção</h1>
+    <div class="sub">Chegadas do dia, direto do Phoenix</div>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Coluna esquerda: selecao -->
+  <div class="esq">
+    <div class="filtros">
+      <label for="data">Dia:</label>
+      <input type="date" id="data" />
+      <button class="mini" onclick="carregar(inputData.value)">🔄 Atualizar</button>
+      <div class="seg" style="margin-left:auto">
+        <div class="ativo" data-fmt="individual" onclick="setFmt('individual')">Individual</div>
+        <div data-fmt="colecao" onclick="setFmt('colecao')">Coleção por voo</div>
+      </div>
+    </div>
+
+    <div class="filtros" style="margin-top:-6px">
+      <button class="mini" onclick="marcar(true)">Marcar todos</button>
+      <button class="mini" onclick="marcar(false)">Desmarcar</button>
+    </div>
+
+    <div class="contagem" id="contagem"></div>
+    <div id="lista"></div>
+    <div class="vazio" id="vazio"></div>
+    <div class="rodape" id="rodape"></div>
+  </div>
+
+  <!-- Coluna direita: previa + gerar -->
+  <div class="dir">
+    <div class="titulo">Prévia da placa</div>
+    <div class="temas" id="temas">
+      <div class="tema ativo" data-tema="olinda" onclick="setTema('olinda')">Olinda</div>
+      <div class="tema" data-tema="marco" onclick="setTema('marco')">Marco Zero</div>
+    </div>
+    <div class="previa-wrap">
+      <div class="mini-placa" id="miniPlaca"></div>
+    </div>
+    <div class="resumo-sel" id="resumoSel"></div>
+    <button class="btn-gerar" id="btnGerar" onclick="gerar()">🖨️ Gerar placas para impressão</button>
+  </div>
+</div>
+
+<div id="area-impressao"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCFom_SD6rklJ3hTJHC5_VF34TiDYKn-ak",
+  authDomain: "relatorio-guias.firebaseapp.com",
+  projectId: "relatorio-guias",
+  storageBucket: "relatorio-guias.firebasestorage.app",
+  messagingSenderId: "1078535122546",
+  appId: "1:1078535122546:web:fb1669ddaa66a4e5a1dceb",
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const lista = document.getElementById("lista");
+const vazio = document.getElementById("vazio");
+const rodape = document.getElementById("rodape");
+const inputData = document.getElementById("data");
+const area = document.getElementById("area-impressao");
+const miniPlaca = document.getElementById("miniPlaca");
+const resumoSel = document.getElementById("resumoSel");
+const contagem = document.getElementById("contagem");
+window.inputData = inputData;
+
+let dados = null;
+let formato = "individual";
+
+function hojeRecife(off=0){
+  const d=new Date(Date.now()-3*3600*1000); d.setUTCDate(d.getUTCDate()+off);
+  return d.toISOString().slice(0,10);
+}
+
+// Logo da Luck (simbolo em SVG, estilo "no"/trevo)
+const LOGO = `<svg viewBox="0 0 100 100"><g fill="#1f7a6d">
+<circle cx="50" cy="26" r="15" fill="none" stroke="#1f7a6d" stroke-width="7"/>
+<circle cx="26" cy="62" r="15" fill="none" stroke="#1f7a6d" stroke-width="7"/>
+<circle cx="74" cy="62" r="15" fill="none" stroke="#1f7a6d" stroke-width="7"/>
+</g></svg>`;
+
+
+
+
+      // Temas de ilustracao (SVG). cls = classe css, sw = espessura do traco.
+      const TEMAS = {
+        olinda: (cls, sw=1.6) => `<svg class="${cls}" viewBox="0 0 900 180" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">
+<g fill="none" stroke="#1f7a6d" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round" opacity="0.8">
+<path d="M0,180 L0,120 Q450,70 900,120 L900,180 Z" fill="#f3ede1" stroke="none" opacity="0.4"/>
+<rect x="120" y="110" width="40" height="55"/><polygon points="120,110 140,90 160,110"/>
+<rect x="175" y="118" width="34" height="47"/><polygon points="175,118 192,100 209,118"/>
+<rect x="400" y="70" width="60" height="95"/><polygon points="400,70 430,40 460,70"/><rect x="422" y="30" width="16" height="20"/><polygon points="422,30 430,18 438,30"/>
+<rect x="480" y="115" width="38" height="50"/><polygon points="480,115 499,96 518,115"/>
+<rect x="700" y="112" width="42" height="53"/><polygon points="700,112 721,92 742,112"/>
+<rect x="760" y="120" width="30" height="45"/>
+</g></svg>`,
+        marco:  (cls, sw=1.8) => `<svg class="${cls}" viewBox="0 0 900 220" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">
+<g fill="none" stroke="#1f7a6d" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round">
+<path d="M0,210 L900,210" opacity="0.5"/>
+<g opacity="0.75">
+<path d="M70,196 L70,120 Q75,112 80,120 L80,196"/><circle cx="75" cy="110" r="7"/>
+<path d="M100,196 L100,135 Q104,128 108,135 L108,196"/><circle cx="104" cy="126" r="6"/>
+<path d="M128,196 L128,150 Q131,144 134,150 L134,196"/>
+</g>
+<rect x="250" y="120" width="70" height="76"/><path d="M250,120 L285,96 L320,120"/>
+<rect x="262" y="134" width="12" height="16"/><rect x="284" y="134" width="12" height="16"/><rect x="306" y="134" width="12" height="16"/>
+<rect x="262" y="160" width="12" height="16"/><rect x="284" y="160" width="12" height="16"/><rect x="306" y="160" width="12" height="16"/>
+<rect x="335" y="108" width="95" height="88"/><path d="M335,108 L430,108"/>
+<path d="M360,108 L360,80 Q382,56 405,80 L405,108"/><path d="M382,56 L382,44"/><circle cx="382" cy="40" r="4"/>
+<rect x="348" y="124" width="14" height="20"/><rect x="376" y="124" width="14" height="20"/><rect x="404" y="124" width="14" height="20"/>
+<rect x="348" y="156" width="14" height="20"/><rect x="376" y="156" width="14" height="20"/><rect x="404" y="156" width="14" height="20"/>
+<rect x="372" y="176" width="22" height="20"/>
+<rect x="445" y="128" width="64" height="68"/><path d="M445,128 L477,106 L509,128"/>
+<rect x="456" y="142" width="11" height="15"/><rect x="476" y="142" width="11" height="15"/><rect x="496" y="142" width="11" height="15"/>
+<rect x="456" y="166" width="11" height="15"/><rect x="476" y="166" width="11" height="15"/><rect x="496" y="166" width="11" height="15"/>
+<ellipse cx="640" cy="198" rx="150" ry="26"/><ellipse cx="640" cy="198" rx="95" ry="16" opacity="0.7"/>
+<path d="M640,180 L648,196 L640,214 L632,196 Z" opacity="0.85"/>
+<path d="M560,198 L632,194 L640,198 L632,202 Z" opacity="0.85"/>
+<path d="M720,198 L648,194 L640,198 L648,202 Z" opacity="0.85"/>
+<g opacity="0.85"><rect x="800" y="130" width="60" height="66"/><path d="M800,130 L830,110 L860,130"/>
+<rect x="810" y="144" width="11" height="15"/><rect x="830" y="144" width="11" height="15"/>
+<rect x="810" y="168" width="11" height="15"/><rect x="830" y="168" width="11" height="15"/></g>
+</g></svg>`,
+      };
+      const NOME_TEMA = { olinda: "Olinda", marco: "Marco Zero" };
+      let tema = "olinda";
+
+      function limpaVoo(v){ return (v||"").replace(/\s+\d{2}:\d{2}\s*$/,"").trim(); }
+
+async function carregar(dataISO){
+  lista.innerHTML=""; vazio.textContent="Carregando..."; rodape.textContent="";
+  dados=null;
+  try{
+    const snap=await getDoc(doc(db,"phoenix_chegadas",dataISO));
+    if(!snap.exists()){ vazio.textContent="Sem chegadas para esse dia (ou o robô ainda não gravou)."; return; }
+    dados=snap.data();
+    render();
+    if(dados.atualizadoEm&&dados.atualizadoEm.seconds){
+      rodape.textContent="Última sincronização: "+new Date(dados.atualizadoEm.seconds*1000).toLocaleString("pt-BR");
+    }
+  }catch(e){ vazio.innerHTML=`<span class="erro">Erro: ${e.message}</span>`; }
+}
+
+function render(){
+  lista.innerHTML=""; vazio.textContent="";
+  const voos=(dados&&dados.voos)||[];
+  if(!voos.length){ vazio.textContent="Nenhuma chegada nesse dia."; return; }
+  let idx=0;
+  for(const v of voos){
+    const box=document.createElement("div"); box.className="voo";
+    let html=`<h2>✈️ ${limpaVoo(v.voo)} <span class="n">${v.reservas.length} reserva(s)</span></h2><div class="reservas">`;
+    for(const r of v.reservas){
+      html+=`<label class="res">
+        <input type="checkbox" class="chk" data-voo="${encodeURIComponent(v.voo)}" data-i="${idx}" checked>
+        <span class="nome">${r.nome}</span>
+        <span class="meta">${r.reserva||""} ${r.pax?("· "+r.pax):""}</span>
+      </label>`;
+      idx++;
+    }
+    html+=`</div>`;
+    box.innerHTML=html; lista.appendChild(box);
+  }
+  // contagem total
+  let totalRes=0; voos.forEach(v=>totalRes+=v.reservas.length);
+  contagem.textContent = `${voos.length} voo(s) · ${totalRes} reserva(s)`;
+  // listeners para atualizar previa ao marcar
+  document.querySelectorAll(".chk").forEach(c=>c.addEventListener("change",atualizarPrevia));
+  atualizarPrevia();
+}
+
+window.setTema=(t)=>{ tema=t;
+    document.querySelectorAll(".tema").forEach(x=>x.classList.toggle("ativo",x.dataset.tema===t));
+    atualizarPrevia();
+  };
+  window.setFmt=(f)=>{ formato=f;
+  document.querySelectorAll(".seg div").forEach(x=>x.classList.toggle("ativo",x.dataset.fmt===f));
+  atualizarPrevia();
+};
+window.marcar=(v)=>{ document.querySelectorAll(".chk").forEach(c=>c.checked=v); atualizarPrevia(); };
+window.carregar=carregar;
+
+
+function miniIlustra(){ return TEMAS[tema]('mp-ilustra', 2.4); }
+function miniLogo(){
+  return `<svg viewBox="0 0 100 100"><g>
+  <circle cx="50" cy="26" r="15" fill="none" stroke="#1f7a6d" stroke-width="8"/>
+  <circle cx="26" cy="62" r="15" fill="none" stroke="#1f7a6d" stroke-width="8"/>
+  <circle cx="74" cy="62" r="15" fill="none" stroke="#1f7a6d" stroke-width="8"/>
+  </g></svg>`;
+}
+function atualizarPrevia(){
+  const sel=selecionadas();
+  const voos=Object.keys(sel);
+  let total=0; voos.forEach(v=>total+=sel[v].length);
+
+  // escolhe um exemplo para a previa
+  let voo="AD - 0000", nomes=["EXEMPLO DE NOME"];
+  if(voos.length){ voo=voos[0]; nomes=sel[voo].map(r=>r.nome); }
+
+  if(formato==="individual"){
+    miniPlaca.innerHTML=`
+      <div class="mp-top"><div class="mp-marca">${miniLogo()}<b>LUCK RECEPTIVO</b></div><div class="mp-voo">${limpaVoo(voo)}</div></div>
+      <div class="mp-centro"><div class="mp-bv">Seja bem-vindo(a) ao Recife!</div>
+        <div class="mp-nome">${nomes[0]||"—"}</div></div>
+      ${miniIlustra()}`;
+  }else{
+    const amostra=nomes.slice(0,4).map(n=>`<div class="mp-nome" style="font-size:13px">${n}</div>`).join("");
+    miniPlaca.innerHTML=`
+      <div class="mp-top"><div class="mp-marca">${miniLogo()}<b>LUCK RECEPTIVO</b></div><div class="mp-voo">${limpaVoo(voo)}</div></div>
+      <div class="mp-centro"><div class="mp-bv">Seja bem-vindo(a) ao Recife!</div>
+        <div style="display:flex;flex-direction:column;gap:3px">${amostra||'<div class="mp-nome">—</div>'}</div></div>
+      ${miniIlustra()}`;
+  }
+
+  // resumo: quantas placas vao sair
+  let qtdPlacas=0;
+  if(formato==="individual"){ qtdPlacas=total; }
+  else { voos.forEach(v=>{ qtdPlacas+=Math.ceil(sel[v].length/5); }); }
+  resumoSel.textContent = total
+    ? `${total} nome(s) selecionado(s) · ${qtdPlacas} placa(s)`
+    : "Nenhuma reserva selecionada";
+  const btn=document.getElementById("btnGerar");
+  btn.disabled = !total;
+  btn.textContent = total ? `🖨️ Gerar ${qtdPlacas} placa(s)` : "🖨️ Gerar placas para impressão";
+}
+
+function selecionadas(){
+  const voos=(dados&&dados.voos)||[];
+  const porVoo={};
+  for(const v of voos){
+    const chks=[...document.querySelectorAll(`.chk[data-voo="${encodeURIComponent(v.voo)}"]`)];
+    const marcadas=[];
+    v.reservas.forEach((r,j)=>{ if(chks[j]&&chks[j].checked) marcadas.push(r); });
+    if(marcadas.length) porVoo[v.voo]=marcadas;
+  }
+  return porVoo;
+}
+
+function placaIndividual(voo, nome){
+  return `<div class="placa">
+    <div class="placa-top">
+      <div class="marca">${LOGO}<div class="txt"><b>LUCK RECEPTIVO</b><span>Recife · Pernambuco</span></div></div>
+      <div class="voo-canto"><div class="lbl">VOO</div><div class="num">${limpaVoo(voo)}</div></div>
+    </div>
+    <div class="placa-centro">
+      <div class="bemvindo">Seja bem-vindo(a) ao Recife!</div>
+      <div class="nome-grande">${nome}</div>
+    </div>
+    ${TEMAS[tema]('ilustra')}
+  </div>`;
+}
+
+function placaColecao(voo, nomes){
+  const blocos=nomes.map(n=>`<div class="nome-grande">${n}</div>`).join("");
+  return `<div class="placa">
+    <div class="placa-top">
+      <div class="marca">${LOGO}<div class="txt"><b>LUCK RECEPTIVO</b><span>Recife · Pernambuco</span></div></div>
+      <div class="voo-canto"><div class="lbl">VOO</div><div class="num">${limpaVoo(voo)}</div></div>
+    </div>
+    <div class="placa-centro">
+      <div class="bemvindo">Seja bem-vindo(a) ao Recife!</div>
+      <div class="nomes-colecao">${blocos}</div>
+    </div>
+    ${TEMAS[tema]('ilustra')}
+  </div>`;
+}
+
+window.gerar=()=>{
+  const sel=selecionadas();
+  const voos=Object.keys(sel).filter(v=>sel[v].length);
+  if(!voos.length){ alert("Selecione ao menos uma reserva."); return; }
+  let html="";
+  for(const voo of voos){
+    const nomes=sel[voo].map(r=>r.nome);
+    if(formato==="individual"){
+      for(const nome of nomes) html+=placaIndividual(voo,nome);
+    }else{
+      // colecao: ate 5 nomes por folha
+      for(let i=0;i<nomes.length;i+=5){
+        html+=placaColecao(voo, nomes.slice(i,i+5));
+      }
+    }
+  }
+  area.innerHTML=html;
+  window.print();
+};
+
+const hoje=hojeRecife(0);
+inputData.value=hoje; carregar(hoje);
+inputData.addEventListener("change",()=>carregar(inputData.value));
+</script>
+</body>
+</html>
