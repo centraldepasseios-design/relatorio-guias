@@ -285,6 +285,7 @@
         if (btn) btn.disabled = false;
       }
 
+      window.enviarTodos = enviarTodos;
       function enviarTodos() {
         // conta quantos guias de passeio Porto existem na tela
         const svc = (dadosDia && dadosDia.servicos || [])
@@ -328,6 +329,7 @@
           btn.disabled = false;
         }, 70000);
       }
+      window.atualizarAgora = atualizarAgora;
 
       // Ao abrir a pagina, dispara uma sincronizacao em segundo plano
       // (nao trava a tela; os dados atuais aparecem e logo sao atualizados)
