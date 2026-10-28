@@ -47,6 +47,19 @@
   .card{background:var(--card);border:1px solid var(--linha);border-radius:12px;padding:20px;margin-bottom:16px;}
   .card h3{font-size:1rem;color:var(--tinta);margin-bottom:14px;}
   .em-breve{text-align:center;padding:70px 20px;color:var(--muted);} .em-breve .ic{font-size:2.6rem;margin-bottom:12px;opacity:.5;} .em-breve h3{font-size:1.05rem;color:var(--texto);margin-bottom:6px;font-weight:600;} .em-breve p{font-size:.88rem;max-width:380px;margin:0 auto;line-height:1.5;}
+
+  .cards-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px;}
+  .resumo{background:var(--card);border:1px solid var(--linha);border-radius:12px;padding:16px 18px;}
+  .resumo .num{font-size:1.8rem;font-weight:700;color:var(--tinta);line-height:1;} .resumo .lbl{font-size:.78rem;color:var(--muted);margin-top:4px;}
+  .resumo.alerta .num{color:var(--alerta);} .resumo.ok .num{color:var(--ok);}
+  .lista-div{display:flex;flex-direction:column;gap:10px;}
+  .div-item{background:var(--card);border:1px solid var(--linha);border-left:4px solid var(--alerta);border-radius:10px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;}
+  .div-item .tag{font-size:.68rem;font-weight:700;padding:3px 9px;border-radius:6px;background:var(--alerta-bg);color:var(--alerta);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;}
+  .div-item .corpo{flex:1;min-width:0;} .div-item .rec{font-weight:700;color:var(--tinta);font-size:.92rem;} .div-item .det{font-size:.85rem;color:var(--texto);margin-top:3px;} .div-item .sub{font-size:.78rem;color:var(--muted);margin-top:2px;}
+  .div-item.horario{border-left-color:var(--aviso);} .div-item.horario .tag{background:#fdf6e3;color:var(--aviso);}
+  .barra-busca{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
+  .barra-busca input{padding:10px 14px;border:1.5px solid var(--linha);border-radius:9px;font-size:.9rem;background:#fff;}
+
   .pg{display:none;} .pg.ativo{display:block;}
   /* usuarios */
   .u-linha{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--linha);border-radius:10px;margin-bottom:8px;background:#fff;flex-wrap:wrap;}
@@ -132,6 +145,7 @@
 
 <script>
   const API = "https://us-central1-operacional-luck.cloudfunctions.net/auth";
+  const API_COMPARAR = "https://us-central1-operacional-luck.cloudfunctions.net/comparar";
   let USUARIO = null;
 
   async function chamar(acao, dados){
@@ -236,8 +250,65 @@
     document.getElementById("areaBadge").textContent=area;
     const m=document.getElementById("mainConteudo");
     if(id==="admin-usuarios"){ renderUsuarios(m); return; }
+    if(id==="rec-comparador"){ renderComparador(m); return; }
     // demais abas: em breve (preencheremos uma a uma)
     m.innerHTML='<div class="em-breve"><div class="ic">🛠️</div><h3>'+nome+'</h3><p>Esta função será ativada em breve. Estamos construindo o sistema por partes.</p></div>';
+  }
+
+
+  // ---- Comparador de escalas ----
+  function hojeISO(){ const d=new Date(Date.now()-3*3600*1000); return d.toISOString().slice(0,10); }
+  function renderComparador(m){
+    m.innerHTML=`
+      <div class="barra-busca">
+        <input type="date" id="compData" value="${hojeISO()}" style="flex:0;">
+        <button class="btn" id="btnConferir" onclick="rodarComparador()">🔄 Conferir agora</button>
+        <span id="compInfo" style="font-size:.8rem;color:var(--muted);"></span>
+      </div>
+      <div id="compResultado"></div>`;
+  }
+  const TAGS_DIV = {
+    HORARIO:{txt:"Horário",cls:"horario"}, APR_INI_FINAL:{txt:"Apr. ini ≠ final",cls:"horario"},
+    CANCELADO:{txt:"Cancelado?",cls:""}, SO_NA_ORDEM:{txt:"Só na ordem",cls:""}, SO_NO_MAPA:{txt:"Só no Mapa",cls:""},
+  };
+  async function rodarComparador(){
+    const data=document.getElementById("compData").value;
+    const btn=document.getElementById("btnConferir");
+    const info=document.getElementById("compInfo");
+    const res=document.getElementById("compResultado");
+    if(!data){ return; }
+    btn.disabled=true; btn.textContent="Conferindo..."; info.textContent="Lendo o Phoenix, um momento...";
+    res.innerHTML="";
+    try{
+      const r=await fetch(API_COMPARAR,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data})});
+      const j=await r.json();
+      btn.disabled=false; btn.textContent="🔄 Conferir agora";
+      if(!j.ok){ info.textContent=""; res.innerHTML='<div class="card" style="color:var(--alerta)">'+(j.erro||"Erro ao conferir.")+'</div>'; return; }
+      const d=new Date(); info.textContent="Conferido às "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+      const nDiv=j.divergencias.length;
+      let html='<div class="cards-resumo">'
+        +'<div class="resumo"><div class="num">'+j.conferidos+'</div><div class="lbl">Serviços no Mapa</div></div>'
+        +'<div class="resumo ok"><div class="num">'+Math.max(0,j.conferidos-nDiv)+'</div><div class="lbl">Sem divergência</div></div>'
+        +'<div class="resumo alerta"><div class="num">'+nDiv+'</div><div class="lbl">Divergências</div></div>'
+        +'</div>';
+      if(nDiv===0){
+        html+='<div class="em-breve"><div class="ic">✅</div><h3>Tudo batendo!</h3><p>Nenhuma divergência encontrada entre o Mapa de Serviço e a Ordem de Serviço neste dia.</p></div>';
+      } else {
+        html+='<h3 style="font-size:1rem;color:var(--tinta);margin-bottom:12px;">Divergências encontradas</h3><div class="lista-div">';
+        for(const dv of j.divergencias){
+          const t=TAGS_DIV[dv.tipo]||{txt:dv.tipo,cls:""};
+          html+='<div class="div-item '+t.cls+'"><span class="tag">'+t.txt+'</span>'
+            +'<div class="corpo"><div class="rec">'+dv.rec+(dv.servico?" · "+dv.servico:"")+'</div>'
+            +'<div class="det">'+dv.detalhe+'</div>'
+            +(dv.extra?'<div class="sub">'+dv.extra+'</div>':'')+'</div></div>';
+        }
+        html+='</div>';
+      }
+      res.innerHTML=html;
+    }catch(e){
+      btn.disabled=false; btn.textContent="🔄 Conferir agora"; info.textContent="";
+      res.innerHTML='<div class="card" style="color:var(--alerta)">Erro de conexão. Tente de novo.</div>';
+    }
   }
 
   // ---- Usuários (admin) ----
