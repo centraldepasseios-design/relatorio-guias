@@ -286,9 +286,10 @@
       if(!j.ok){ info.textContent=""; res.innerHTML='<div class="card" style="color:var(--alerta)">'+(j.erro||"Erro ao conferir.")+'</div>'; return; }
       const d=new Date(); info.textContent="Conferido às "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
       const nDiv=j.divergencias.length;
+      const recsDiv=new Set(j.divergencias.map(x=>x.rec)).size;
       let html='<div class="cards-resumo">'
-        +'<div class="resumo"><div class="num">'+j.conferidos+'</div><div class="lbl">Serviços no Mapa</div></div>'
-        +'<div class="resumo ok"><div class="num">'+Math.max(0,j.conferidos-nDiv)+'</div><div class="lbl">Sem divergência</div></div>'
+        +'<div class="resumo"><div class="num">'+j.conferidos+'</div><div class="lbl">Reservas conferidas</div></div>'
+        +'<div class="resumo ok"><div class="num">'+Math.max(0,j.conferidos-recsDiv)+'</div><div class="lbl">Sem divergência</div></div>'
         +'<div class="resumo alerta"><div class="num">'+nDiv+'</div><div class="lbl">Divergências</div></div>'
         +'</div>';
       if(nDiv===0){
