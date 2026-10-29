@@ -332,6 +332,7 @@
               +'<span class="tag">'+t.txt+'</span>'
               +'<div class="corpo"><div class="rec">'+dv.rec+(dv.servico?" · "+dv.servico:"")+'</div>'
               +'<div class="det">'+dv.detalhe+'</div>'
+              +(dv.obs && dv.tipo!=="DISPENSADO"?'<div class="det" style="margin-top:4px;color:var(--tinta);">📝 <b>Obs.:</b> '+esc(dv.obs)+'</div>':'')
               +'<div class="detalhe-extra">'
                 +(dv.cliente?'<div><b>Cliente:</b> '+dv.cliente+'</div>':'')
                 +(dv.guia?'<div><b>Guia:</b> '+dv.guia+'</div>':'')
