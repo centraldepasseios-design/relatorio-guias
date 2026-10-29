@@ -160,6 +160,8 @@
   const API = "https://us-central1-operacional-luck.cloudfunctions.net/auth";
   const API_COMPARAR = "https://us-central1-operacional-luck.cloudfunctions.net/comparar";
   const API_FECHAR = "https://us-central1-operacional-luck.cloudfunctions.net/fechar";
+  const API_ESCALA = "https://us-central1-operacional-luck.cloudfunctions.net/escala";
+  const API_PLANO = "https://us-central1-operacional-luck.cloudfunctions.net/plano";
   let USUARIO = null;
 
   async function chamar(acao, dados){
@@ -277,6 +279,8 @@
     if(id==="admin-usuarios"){ renderUsuarios(m); return; }
     if(id==="rec-comparador"){ renderComparador(m); return; }
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
+    if(id==="porto-escala"||id==="cen-escala"){ renderEscala(m,"guias"); return; }
+    if(id==="porto-passeios"||id==="cen-passeios"){ renderPlano(m, id==="cen-passeios"?"central":"porto"); return; }
     // demais abas: em breve (preencheremos uma a uma)
     m.innerHTML='<div class="em-breve"><div class="ic">🛠️</div><h3>'+nome+'</h3><p>Esta função será ativada em breve. Estamos construindo o sistema por partes.</p></div>';
   }
@@ -356,7 +360,7 @@
 
   // ---- Fechar escalas (aciona o robô do Phoenix) ----
   let FECHAR_TIMER=null, FECHAR_AREA=null;
-  function pararAcompanhamento(){ if(FECHAR_TIMER){ clearInterval(FECHAR_TIMER); FECHAR_TIMER=null; } }
+  function pararAcompanhamento(){ if(FECHAR_TIMER){ clearInterval(FECHAR_TIMER); FECHAR_TIMER=null; } if(typeof PLANO!=="undefined"&&PLANO.timer){ clearInterval(PLANO.timer); PLANO.timer=null; } }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
   function dataBR(iso){ const [a,m,d]=String(iso).split("-"); return d+"/"+m+"/"+a; }
   function horaBR(ms){ return ms? new Date(ms).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "—"; }
@@ -430,6 +434,346 @@
       setTimeout(()=>{ if(info) info.textContent=""; },4000);
       atualizarFechar(false);
     }catch(e){ alert("Erro de conexão. Tente de novo."); btn.disabled=false; btn.textContent="🔒 Fechar escalas"; }
+  }
+
+
+  // ---- Escala do dia (Escala dos guias / Passeios) ----
+  const ESC = { cache:{}, modo:"guias", data:null, tipo:"todos", regiao:"todas", busca:"" };
+  function regiaoServ(nome){
+    const n=String(nome||"").toUpperCase(); const p=n.match(/\(([^()]*)\)\s*$/); const o=p?p[1]:n;
+    if(o.includes("GALINHAS")) return "porto";
+    if(o.includes("BOA VIAGEM")||o.includes("PIEDADE")||o.includes("RECIFE")||o.includes("CABO")||o.includes("CENTRO")) return "recife";
+    return "outros";
+  }
+  const nomePasseio = (s)=>String(s||"PASSEIO").replace(/\*[^*]*\*/g," ").replace(/\s+/g," ").trim();
+  const normVeic = (s)=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  function renderEscala(m, modo){
+    ESC.modo=modo; if(!ESC.data) ESC.data=hojeISO();
+    const chips=(grupo,ops,atual)=>ops.map(([v,t])=>'<span class="chip '+(atual===v?"on":"")+'" onclick="escFiltro(\''+grupo+'\',\''+v+'\')">'+t+'</span>').join("");
+    m.innerHTML=`
+      <div class="barra-busca" style="flex-wrap:wrap;gap:8px;">
+        <input type="date" id="escData" value="${ESC.data}" style="flex:0;" onchange="ESC.data=this.value;carregarEscala(true)">
+        <button class="btn sec" onclick="carregarEscala(true)">🔄 Atualizar</button>
+        <input type="search" id="escBusca" placeholder="${modo==="guias"?"Buscar guia...":"Buscar passeio ou guia..."}" value="${esc(ESC.busca)}" oninput="ESC.busca=this.value;desenharEscala()" style="max-width:220px;">
+        <span id="escInfo" style="font-size:.8rem;color:var(--muted);"></span>
+        ${modo==="passeios"&&PLANO.area?'<button class="btn" style="margin-left:auto" onclick="renderPlano(document.getElementById(\'mainConteudo\'),PLANO.area)">📝 Voltar ao planejamento</button>':''}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;">
+        ${chips("regiao",[["todas","Todas as saídas"],["porto","Porto de Galinhas"],["recife","Recife / Cabo"]],ESC.regiao)}
+        ${modo==="guias"?'<span style="width:12px"></span>'+chips("tipo",[["todos","Todos os serviços"],["trf","IN / OUT / Transfer"],["tour","Passeios"]],ESC.tipo):""}
+      </div>
+      <div id="escConteudo"></div>`;
+    carregarEscala(false);
+  }
+  function escFiltro(g,v){ ESC[g]=v; renderEscala(document.getElementById("mainConteudo"),ESC.modo); }
+  async function carregarEscala(forcar){
+    const data=ESC.data, info=document.getElementById("escInfo"), box=document.getElementById("escConteudo");
+    if(!box) return;
+    if(!forcar && ESC.cache[data]){ desenharEscala(); return; }
+    box.innerHTML='<div class="card" style="color:var(--muted)">Lendo a escala no Phoenix, um momento...</div>'; info.textContent="";
+    try{
+      const r=await fetch(API_ESCALA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data, token:USUARIO.token})});
+      const j=await r.json(); if(sessaoExpirou(j)) return;
+      if(!j.ok){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro||"Erro ao ler a escala.")+'</div>'; return; }
+      ESC.cache[data]={linhas:j.linhas, hora:new Date()};
+      if(ESC.data===data) desenharEscala();
+    }catch(e){ box.innerHTML='<div class="card" style="color:var(--alerta)">Erro de conexão. Tente de novo.</div>'; }
+  }
+  function desenharEscala(){
+    const box=document.getElementById("escConteudo"), info=document.getElementById("escInfo");
+    const c=ESC.cache[ESC.data]; if(!box||!c) return;
+    info.textContent="Lido às "+c.hora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    let L=c.linhas.filter(l=>ESC.regiao==="todas"||regiaoServ(l.servico)===ESC.regiao);
+    box.innerHTML = ESC.modo==="guias" ? htmlGuias(L) : htmlPasseios(L);
+  }
+  const TIPO_TXT={IN:"IN",OUT:"OUT",TRANSFER:"TRF",TOUR:"Passeio"};
+  const horaTxt=(h)=>(!h||h==="00:00")?"—":h;
+  function htmlGuias(L){
+    L=L.filter(l=>l.guia);
+    if(ESC.tipo==="trf") L=L.filter(l=>l.tipo!=="TOUR");
+    if(ESC.tipo==="tour") L=L.filter(l=>l.tipo==="TOUR");
+    const b=ESC.busca.trim().toUpperCase(); if(b) L=L.filter(l=>l.guia.toUpperCase().includes(b));
+    const por={}; for(const l of L){ const k=l.guia.toUpperCase(); (por[k]=por[k]||{nome:l.guia,itens:[]}).itens.push(l); }
+    const guias=Object.values(por);
+    if(!guias.length) return '<div class="em-breve"><div class="ic">🧭</div><h3>Nenhum guia escalado</h3><p>Nada encontrado para esse dia e filtros.</p></div>';
+    const ord=(l)=>(l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99";
+    for(const g of guias) g.itens.sort((a,b)=>ord(a).localeCompare(ord(b)));
+    guias.sort((a,b)=>ord(a.itens[0]).localeCompare(ord(b.itens[0]))||a.nome.localeCompare(b.nome));
+    let h='<div style="font-size:.82rem;color:var(--muted);margin-bottom:10px;">'+guias.length+' guia(s) · '+L.length+' serviço(s)</div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">';
+    for(const g of guias){
+      h+='<div class="card" style="padding:14px 16px;margin:0;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><b style="color:var(--tinta)">🧭 '+esc(g.nome)+'</b><span class="mot-count" style="margin-left:auto">'+g.itens.length+'</span></div>';
+      for(const l of g.itens){
+        const tag=l.tipo==="TOUR"&&l.auxiliar?"Apoio":(TIPO_TXT[l.tipo]||l.tipo||"");
+        h+='<div style="display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--linha);font-size:.82rem;">'
+          +'<div style="min-width:44px;font-weight:700;color:var(--verde)">'+horaTxt(l.inicio)+'</div>'
+          +'<div style="flex:1"><div><span class="chip on" style="font-size:.66rem;padding:1px 7px;margin-right:4px;">'+esc(tag)+'</span>'+esc(nomePasseio(l.servico))+'</div>'
+          +'<div style="color:var(--muted);font-size:.76rem;margin-top:2px;">🚐 '+esc(l.veiculo||"-")+(l.motorista?' · '+esc(l.motorista):'')+(l.pax!=null?' · '+l.pax+' pax':'')+'</div></div></div>';
+      }
+      h+='</div>';
+    }
+    return h+'</div>';
+  }
+  function htmlPasseios(L){
+    L=L.filter(l=>l.tipo==="TOUR");
+    const b=ESC.busca.trim().toUpperCase();
+    const por={}; for(const l of L){ const n=nomePasseio(l.servico); (por[n]=por[n]||[]).push(l); }
+    let nomes=Object.keys(por);
+    if(b) nomes=nomes.filter(n=>n.toUpperCase().includes(b)||por[n].some(l=>(l.guia||"").toUpperCase().includes(b)));
+    if(!nomes.length) return '<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio</h3><p>Nada encontrado para esse dia e filtros.</p></div>';
+    const REG={porto:"📍 Saindo de Porto de Galinhas",recife:"📍 Saindo de Recife / Cabo",outros:"📍 Outras saídas"};
+    let h="";
+    for(const reg of ["porto","recife","outros"]){
+      const daReg=nomes.filter(n=>regiaoServ(n)===reg).sort();
+      if(!daReg.length) continue;
+      h+='<h3 style="font-size:1rem;color:var(--tinta);margin:6px 0 10px;">'+REG[reg]+'</h3>';
+      for(const n of daReg){
+        const linhas=por[n];
+        // o mesmo carro pode ter mais de uma escala (RO) no mesmo passeio: junta numa linha só
+        const porCarro={};
+        for(const l of linhas.filter(l=>!l.auxiliar)){
+          const k=normVeic(l.veiculo)||l.escala;
+          if(!porCarro[k]) porCarro[k]={...l};
+          else { const x=porCarro[k]; x.pax=(x.pax||0)+(l.pax||0); if(horaTxt(l.inicio)<horaTxt(x.inicio)) x.inicio=l.inicio; x.guia=x.guia||l.guia; x.motorista=x.motorista||l.motorista; }
+        }
+        const principais=Object.values(porCarro).sort((a,b)=>horaTxt(a.inicio).localeCompare(horaTxt(b.inicio))||(b.pax||0)-(a.pax||0));
+        const apoios=linhas.filter(l=>l.auxiliar);
+        const totPax=principais.reduce((s,l)=>s+(l.pax||0),0)+apoios.filter(a=>!principais.some(p=>normVeic(p.veiculo)===normVeic(a.principal))).reduce((s,l)=>s+(l.pax||0),0);
+        const priv=/PRIVATIV/i.test(n);
+        h+='<div class="card" style="padding:14px 18px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;"><b style="color:var(--tinta)">🏖️ '+esc(n)+'</b>'
+          +(priv?'<span class="chip on" style="font-size:.66rem;padding:1px 7px;">privativo</span>':'')
+          +'<span style="margin-left:auto;font-size:.78rem;color:var(--muted)">'+principais.length+' carro(s) · '+totPax+' pax</span></div>';
+        principais.forEach((p,i)=>{
+          const meus=apoios.filter(a=>normVeic(a.principal)===normVeic(p.veiculo));
+          const paxApoio=meus.reduce((s,a)=>s+(a.pax||0),0);
+          const vagas=(p.capacidade!=null&&p.pax!=null)?p.capacidade-p.pax-(p.guia?1:0):null;
+          h+='<div style="display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--linha);font-size:.84rem;">'
+            +'<div style="min-width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+(i+1)+'</div>'
+            +'<div style="flex:1"><div><b>'+esc(p.veiculo||"-")+'</b> · 🧭 '+(p.guia?esc(p.guia):'<span style="color:var(--alerta)">sem guia</span>')+(p.motorista?' · 🚐 '+esc(p.motorista):'')+'</div>'
+            +'<div style="color:var(--muted);font-size:.78rem;margin-top:2px;">'+horaTxt(p.inicio)+(p.pax!=null?' · '+p.pax+(p.capacidade?'/'+p.capacidade:'')+' pax':'')
+            +(vagas!=null&&!priv?(vagas>0?' · '+vagas+' vaga(s)':' · <span style="color:var(--alerta)">lotado</span>'):'')
+            +(paxApoio?' · apoios: '+paxApoio+' pax':'')+'</div>'
+            +meus.map(a=>'<div style="color:var(--muted);font-size:.76rem;margin-top:3px;">↳ apoio '+esc(a.veiculo||"-")+(a.motorista?' ('+esc(a.motorista)+')':'')+(a.guia?' · '+esc(a.guia):'')+' · '+(a.pax||0)+' pax · '+horaTxt(a.inicio)+'</div>').join("")
+            +'</div></div>';
+        });
+        const soltos=apoios.filter(a=>!principais.some(p=>normVeic(p.veiculo)===normVeic(a.principal)));
+        if(soltos.length) h+='<div style="border-top:1px solid var(--linha);padding-top:6px;font-size:.76rem;color:var(--muted)">'+soltos.map(a=>'↳ apoio '+esc(a.veiculo||"-")+(a.motorista?' ('+esc(a.motorista)+')':'')+' · '+(a.pax||0)+' pax'+(a.principal?' → '+esc(a.principal):'')).join("<br>")+'</div>';
+        h+='</div>';
+      }
+    }
+    return h;
+  }
+
+
+  // ---- Planejamento dos passeios (carros por passeio + guia) ----
+  const TIPOS_CARRO=["Bus","Micrão","Mini","Van","Carro"];
+  const IDIOMAS_CARRO=["","Espanhol","Inglês","Bilíngue"];
+  const tipoCarro=(t)=>({"Ônibus":"Bus","Micro":"Mini"}[t]||t);
+  const idiomaCarro=(c)=>c.idioma||(c.bilingue?"Bilíngue":"");
+  function tipoPorPax(n){ return n<=4?"Carro":n<=15?"Van":n<=30?"Mini":"Bus"; }
+  // Lê a mensagem do WhatsApp que Porto já manda hoje, ex.:
+  //  "Carneiros: 3 Bus + 1 Mini" · "City : 1 Bus + 1 Van (ESPANHOL)" · "Maragogi Extra: 4 Bus"
+  //  "Maragogi PVT: 933679 - 13 PAX'S" · "São Jose HORÁRIO ESPECIAL: 1 Bus + 1 Mini"
+  function lerMensagem(txt, saida){
+    const TIPO={BUS:"Bus",ONIBUS:"Bus",MINI:"Mini",MICRO:"Mini",MICRAO:"Micrão",VAN:"Van",CARRO:"Carro",SUV:"Carro",SEDAN:"Carro"};
+    const semAcento=(s)=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+    const idiomaDe=(s)=>{ s=semAcento(s); return /ESP/.test(s)?"Espanhol":/ING|ENG/.test(s)?"Inglês":/BIL/.test(s)?"Bilíngue":""; };
+    const mapa={}, ordem=[], naoEntendi=[];
+    const pegar=(nome,obs)=>{ const k=nome+"|"+obs; if(!mapa[k]){ mapa[k]={nome,obs,saida,carros:[]}; ordem.push(k); } return mapa[k]; };
+    for(let linha of String(txt||"").split(/\r?\n/)){
+      linha=linha.replace(/^\[[^\]]*\]\s*[^:]{1,40}:\s*/,"").replace(/[*_~]/g,"").replace(/\s+\d{1,2}:\d{2}\s*$/,"").trim();
+      if(!linha) continue;
+      const i=linha.indexOf(":"); if(i<1){ naoEntendi.push(linha); continue; }
+      const cab=linha.slice(0,i).trim().toUpperCase(), cabS=semAcento(cab), resto=linha.slice(i+1).trim();
+      const pvt=/\bPVT\b|PRIVATIV/.test(cabS);
+      let obs=""; if(/\bEXTRA\b/.test(cabS)) obs="EXTRA"; if(/HORARIO\s+ESPECIAL/.test(cabS)) obs="HORÁRIO ESPECIAL";
+      const nome=cab.replace(/\bPVT\b|PRIVATIV[OA]S?|\bEXTRA\b|HOR[ÁA]RIO\s+ESPECIAL/g," ").replace(/\s+/g," ").trim();
+      if(!nome){ naoEntendi.push(linha); continue; }
+      if(pvt){
+        const res=(resto.match(/\d{4,8}(?:\.\d+)?/)||[])[0]||"";
+        const pax=parseInt((resto.match(/(\d+)\s*pax/i)||[])[1],10)||0;
+        pegar(nome,obs).carros.push({tipo:tipoPorPax(pax||10),idioma:idiomaDe(resto),privativo:{reserva:res,pax}});
+        continue;
+      }
+      let achou=false;
+      for(const parte of resto.split("+")){
+        const m=parte.trim().match(/^(\d+)\s*([A-Za-zÀ-ú]+)\s*(?:\(([^)]*)\))?/);
+        if(!m) continue;
+        const tipo=TIPO[semAcento(m[2])];
+        if(!tipo) continue;
+        achou=true;
+        for(let k=0;k<Math.min(30,+m[1]);k++) pegar(nome,obs).carros.push({tipo,idioma:idiomaDe(m[3]),privativo:null});
+      }
+      if(!achou) naoEntendi.push(linha);
+    }
+    return { passeios:ordem.map(k=>mapa[k]), naoEntendi };
+  }
+  const PLANO={ area:null, data:null, saida:"todas", plano:null, sugestoes:[], editando:null, timer:null };
+  function amanhaISO(){ const d=new Date(Date.now()-3*3600*1000+864e5); return d.toISOString().slice(0,10); }
+  // cada aba monta os carros da sua saída: Porto -> saindo de Porto; Central -> saindo de Recife/Cabo
+  const minhaSaida=()=>PLANO.area==="porto"?"porto":"recife";
+  const NOME_SAIDA={porto:"Porto",recife:"Recife / Cabo"};
+  const podeGuia=()=>PLANO.area==="central"&&(USUARIO.admin||(USUARIO.areas||[]).includes("central"));
+  async function chamarPlano(acao,dados){
+    const r=await fetch(API_PLANO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:PLANO.data,...dados})});
+    const j=await r.json(); sessaoExpirou(j); return j;
+  }
+  function renderPlano(m, area){
+    pararAcompanhamento();
+    PLANO.area=area; if(!PLANO.data) PLANO.data=amanhaISO(); PLANO.editando=null;
+    const chip=(v,t)=>'<span class="chip '+(PLANO.saida===v?"on":"")+'" onclick="PLANO.saida=\''+v+'\';desenharPlano()">'+t+'</span>';
+    m.innerHTML=`
+      <div class="barra-busca" style="flex-wrap:wrap;gap:8px;">
+        <input type="date" id="planoData" value="${PLANO.data}" style="flex:0;" onchange="PLANO.data=this.value;carregarPlano()">
+        <button class="btn" onclick="editarPasseio(null)">＋ Passeio saindo de ${NOME_SAIDA[minhaSaida()]}</button>
+        <button class="btn sec" onclick="abrirImportar()">📋 Colar mensagem</button>
+        <span id="planoInfo" style="font-size:.8rem;color:var(--muted);"></span>
+        <button class="btn sec" style="margin-left:auto" onclick="ESC.data=PLANO.data;renderEscala(document.getElementById('mainConteudo'),'passeios')">🔎 Ver como ficou no Phoenix</button>
+      </div>
+      <div id="planoChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;"></div>
+      <div id="planoEditor"></div>
+      <div id="planoConteudo"><div class="card" style="color:var(--muted)">Carregando...</div></div>`;
+    PLANO.chip=chip;
+    carregarPlano();
+    PLANO.timer=setInterval(()=>{ const a=document.activeElement; if(!PLANO.editando && !(a&&a.classList&&a.classList.contains("plano-guia"))) carregarPlano(true); },30000);
+  }
+  async function carregarPlano(silencioso){
+    const box=document.getElementById("planoConteudo"); if(!box) return;
+    if(!silencioso) box.innerHTML='<div class="card" style="color:var(--muted)">Carregando...</div>';
+    try{
+      const j=await chamarPlano("ler",{});
+      if(!j.ok){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro||"Erro")+'</div>'; return; }
+      PLANO.plano=j.plano; PLANO.sugestoes=j.sugestoes||[]; desenharPlano();
+    }catch(e){ if(!silencioso) box.innerHTML='<div class="card" style="color:var(--alerta)">Erro de conexão. Tente de novo.</div>'; }
+  }
+  function desenharPlano(){
+    const box=document.getElementById("planoConteudo"); if(!box||!PLANO.plano) return;
+    const ch=document.getElementById("planoChips");
+    if(ch) ch.innerHTML=PLANO.chip("todas","Todas as saídas")+PLANO.chip("porto","Porto de Galinhas")+PLANO.chip("recife","Recife / Cabo");
+    const todos=PLANO.plano.passeios||[];
+    const lista=todos.filter(p=>PLANO.saida==="todas"||p.saida===PLANO.saida);
+    const carros=lista.reduce((s,p)=>s+p.carros.length,0), semGuia=lista.reduce((s,p)=>s+p.carros.filter(c=>!c.guia).length,0);
+    const info=document.getElementById("planoInfo");
+    if(info) info.textContent=PLANO.plano.atualizadoPor?("Última alteração: "+PLANO.plano.atualizadoPor+" às "+new Date(PLANO.plano.atualizadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})):"";
+    if(!lista.length){ box.innerHTML='<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio planejado</h3><p>Clique em “Adicionar passeio” para montar os carros de '+dataBR(PLANO.data)+'.</p></div>'; return; }
+    let h='<div class="cards-resumo"><div class="resumo"><div class="num">'+lista.length+'</div><div class="lbl">Passeios</div></div><div class="resumo"><div class="num">'+carros+'</div><div class="lbl">Carros</div></div><div class="resumo '+(semGuia?"alerta":"ok")+'"><div class="num">'+semGuia+'</div><div class="lbl">Sem guia</div></div></div>';
+    const REG={porto:"📍 Saindo de Porto de Galinhas",recife:"📍 Saindo de Recife / Cabo"};
+    for(const reg of ["porto","recife"]){
+      const daReg=lista.filter(p=>p.saida===reg).sort((a,b)=>a.nome.localeCompare(b.nome));
+      if(!daReg.length) continue;
+      h+='<h3 style="font-size:1rem;color:var(--tinta);margin:6px 0 10px;">'+REG[reg]+'</h3>';
+      for(const p of daReg){
+        const falta=p.carros.filter(c=>!c.guia).length;
+        h+='<div class="card" style="padding:14px 18px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;"><b style="color:var(--tinta)">🏖️ '+esc(p.nome)+'</b>'
+          +(p.obs?'<span class="chip on" style="font-size:.66rem;padding:1px 8px;background:var(--aviso);border-color:var(--aviso);color:#fff;">'+esc(p.obs)+'</span>':'')
+          +'<span style="font-size:.78rem;color:'+(falta?"var(--alerta)":"var(--ok)")+';font-weight:600;">'+p.carros.length+' carro(s)'+(falta?' · '+falta+' sem guia':' · completo')+'</span>'
+          +(p.saida===minhaSaida()?'<span style="margin-left:auto;display:flex;gap:6px;"><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
+        p.carros.forEach((c,i)=>{
+          const campoGuia = podeGuia()
+            ? '<input class="plano-guia" value="'+esc(c.guia||"")+'" placeholder="Nome do guia" style="max-width:220px;padding:6px 10px;border:1px solid var(--linha);border-radius:8px;font-size:.84rem;text-transform:uppercase;" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarGuia(\''+p.id+'\',\''+c.id+'\',this)">'
+            : (c.guia?'🧭 <b>'+esc(c.guia)+'</b>':'<span style="color:var(--alerta)">sem guia</span>');
+          h+='<div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--linha);font-size:.85rem;flex-wrap:wrap;">'
+            +'<div style="min-width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+(i+1)+'</div>'
+            +'<div style="min-width:120px"><b>'+esc(tipoCarro(c.tipo))+'</b>'+(idiomaCarro(c)?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;">'+esc(idiomaCarro(c).toLowerCase())+'</span>':'')
+            +(c.privativo?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;background:var(--tinta);border-color:var(--tinta);color:#fff;">PVT'+(c.privativo.reserva?' '+esc(c.privativo.reserva):'')+(c.privativo.pax?' · '+c.privativo.pax+' pax':'')+'</span>':'')+'</div>'
+            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div></div>';
+        });
+        h+='</div>';
+      }
+    }
+    box.innerHTML=h;
+  }
+  async function salvarGuia(passeioId, carroId, el){
+    el.disabled=true; const antes=el.style.borderColor;
+    const j=await chamarPlano("guia",{passeioId,carroId,guia:el.value});
+    el.disabled=false;
+    if(!j.ok){ alert(j.erro||"Erro ao salvar."); return; }
+    PLANO.plano=j.plano; el.style.borderColor="var(--ok)"; setTimeout(()=>{ el.style.borderColor=antes; desenharPlano(); },700);
+  }
+  async function removerPasseio(id){
+    const p=(PLANO.plano.passeios||[]).find(x=>x.id===id); if(!p) return;
+    if(!confirm("Remover "+p.nome+" ("+p.carros.length+" carro(s)) do planejamento de "+dataBR(PLANO.data)+"?")) return;
+    const j=await chamarPlano("removerPasseio",{id});
+    if(!j.ok){ alert(j.erro||"Erro"); return; } PLANO.plano=j.plano; desenharPlano();
+  }
+  function editarPasseio(id){
+    const p=id?(PLANO.plano.passeios||[]).find(x=>x.id===id):null;
+    PLANO.editando={ id:p?p.id:null, nome:p?p.nome:"", obs:p?(p.obs||""):"", saida:p?p.saida:minhaSaida(),
+      carros:p?p.carros.map(c=>({...c, tipo:tipoCarro(c.tipo), idioma:idiomaCarro(c)})):[{tipo:"Bus",idioma:"",privativo:null}] };
+    desenharEditor();
+    document.getElementById("planoEditor").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+  function desenharEditor(){
+    const e=PLANO.editando, box=document.getElementById("planoEditor"); if(!box) return;
+    if(!e){ box.innerHTML=""; return; }
+    const opts=(sel)=>TIPOS_CARRO.map(t=>'<option'+(t===sel?' selected':'')+'>'+t+'</option>').join("");
+    box.innerHTML='<div class="card" style="border:2px solid var(--verde);">'
+      +'<h3 style="margin-bottom:12px;">'+(e.id?"Editar passeio":"Novo passeio")+' · '+dataBR(PLANO.data)+'</h3>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">'
+      +'<input id="edNome" list="edSug" placeholder="Nome do passeio (ex.: MARAGOGI)" value="'+esc(e.nome)+'" oninput="PLANO.editando.nome=this.value" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--linha);border-radius:9px;text-transform:uppercase;">'
+      +'<datalist id="edSug">'+PLANO.sugestoes.map(s=>'<option value="'+esc(s)+'">').join("")+'</datalist>'
+      +'<input placeholder="Obs. (ex.: EXTRA)" value="'+esc(e.obs)+'" oninput="PLANO.editando.obs=this.value" style="width:170px;padding:9px 12px;border:1px solid var(--linha);border-radius:9px;text-transform:uppercase;">'
+      +'<span style="align-self:center;font-size:.85rem;color:var(--muted);">Saindo de '+NOME_SAIDA[e.saida]+'</span>'
+      +'<label style="display:flex;align-items:center;gap:6px;font-size:.85rem;">Quantidade <input type="number" min="1" max="30" value="'+e.carros.length+'" onchange="ajustarQtd(this.value)" style="width:64px;padding:8px;border:1px solid var(--linha);border-radius:9px;"></label></div>'
+      +e.carros.map((c,i)=>'<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--linha);font-size:.85rem;">'
+        +'<b style="min-width:62px">Carro '+(i+1)+'</b>'
+        +'<select onchange="PLANO.editando.carros['+i+'].tipo=this.value" style="padding:7px 10px;border:1px solid var(--linha);border-radius:8px;">'+opts(c.tipo)+'</select>'
+        +'<select onchange="PLANO.editando.carros['+i+'].idioma=this.value" style="padding:7px 10px;border:1px solid var(--linha);border-radius:8px;">'+IDIOMAS_CARRO.map(d=>'<option value="'+d+'"'+(d===(c.idioma||"")?' selected':'')+'>'+(d||"Português")+'</option>').join("")+'</select>'
+        +'<label style="display:flex;align-items:center;gap:5px;"><input type="checkbox"'+(c.privativo?" checked":"")+' onchange="PLANO.editando.carros['+i+'].privativo=this.checked?{reserva:\'\',pax:0}:null;desenharEditor()"> PVT</label>'
+        +(c.privativo?'<input placeholder="Reserva" value="'+esc(c.privativo.reserva||"")+'" oninput="PLANO.editando.carros['+i+'].privativo.reserva=this.value" style="width:100px;padding:7px 8px;border:1px solid var(--linha);border-radius:8px;"><input type="number" min="0" placeholder="pax" value="'+(c.privativo.pax||"")+'" oninput="PLANO.editando.carros['+i+'].privativo.pax=this.value" style="width:62px;padding:7px 8px;border:1px solid var(--linha);border-radius:8px;"> pax':'')
+        +(c.guia?'<span style="font-size:.78rem;color:var(--muted)">guia: '+esc(c.guia)+'</span>':'')
+        +'<button class="btn mini danger" style="margin-left:auto" onclick="PLANO.editando.carros.splice('+i+',1);desenharEditor()" '+(e.carros.length<2?"disabled":"")+'>✕</button></div>').join("")
+      +'<div style="display:flex;gap:8px;margin-top:12px;"><button class="btn sec" onclick="PLANO.editando.carros.push({tipo:\'Bus\',idioma:\'\',privativo:null});desenharEditor()">＋ Carro</button>'
+      +'<span style="margin-left:auto"></span><button class="btn sec" onclick="PLANO.editando=null;desenharEditor()">Cancelar</button><button class="btn" id="edSalvar" onclick="salvarPasseio()">Salvar</button></div></div>';
+  }
+  function abrirImportar(){
+    PLANO.editando={importar:true};
+    const box=document.getElementById("planoEditor");
+    box.innerHTML='<div class="card" style="border:2px solid var(--verde);">'
+      +'<h3 style="margin-bottom:6px;">Colar mensagem · '+dataBR(PLANO.data)+'</h3>'
+      +'<p style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Cole as mensagens do WhatsApp, uma por linha, do jeito que vocês já mandam. Ex.: <i>Carneiros: 3 Bus + 1 Mini</i> · <i>City: 1 Bus + 1 Van (ESPANHOL)</i> · <i>Maragogi PVT: 933679 - 13 PAX</i></p>'
+      +'<div style="font-size:.85rem;margin-bottom:10px;">Os passeios entram como <b>saindo de '+NOME_SAIDA[minhaSaida()]+'</b>.</div>'
+      +'<textarea id="impTexto" rows="7" oninput="previaImportar()" placeholder="Cole aqui..." style="width:100%;padding:10px 12px;border:1px solid var(--linha);border-radius:9px;font-family:inherit;font-size:.86rem;"></textarea>'
+      +'<div id="impPrevia" style="margin-top:10px;font-size:.84rem;"></div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;"><span style="margin-left:auto"></span><button class="btn sec" onclick="PLANO.editando=null;desenharEditor()">Cancelar</button><button class="btn" id="impBtn" onclick="confirmarImportar()" disabled>Importar</button></div></div>';
+    box.scrollIntoView({behavior:"smooth",block:"start"});
+    document.getElementById("impTexto").focus();
+  }
+  function previaImportar(){
+    const r=lerMensagem(document.getElementById("impTexto").value, minhaSaida());
+    PLANO.importacao=r;
+    const ja=(PLANO.plano.passeios||[]);
+    let h=r.passeios.map(p=>{
+      const existe=ja.some(x=>x.nome===p.nome&&x.saida===p.saida&&(x.obs||"")===p.obs);
+      const resumo=p.carros.map(c=>c.privativo?'PVT '+(c.privativo.reserva||"")+(c.privativo.pax?' ('+c.privativo.pax+' pax)':''):c.tipo+(c.idioma?' ('+c.idioma.toLowerCase()+')':'')).join(" · ");
+      return '<div style="padding:6px 0;border-top:1px solid var(--linha);">✅ <b>'+esc(p.nome)+'</b>'+(p.obs?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;">'+esc(p.obs)+'</span>':'')+' — '+p.carros.length+' carro(s): '+esc(resumo)+(existe?' <span style="color:var(--aviso);font-size:.76rem;">(já existe: atualiza os carros e mantém os guias)</span>':'')+'</div>';
+    }).join("");
+    if(r.naoEntendi.length) h+='<div style="padding:6px 0;border-top:1px solid var(--linha);color:var(--alerta);">⚠️ Não entendi: '+r.naoEntendi.map(esc).join(" · ")+'</div>';
+    document.getElementById("impPrevia").innerHTML=h;
+    document.getElementById("impBtn").disabled=!r.passeios.length;
+  }
+  async function confirmarImportar(){
+    const r=PLANO.importacao; if(!r||!r.passeios.length) return;
+    const b=document.getElementById("impBtn"); b.disabled=true; b.textContent="Importando...";
+    const j=await chamarPlano("importar",{passeios:r.passeios});
+    if(!j.ok){ alert(j.erro||"Erro ao importar."); b.disabled=false; b.textContent="Importar"; return; }
+    PLANO.plano=j.plano; PLANO.editando=null; desenharEditor(); desenharPlano();
+  }
+  function ajustarQtd(v){
+    const n=Math.max(1,Math.min(30,parseInt(v,10)||1)), cs=PLANO.editando.carros;
+    const ult=cs[cs.length-1]||{tipo:"Micro"};
+    while(cs.length<n) cs.push({tipo:ult.tipo||"Bus",idioma:"",privativo:null});
+    cs.length=n; desenharEditor();
+  }
+  async function salvarPasseio(){
+    const e=PLANO.editando; if(!e) return;
+    if(!e.nome.trim()){ alert("Informe o nome do passeio."); return; }
+    const dup=(PLANO.plano.passeios||[]).find(p=>p.id!==e.id&&p.nome===e.nome.trim().toUpperCase()&&p.saida===e.saida&&(p.obs||"")===e.obs.trim().toUpperCase());
+    if(dup && !confirm(dup.nome+" já está no planejamento desse dia. Adicionar outro mesmo assim?")) return;
+    const b=document.getElementById("edSalvar"); b.disabled=true; b.textContent="Salvando...";
+    const j=await chamarPlano("salvarPasseio",{passeio:{id:e.id,nome:e.nome,obs:e.obs,saida:e.saida,carros:e.carros.map(c=>({id:c.id,tipo:c.tipo,idioma:c.idioma||"",privativo:c.privativo||null}))}});
+    if(!j.ok){ alert(j.erro||"Erro ao salvar."); b.disabled=false; b.textContent="Salvar"; return; }
+    PLANO.plano=j.plano; PLANO.editando=null; desenharEditor(); desenharPlano();
   }
 
   // ---- Usuários (admin) ----
