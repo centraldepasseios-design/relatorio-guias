@@ -60,6 +60,19 @@
   .barra-busca{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
   .barra-busca input{padding:10px 14px;border:1.5px solid var(--linha);border-radius:9px;font-size:.9rem;background:#fff;}
 
+
+  .mot-bloco{margin-bottom:18px;}
+  .mot-cab{font-size:.9rem;font-weight:700;color:var(--verde);padding:8px 0;border-bottom:2px solid var(--verde-claro);margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .mot-count{background:var(--alerta-bg);color:var(--alerta);font-size:.72rem;padding:1px 9px;border-radius:20px;}
+  .div-item{cursor:pointer;position:relative;}
+  .detalhe-extra{display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--linha);font-size:.82rem;color:var(--texto);}
+  .detalhe-extra div{margin-bottom:3px;}
+  .div-item.aberto .detalhe-extra{display:block;}
+  .btn-check{background:#fff;border:1.5px solid var(--linha);color:var(--muted);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:.9rem;flex-shrink:0;}
+  .btn-check:hover{border-color:var(--verde);color:var(--verde);}
+  .div-item.verificado{opacity:.5;}
+  .div-item.verificado .btn-check{background:var(--verde);color:#fff;border-color:var(--verde);}
+
   .pg{display:none;} .pg.ativo{display:block;}
   /* usuarios */
   .u-linha{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--linha);border-radius:10px;margin-bottom:8px;background:#fff;flex-wrap:wrap;}
@@ -276,34 +289,45 @@
     const btn=document.getElementById("btnConferir");
     const info=document.getElementById("compInfo");
     const res=document.getElementById("compResultado");
-    if(!data){ return; }
-    btn.disabled=true; btn.textContent="Conferindo..."; info.textContent="Lendo o Phoenix, um momento...";
-    res.innerHTML="";
+    if(!data) return;
+    btn.disabled=true; btn.textContent="Conferindo..."; info.textContent="Lendo o Phoenix, um momento..."; res.innerHTML="";
     try{
       const r=await fetch(API_COMPARAR,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data})});
       const j=await r.json();
       btn.disabled=false; btn.textContent="🔄 Conferir agora";
       if(!j.ok){ info.textContent=""; res.innerHTML='<div class="card" style="color:var(--alerta)">'+(j.erro||"Erro ao conferir.")+'</div>'; return; }
       const d=new Date(); info.textContent="Conferido às "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-      const nDiv=j.divergencias.length;
-      const recsDiv=new Set(j.divergencias.map(x=>x.rec)).size;
       let html='<div class="cards-resumo">'
-        +'<div class="resumo"><div class="num">'+j.conferidos+'</div><div class="lbl">Reservas conferidas</div></div>'
-        +'<div class="resumo ok"><div class="num">'+Math.max(0,j.conferidos-recsDiv)+'</div><div class="lbl">Sem divergência</div></div>'
-        +'<div class="resumo alerta"><div class="num">'+nDiv+'</div><div class="lbl">Divergências</div></div>'
+        +'<div class="resumo"><div class="num">'+j.escalados+'</div><div class="lbl">Escalados conferidos</div></div>'
+        +'<div class="resumo ok"><div class="num">'+Math.max(0,j.escalados-j.comDivergencia)+'</div><div class="lbl">Sem divergência</div></div>'
+        +'<div class="resumo alerta"><div class="num">'+j.comDivergencia+'</div><div class="lbl">Com divergência</div></div>'
         +'</div>';
-      if(nDiv===0){
-        html+='<div class="em-breve"><div class="ic">✅</div><h3>Tudo batendo!</h3><p>Nenhuma divergência encontrada entre o Mapa de Serviço e a Ordem de Serviço neste dia.</p></div>';
+      const motoristas=Object.keys(j.porMotorista).sort();
+      if(motoristas.length===0){
+        html+='<div class="em-breve"><div class="ic">✅</div><h3>Tudo batendo!</h3><p>Nenhuma divergência entre o Mapa de Serviço e a Ordem de Serviço neste dia (entre os serviços escalados).</p></div>';
       } else {
-        html+='<h3 style="font-size:1rem;color:var(--tinta);margin-bottom:12px;">Divergências encontradas</h3><div class="lista-div">';
-        for(const dv of j.divergencias){
-          const t=TAGS_DIV[dv.tipo]||{txt:dv.tipo,cls:""};
-          html+='<div class="div-item '+t.cls+'"><span class="tag">'+t.txt+'</span>'
-            +'<div class="corpo"><div class="rec">'+dv.rec+(dv.servico?" · "+dv.servico:"")+'</div>'
-            +'<div class="det">'+dv.detalhe+'</div>'
-            +(dv.extra?'<div class="sub">'+dv.extra+'</div>':'')+'</div></div>';
+        html+='<h3 style="font-size:1rem;color:var(--tinta);margin:4px 0 12px;">Divergências por motorista</h3>';
+        for(const mot of motoristas){
+          const lista=j.porMotorista[mot];
+          html+='<div class="mot-bloco"><div class="mot-cab">🚐 '+mot+' <span class="mot-count">'+lista.length+'</span></div>';
+          for(let i=0;i<lista.length;i++){
+            const dv=lista[i];
+            const t=TAGS_DIV[dv.tipo]||{txt:dv.tipo,cls:""};
+            const id="dv_"+mot.replace(/\W/g,"")+"_"+i;
+            html+='<div class="div-item '+t.cls+'" id="'+id+'" onclick="toggleDetalhe(this)">'
+              +'<span class="tag">'+t.txt+'</span>'
+              +'<div class="corpo"><div class="rec">'+dv.rec+(dv.servico?" · "+dv.servico:"")+'</div>'
+              +'<div class="det">'+dv.detalhe+'</div>'
+              +'<div class="detalhe-extra">'
+                +(dv.cliente?'<div><b>Cliente:</b> '+dv.cliente+'</div>':'')
+                +(dv.guia?'<div><b>Guia:</b> '+dv.guia+'</div>':'')
+                +(dv.extra?'<div><b>Info:</b> '+dv.extra+'</div>':'')
+              +'</div></div>'
+              +'<button class="btn-check" onclick="event.stopPropagation();marcarVerificado(this)" title="Marcar como verificado">✓</button>'
+              +'</div>';
+          }
+          html+='</div>';
         }
-        html+='</div>';
       }
       res.innerHTML=html;
     }catch(e){
@@ -311,6 +335,8 @@
       res.innerHTML='<div class="card" style="color:var(--alerta)">Erro de conexão. Tente de novo.</div>';
     }
   }
+  function toggleDetalhe(el){ el.classList.toggle("aberto"); }
+  function marcarVerificado(btn){ const item=btn.closest(".div-item"); item.classList.toggle("verificado"); }
 
   // ---- Usuários (admin) ----
   async function renderUsuarios(m){
