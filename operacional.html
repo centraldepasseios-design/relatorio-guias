@@ -217,6 +217,7 @@
       {id:"cen-consulta", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/></svg>", nome:"Consulta de reservas"},
       {id:"cen-vagas", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 17h4V5H2v12h3\"/><path d=\"M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1\"/><circle cx=\"7.5\" cy=\"17.5\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"17.5\" r=\"2.5\"/></svg>", nome:"Vagas"},
       {id:"cen-escala", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 2v4M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/></svg>", nome:"Escala dos guias"},
+      {id:"cen-contatos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z\"/></svg>", nome:"Contatos dos guias"},
       {id:"cen-disp", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><path d=\"m9 11 3 3L22 4\"/></svg>", nome:"Disponibilidade"},
       {id:"cen-reclam", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>", nome:"Reclamações"},
       {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12a10 10 0 1 0-20 0\"/><path d=\"M12 12 8 22M12 12l4 10M2 12h20\"/></svg>", nome:"Passeios"},
@@ -279,6 +280,7 @@
     if(id==="admin-usuarios"){ renderUsuarios(m); return; }
     if(id==="rec-comparador"){ renderComparador(m); return; }
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
+    if(id==="cen-contatos"){ renderContatos(m); return; }
     if(id==="porto-escala"||id==="cen-escala"){ renderEscala(m,"guias"); return; }
     if(id==="porto-passeios"||id==="cen-passeios"){ renderPlano(m, id==="cen-passeios"?"central":"porto"); return; }
     // demais abas: em breve (preencheremos uma a uma)
@@ -482,6 +484,7 @@
   function desenharEscala(){
     const box=document.getElementById("escConteudo"), info=document.getElementById("escInfo");
     const c=ESC.cache[ESC.data]; if(!box||!c) return;
+    if(envPrecisaCarregar(ESC.data)){ envCarregar(ESC.data).then(desenharEscala); }
     info.textContent="Lido às "+c.hora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
     let L=c.linhas.filter(l=>ESC.regiao==="todas"||regiaoServ(l.servico)===ESC.regiao);
     box.innerHTML = ESC.modo==="guias" ? htmlGuias(L) : htmlPasseios(L);
@@ -499,10 +502,13 @@
     const ord=(l)=>(l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99";
     for(const g of guias) g.itens.sort((a,b)=>ord(a).localeCompare(ord(b)));
     guias.sort((a,b)=>ord(a.itens[0]).localeCompare(ord(b.itens[0]))||a.nome.localeCompare(b.nome));
-    let h='<div style="font-size:.82rem;color:var(--muted);margin-bottom:10px;">'+guias.length+' guia(s) · '+L.length+' serviço(s)</div>';
+    ESC.guiasTela=guias;
+    const comTrf=guias.filter(g=>g.itens.some(l=>l.tipo!=="TOUR"));
+    let h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><span style="font-size:.82rem;color:var(--muted);">'+guias.length+' guia(s) · '+L.length+' serviço(s)</span>'
+      +(comTrf.length?'<button class="btn mini" style="margin-left:auto" onclick="enviarEscalaTodos()">📲 Enviar escala (IN/OUT/TRF) para '+comTrf.length+' guia(s)</button>':'')+'</div>';
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">';
     for(const g of guias){
-      h+='<div class="card" style="padding:14px 16px;margin:0;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><b style="color:var(--tinta)">🧭 '+esc(g.nome)+'</b><span class="mot-count" style="margin-left:auto">'+g.itens.length+'</span></div>';
+      h+='<div class="card" style="padding:14px 16px;margin:0;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><b style="color:var(--tinta)">🧭 '+esc(g.nome)+'</b><span class="mot-count" style="margin-left:auto">'+g.itens.length+'</span>'+botaoEscalaGuia(g)+'</div>';
       for(const l of g.itens){
         const tag=l.tipo==="TOUR"&&l.auxiliar?"Apoio":(TIPO_TXT[l.tipo]||l.tipo||"");
         h+='<div style="display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--linha);font-size:.82rem;">'
@@ -648,6 +654,7 @@
   }
   function desenharPlano(){
     const box=document.getElementById("planoConteudo"); if(!box||!PLANO.plano) return;
+    if(podeGuia()&&envPrecisaCarregar(PLANO.data)){ envCarregar(PLANO.data).then(desenharPlano); }
     const ch=document.getElementById("planoChips");
     if(ch) ch.innerHTML=PLANO.chip("todas","Todas as saídas")+PLANO.chip("porto","Porto de Galinhas")+PLANO.chip("recife","Recife / Cabo");
     const todos=PLANO.plano.passeios||[];
@@ -656,7 +663,9 @@
     const info=document.getElementById("planoInfo");
     if(info) info.textContent=PLANO.plano.atualizadoPor?("Última alteração: "+PLANO.plano.atualizadoPor+" às "+new Date(PLANO.plano.atualizadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})):"";
     if(!lista.length){ box.innerHTML='<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio planejado</h3><p>Clique em “Adicionar passeio” para montar os carros de '+dataBR(PLANO.data)+'.</p></div>'; return; }
-    let h='<div class="cards-resumo"><div class="resumo"><div class="num">'+lista.length+'</div><div class="lbl">Passeios</div></div><div class="resumo"><div class="num">'+carros+'</div><div class="lbl">Carros</div></div><div class="resumo '+(semGuia?"alerta":"ok")+'"><div class="num">'+semGuia+'</div><div class="lbl">Sem guia</div></div></div>';
+    const comGuia=lista.reduce((s,p)=>s+p.carros.filter(c=>c.guia).length,0);
+    let h=(podeGuia()&&comGuia?'<div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button class="btn mini" onclick="avisarPasseios(null)">📲 Avisar guias'+(PLANO.saida==="todas"?" (Porto e Recife)":PLANO.saida==="porto"?" de Porto":" de Recife")+'</button></div>':'')
+      +'<div class="cards-resumo"><div class="resumo"><div class="num">'+lista.length+'</div><div class="lbl">Passeios</div></div><div class="resumo"><div class="num">'+carros+'</div><div class="lbl">Carros</div></div><div class="resumo '+(semGuia?"alerta":"ok")+'"><div class="num">'+semGuia+'</div><div class="lbl">Sem guia</div></div></div>';
     const REG={porto:"📍 Saindo de Porto de Galinhas",recife:"📍 Saindo de Recife / Cabo"};
     for(const reg of ["porto","recife"]){
       const daReg=lista.filter(p=>p.saida===reg).sort((a,b)=>a.nome.localeCompare(b.nome));
@@ -667,7 +676,8 @@
         h+='<div class="card" style="padding:14px 18px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;"><b style="color:var(--tinta)">🏖️ '+esc(p.nome)+'</b>'
           +(p.obs?'<span class="chip on" style="font-size:.66rem;padding:1px 8px;background:var(--aviso);border-color:var(--aviso);color:#fff;">'+esc(p.obs)+'</span>':'')
           +'<span style="font-size:.78rem;color:'+(falta?"var(--alerta)":"var(--ok)")+';font-weight:600;">'+p.carros.length+' carro(s)'+(falta?' · '+falta+' sem guia':' · completo')+'</span>'
-          +(p.saida===minhaSaida()?'<span style="margin-left:auto;display:flex;gap:6px;"><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
+          +(podeGuia()&&p.carros.some(c=>c.guia)?'<button class="btn mini sec" style="margin-left:'+(p.saida===minhaSaida()?'auto':'auto')+'" onclick="avisarPasseios(\''+p.id+'\')">📲 Avisar</button>':'')
+          +(p.saida===minhaSaida()?'<span style="'+(podeGuia()&&p.carros.some(c=>c.guia)?'':'margin-left:auto;')+'display:flex;gap:6px;"><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
         p.carros.forEach((c,i)=>{
           const campoGuia = podeGuia()
             ? '<input class="plano-guia" value="'+esc(c.guia||"")+'" placeholder="Nome do guia" style="max-width:220px;padding:6px 10px;border:1px solid var(--linha);border-radius:8px;font-size:.84rem;text-transform:uppercase;" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarGuia(\''+p.id+'\',\''+c.id+'\',this)">'
@@ -676,7 +686,7 @@
             +'<div style="min-width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+(i+1)+'</div>'
             +'<div style="min-width:120px"><b>'+esc(tipoCarro(c.tipo))+'</b>'+(idiomaCarro(c)?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;">'+esc(idiomaCarro(c).toLowerCase())+'</span>':'')
             +(c.privativo?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;background:var(--tinta);border-color:var(--tinta);color:#fff;">PVT'+(c.privativo.reserva?' '+esc(c.privativo.reserva):'')+(c.privativo.pax?' · '+c.privativo.pax+' pax':'')+'</span>':'')+'</div>'
-            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div></div>';
+            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia):'')+'</div>';
         });
         h+='</div>';
       }
@@ -774,6 +784,168 @@
     const j=await chamarPlano("salvarPasseio",{passeio:{id:e.id,nome:e.nome,obs:e.obs,saida:e.saida,carros:e.carros.map(c=>({id:c.id,tipo:c.tipo,idioma:c.idioma||"",privativo:c.privativo||null}))}});
     if(!j.ok){ alert(j.erro||"Erro ao salvar."); b.disabled=false; b.textContent="Salvar"; return; }
     PLANO.plano=j.plano; PLANO.editando=null; desenharEditor(); desenharPlano();
+  }
+
+
+  // ---- Envio pelo WhatsApp (escala dos guias / aviso dos passeios) + contatos ----
+  const API_ENVIOS = "https://us-central1-operacional-luck.cloudfunctions.net/envios";
+  const ENV={ contatos:null, enviados:{}, carregando:{} };
+  const RODAPE="\n\n_Sujeito a mudanças._";
+  const normGuia=(s)=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[-–]?\s*GUIA\s*$/,"").replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
+  function assinatura(s){ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36); }
+  async function chamarEnvios(acao,dados){
+    const r=await fetch(API_ENVIOS,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,...dados})});
+    const j=await r.json(); sessaoExpirou(j); return j;
+  }
+  const envPrecisaCarregar=(data)=>(!ENV.contatos||!ENV.enviados[data])&&!ENV.carregando[data];
+  async function envCarregar(data){
+    ENV.carregando[data]=true;
+    try{
+      const [c,e]=await Promise.all([ENV.contatos?null:chamarEnvios("contatos",{}), chamarEnvios("enviados",{data})]);
+      if(c&&c.ok) ENV.contatos=c.contatos;
+      if(e&&e.ok) ENV.enviados[data]=e.envios;
+    }finally{ ENV.carregando[data]=false; }
+  }
+  function contatoDe(nome){
+    const n=normGuia(nome);
+    return (ENV.contatos||[]).find(c=>normGuia(c.nome)===n||(c.apelidos||[]).some(a=>normGuia(a)===n))||null;
+  }
+  function envioDe(data,tipo,guia){ return (ENV.enviados[data]||[]).find(e=>e.tipo===tipo&&normGuia(e.guia)===normGuia(guia))||null; }
+  function statusEnvio(data,tipo,guia,mensagem){
+    const e=envioDe(data,tipo,guia); if(!e) return '';
+    const hora=new Date(e.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    const mudou=mensagem&&e.hash&&e.hash!==assinatura(mensagem);
+    return '<span title="Enviado por '+esc(e.por)+'" style="font-size:.72rem;font-weight:600;white-space:nowrap;color:'+(mudou?'var(--aviso)':'var(--ok)')+'">'+(mudou?'⚠️ mudou desde o envio':'✓ enviado '+hora)+'</span>';
+  }
+
+  // ---- mensagens ----
+  function msgEscala(g, data){
+    const itens=g.itens.filter(l=>l.tipo!=="TOUR");
+    return '🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n'
+      +itens.map(l=>'*'+horaTxt(l.inicio)+'* · '+nomePasseio(l.servico)+'\n🚐 '+(l.veiculo||"-")+(l.motorista?' · Mot. '+l.motorista:'')+(l.pax!=null?' · '+l.pax+' pax':'')).join('\n\n')
+      +RODAPE;
+  }
+  function msgPasseio(guia, carros, data){
+    const quando=data===amanhaISO()?"Amanhã, "+dataBR(data):"Dia "+dataBR(data);
+    return '🏖️ *'+quando+'*\n\n'
+      +carros.map(x=>'Você está no *'+x.p.nome+'*'+(x.p.obs?' ('+x.p.obs+')':'')+'\nCarro '+x.n+' · '+tipoCarro(x.c.tipo)+(idiomaCarro(x.c)?' · '+idiomaCarro(x.c).toLowerCase():'')+(x.c.privativo?' · PVT '+(x.c.privativo.reserva||'')+(x.c.privativo.pax?' ('+x.c.privativo.pax+' pax)':''):'')).join('\n\n')
+      +'\n\nA escala completa segue mais tarde.'+RODAPE;
+  }
+  function botaoEscalaGuia(g){
+    if(!g.itens.some(l=>l.tipo!=="TOUR")) return '';
+    const m=msgEscala(g,ESC.data);
+    return statusEnvio(ESC.data,"escala",g.nome,m)+'<button class="btn mini sec" style="padding:3px 9px" title="Enviar escala no WhatsApp" onclick="enviarEscalaGuia(\''+esc(g.nome).replace(/'/g,"\\'")+'\')">📲</button>';
+  }
+  function enviarEscalaGuia(nome){
+    const g=(ESC.guiasTela||[]).find(x=>x.nome===nome); if(!g) return;
+    abrirEnvio("escala",ESC.data,[{guia:g.nome,mensagem:msgEscala(g,ESC.data)}],()=>desenharEscala());
+  }
+  function enviarEscalaTodos(){
+    const gs=(ESC.guiasTela||[]).filter(g=>g.itens.some(l=>l.tipo!=="TOUR"));
+    abrirEnvio("escala",ESC.data,gs.map(g=>({guia:g.nome,mensagem:msgEscala(g,ESC.data)})),()=>desenharEscala());
+  }
+  function avisarPasseios(passeioId){
+    const ps=(PLANO.plano.passeios||[]).filter(p=>passeioId?p.id===passeioId:(PLANO.saida==="todas"||p.saida===PLANO.saida));
+    const por={};
+    for(const p of ps) p.carros.forEach((c,i)=>{ if(!c.guia) return; const k=normGuia(c.guia); (por[k]=por[k]||{guia:c.guia,carros:[]}).carros.push({p,c,n:i+1}); });
+    const itens=Object.values(por).map(x=>({guia:x.guia,mensagem:msgPasseio(x.guia,x.carros,PLANO.data)}));
+    abrirEnvio("passeio",PLANO.data,itens,()=>desenharPlano());
+  }
+
+  // ---- janela de confirmação do envio ----
+  async function abrirEnvio(tipo,data,itens,depois){
+    if(!itens.length){ alert("Nenhum guia para enviar."); return; }
+    if(!ENV.contatos||!ENV.enviados[data]) await envCarregar(data);
+    let fundo=document.getElementById("envFundo");
+    if(!fundo){ fundo=document.createElement("div"); fundo.id="envFundo"; fundo.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto;"; document.body.appendChild(fundo); }
+    ENV.janela={tipo,data,itens,depois};
+    desenharEnvio();
+  }
+  function fecharEnvio(){ const f=document.getElementById("envFundo"); if(f) f.remove(); const d=ENV.janela&&ENV.janela.depois; ENV.janela=null; if(d) d(); }
+  function desenharEnvio(){
+    const J=ENV.janela, f=document.getElementById("envFundo"); if(!J||!f) return;
+    const central=USUARIO.admin||(USUARIO.areas||[]).includes("central");
+    const opts=(ENV.contatos||[]).map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+' · '+esc(c.telefone)+'</option>').join("");
+    const linhas=J.itens.map((it,i)=>{
+      const c=contatoDe(it.guia), ja=envioDe(J.data,J.tipo,it.guia), res=it.resultado;
+      let st= res ? (res.ok?'<span style="color:var(--ok);font-weight:600">✓ enviado</span>':'<span style="color:var(--alerta);font-weight:600">✗ '+esc(res.motivo||"erro")+'</span>')
+        : c ? '<span style="color:var(--muted)">'+esc(c.telefone)+(normGuia(c.nome)!==normGuia(it.guia)?' ('+esc(c.nome)+')':'')+'</span>'+(ja?' <span style="color:var(--aviso);font-size:.74rem">já enviado às '+new Date(ja.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+'</span>':'')
+        : (central?'<select onchange="vincularContato('+i+',this.value)" style="padding:4px 6px;border:1px solid var(--alerta);border-radius:6px;font-size:.78rem;max-width:230px"><option value="">⚠️ sem telefone — escolher contato…</option>'+opts+'</select>':'<span style="color:var(--alerta)">⚠️ sem telefone</span>');
+      return '<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--linha);font-size:.84rem;flex-wrap:wrap;"><label style="display:flex;gap:6px;align-items:center;min-width:200px"><input type="checkbox" '+(it.fora||!c?'':'checked')+' '+(c&&!res?'':'disabled')+' onchange="ENV.janela.itens['+i+'].fora=!this.checked"> <b>'+esc(it.guia)+'</b></label><span style="flex:1">'+st+'</span><a href="#" style="font-size:.74rem;color:var(--verde)" onclick="event.preventDefault();const d=this.nextElementSibling;d.style.display=d.style.display?\'\':\'none\'">ver mensagem</a><pre style="display:none;width:100%;white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:8px;font-family:inherit;font-size:.78rem;margin:4px 0 0">'+esc(it.mensagem)+'</pre></div>';
+    }).join("");
+    const prontos=J.itens.filter(it=>contatoDe(it.guia)&&!it.fora&&!it.resultado).length;
+    const semTel=J.itens.filter(it=>!contatoDe(it.guia)).length;
+    f.innerHTML='<div class="card" style="max-width:720px;width:100%;margin:0;">'
+      +'<h3 style="margin-bottom:4px;">📲 '+(J.tipo==="escala"?"Enviar escala":"Avisar passeio")+' · '+dataBR(J.data)+'</h3>'
+      +'<p style="font-size:.8rem;color:var(--muted);margin-bottom:8px;">'+J.itens.length+' guia(s)'+(semTel?' · <span style="color:var(--alerta)">'+semTel+' sem telefone</span>':'')+'. As mensagens saem pelo WhatsApp da Z-API, uma a cada 1,5 segundo.</p>'
+      +linhas
+      +'<div id="envProgresso" style="font-size:.82rem;color:var(--muted);margin-top:10px;"></div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;"><span style="margin-left:auto"></span><button class="btn sec" onclick="fecharEnvio()">Fechar</button>'
+      +(prontos?'<button class="btn" id="envBtn" onclick="dispararEnvio()">Enviar para '+prontos+'</button>':'')+'</div></div>';
+  }
+  async function vincularContato(i,id){
+    if(!id) return;
+    const it=ENV.janela.itens[i];
+    const j=await chamarEnvios("vincular",{id,nomePhoenix:it.guia});
+    if(!j.ok){ alert(j.erro||"Erro"); return; }
+    ENV.contatos=j.contatos; desenharEnvio();
+  }
+  async function dispararEnvio(){
+    const J=ENV.janela; if(!J) return;
+    const fila=J.itens.filter(it=>contatoDe(it.guia)&&!it.fora&&!it.resultado);
+    const b=document.getElementById("envBtn"); if(b){ b.disabled=true; b.textContent="Enviando..."; }
+    const prog=document.getElementById("envProgresso");
+    for(let k=0;k<fila.length;k+=10){
+      const lote=fila.slice(k,k+10);
+      if(prog) prog.textContent="Enviando "+(k+1)+"–"+(k+lote.length)+" de "+fila.length+"...";
+      try{
+        const j=await chamarEnvios("enviar",{data:J.data,tipo:J.tipo,itens:lote.map(it=>({guia:it.guia,mensagem:it.mensagem,assinatura:assinatura(it.mensagem)}))});
+        if(!j.ok){ lote.forEach(it=>it.resultado={ok:false,motivo:j.erro}); }
+        else j.resultados.forEach((r,x)=>{ lote[x].resultado=r; });
+      }catch(e){ lote.forEach(it=>it.resultado={ok:false,motivo:"erro de conexão"}); }
+      if(!ENV.janela) return;
+      desenharEnvio();
+    }
+    delete ENV.enviados[J.data]; await envCarregar(J.data);
+    const ok=fila.filter(it=>it.resultado&&it.resultado.ok).length;
+    const p2=document.getElementById("envProgresso"); if(p2) p2.innerHTML='<b style="color:'+(ok===fila.length?'var(--ok)':'var(--alerta)')+'">'+ok+' de '+fila.length+' enviados.</b>';
+  }
+
+  // ---- Contatos dos guias ----
+  const CONT={ busca:"", editando:null };
+  async function renderContatos(m){
+    m.innerHTML='<div class="barra-busca" style="flex-wrap:wrap;gap:8px;"><input type="search" placeholder="Buscar guia ou telefone..." oninput="CONT.busca=this.value;desenharContatos()" style="max-width:260px;"><button class="btn" onclick="CONT.editando={nome:\'\',telefone:\'\'};desenharContatos()">＋ Novo contato</button><span id="contInfo" style="font-size:.8rem;color:var(--muted)"></span></div><div id="contConteudo"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
+    const j=await chamarEnvios("contatos",{});
+    if(!j.ok){ document.getElementById("contConteudo").innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro||"Erro")+'</div>'; return; }
+    ENV.contatos=j.contatos; desenharContatos();
+  }
+  function desenharContatos(){
+    const box=document.getElementById("contConteudo"); if(!box) return;
+    const L=ENV.contatos||[];
+    if(!L.length){ box.innerHTML='<div class="em-breve"><div class="ic">📇</div><h3>Nenhum contato ainda</h3><p>Carregue a lista da planilha de contatos dos guias (90 guias).</p><button class="btn" style="margin-top:12px" onclick="importarContatos()">Carregar lista da planilha</button></div>'; return; }
+    const b=normGuia(CONT.busca), bd=CONT.busca.replace(/\D/g,"");
+    const vis=L.filter(c=>!b&&!bd||(b&&(normGuia(c.nome).includes(b)||(c.apelidos||[]).some(a=>normGuia(a).includes(b))))||(bd&&c.telefone.includes(bd)));
+    document.getElementById("contInfo").textContent=L.length+" contato(s)";
+    const e=CONT.editando;
+    let h='';
+    if(e) h+='<div class="card" style="border:2px solid var(--verde);display:flex;gap:10px;flex-wrap:wrap;align-items:center;"><b>'+(e.id?"Editar":"Novo")+' contato</b><input id="cNome" value="'+esc(e.nome)+'" placeholder="Nome (como no Phoenix, ex.: ARTHUR)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;text-transform:uppercase"><input id="cTel" value="'+esc(e.telefone)+'" placeholder="DDD + número" style="width:160px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px"><button class="btn sec" onclick="CONT.editando=null;desenharContatos()">Cancelar</button><button class="btn" onclick="salvarContato()">Salvar</button></div>';
+    h+='<div class="card" style="padding:6px 18px;">'+vis.map(c=>'<div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--linha);font-size:.85rem;flex-wrap:wrap;"><b style="min-width:200px">'+esc(c.nome)+'</b><span style="min-width:120px">'+esc(c.telefone.replace(/^(\d{2})(\d{5})(\d{4})$/,"($1) $2-$3"))+'</span><span style="flex:1;color:var(--muted);font-size:.76rem">'+((c.apelidos||[]).length?'também: '+c.apelidos.map(esc).join(", "):'')+'</span><button class="btn mini sec" onclick="CONT.editando={id:\''+esc(c.id)+'\',nome:\''+esc(c.nome).replace(/'/g,"\\'")+'\',telefone:\''+esc(c.telefone)+'\'};desenharContatos()">✏️</button><button class="btn mini danger" onclick="removerContato(\''+esc(c.id)+'\',\''+esc(c.nome).replace(/'/g,"\\'")+'\')">🗑️</button></div>').join("")+'</div>';
+    box.innerHTML=h;
+  }
+  async function salvarContato(){
+    const e=CONT.editando; if(!e) return;
+    const j=await chamarEnvios("salvarContato",{id:e.id,nome:document.getElementById("cNome").value,telefone:document.getElementById("cTel").value});
+    if(!j.ok){ alert(j.erro||"Erro"); return; }
+    ENV.contatos=j.contatos; CONT.editando=null; desenharContatos();
+  }
+  async function removerContato(id,nome){
+    if(!confirm("Remover o contato de "+nome+"?")) return;
+    const j=await chamarEnvios("removerContato",{id}); if(!j.ok){ alert(j.erro||"Erro"); return; }
+    ENV.contatos=j.contatos; desenharContatos();
+  }
+  async function importarContatos(){
+    const j=await chamarEnvios("importarIniciais",{}); if(!j.ok){ alert(j.erro||"Erro"); return; }
+    ENV.contatos=j.contatos; desenharContatos();
   }
 
   // ---- Usuários (admin) ----
