@@ -644,9 +644,11 @@
       </div>
       <div id="planoChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;"></div>
       <div id="planoEditor"></div>
+      <datalist id="listaGuias"></datalist>
       <div id="planoConteudo"><div class="card" style="color:var(--muted)">Carregando...</div></div>`;
     PLANO.chip=chip;
     carregarPlano();
+    preencherGuias();
     carregarCatalogo();
     PLANO.timer=setInterval(()=>{ const a=document.activeElement; if(!PLANO.editando && !(a&&a.classList&&a.classList.contains("plano-guia"))) carregarPlano(true); },30000);
   }
@@ -694,7 +696,7 @@
           +(p.saida===minhaSaida()?'<span style="'+(btAv||btPdf?'':'margin-left:auto;')+'display:flex;gap:6px;"><button class="btn mini sec" onclick="maisCarro(\''+p.id+'\')">＋ Carro</button><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
         p.carros.forEach((c,i)=>{
           const campoGuia = podeGuia()
-            ? '<input class="plano-guia" value="'+esc(c.guia||"")+'" placeholder="Nome do guia" style="max-width:220px;padding:6px 10px;border:1px solid var(--linha);border-radius:8px;font-size:.84rem;text-transform:uppercase;" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarGuia(\''+p.id+'\',\''+c.id+'\',this)">'
+            ? '<input class="plano-guia" list="listaGuias" autocomplete="off" value="'+esc(c.guia||"")+'" placeholder="Nome do guia" style="max-width:220px;padding:6px 10px;border:1px solid var(--linha);border-radius:8px;font-size:.84rem;text-transform:uppercase;" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarGuia(\''+p.id+'\',\''+c.id+'\',this)">'
             : (c.guia?'🧭 <b>'+esc(c.guia)+'</b>':'<span style="color:var(--alerta)">sem guia</span>');
           h+='<div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--linha);font-size:.85rem;flex-wrap:wrap;">'
             +'<div style="min-width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+(i+1)+'</div>'
@@ -790,8 +792,14 @@
     try{
       const r=await fetch(API_ESCALA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"catalogo",token:USUARIO.token})});
       const j=await r.json(); if(sessaoExpirou(j)) return;
-      if(j.ok){ PLANO.catalogo=j.nomes||[]; const d=document.getElementById("edSug"); if(d&&PLANO.editando) d.innerHTML=opcoesPasseio(PLANO.editando.saida); }
+      if(j.ok){ PLANO.catalogo=j.nomes||[]; PLANO.catalogoGuias=j.guias||[]; preencherGuias(); const d=document.getElementById("edSug"); if(d&&PLANO.editando) d.innerHTML=opcoesPasseio(PLANO.editando.saida); }
     }catch(e){} finally{ PLANO.carregandoCatalogo=false; }
+  }
+  // listinha do campo "guia": nomes como estão no Phoenix + os da lista de contatos
+  function preencherGuias(){
+    const d=document.getElementById("listaGuias"); if(!d) return;
+    const nomes=[...new Set([...(PLANO.catalogoGuias||[]),...(ENV.contatos||[]).map(c=>c.nome)])].sort();
+    d.innerHTML=nomes.map(n=>'<option value="'+esc(n)+'">').join("");
   }
   function opcoesPasseio(saida){
     const doPhoenix=(PLANO.catalogo||[]).filter(n=>regiaoServ(n)===saida);
@@ -831,7 +839,7 @@
     ENV.carregando[data]=true;
     try{
       const [c,e]=await Promise.all([ENV.contatos?null:chamarEnvios("contatos",{}), chamarEnvios("enviados",{data})]);
-      if(c&&c.ok) ENV.contatos=c.contatos;
+      if(c&&c.ok){ ENV.contatos=c.contatos; preencherGuias(); }
       if(e&&e.ok) ENV.enviados[data]=e.envios;
     }finally{ ENV.carregando[data]=false; }
   }
