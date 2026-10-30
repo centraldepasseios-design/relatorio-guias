@@ -620,6 +620,7 @@
   // cada aba monta os carros da sua saída: Porto -> saindo de Porto; Central -> saindo de Recife/Cabo
   const minhaSaida=()=>PLANO.area==="porto"?"porto":"recife";
   const NOME_SAIDA={porto:"Porto",recife:"Recife / Cabo"};
+  const podePdf=(p)=>podeGuia()||(PLANO.area==="porto"&&p.saida==="porto"&&(USUARIO.admin||(USUARIO.areas||[]).includes("porto")));
   const podeGuia=()=>PLANO.area==="central"&&(USUARIO.admin||(USUARIO.areas||[]).includes("central"));
   async function chamarPlano(acao,dados){
     const r=await fetch(API_PLANO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:PLANO.data,...dados})});
@@ -655,7 +656,7 @@
   }
   function desenharPlano(){
     const box=document.getElementById("planoConteudo"); if(!box||!PLANO.plano) return;
-    if(podeGuia()&&envPrecisaCarregar(PLANO.data)){ envCarregar(PLANO.data).then(desenharPlano); }
+    if((podeGuia()||PLANO.area==="porto")&&envPrecisaCarregar(PLANO.data)){ envCarregar(PLANO.data).then(desenharPlano); }
     const ch=document.getElementById("planoChips");
     if(ch) ch.innerHTML=PLANO.chip("todas","Todas as saídas")+PLANO.chip("porto","Porto de Galinhas")+PLANO.chip("recife","Recife / Cabo");
     const todos=PLANO.plano.passeios||[];
@@ -665,7 +666,12 @@
     if(info) info.textContent=PLANO.plano.atualizadoPor?("Última alteração: "+PLANO.plano.atualizadoPor+" às "+new Date(PLANO.plano.atualizadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})):"";
     if(!lista.length){ box.innerHTML='<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio planejado</h3><p>Clique em “Adicionar passeio” para montar os carros de '+dataBR(PLANO.data)+'.</p></div>'; return; }
     const comGuia=lista.reduce((s,p)=>s+p.carros.filter(c=>c.guia).length,0);
-    let h=(podeGuia()&&comGuia?'<div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button class="btn mini" onclick="avisarPasseios(null)">📲 Avisar guias'+(PLANO.saida==="todas"?" (Porto e Recife)":PLANO.saida==="porto"?" de Porto":" de Recife")+'</button><button class="btn mini sec" style="margin-left:8px" onclick="enviarPdfPasseios(null)">📄 Enviar PDF da escala'+(PLANO.saida==="todas"?"":PLANO.saida==="porto"?" de Porto":" de Recife")+'</button></div>':'')
+    const comPdf=lista.some(p=>podePdf(p)&&p.carros.some(c=>c.guia));
+    const rotSaida=PLANO.saida==="todas"?"":PLANO.saida==="porto"?" de Porto":" de Recife";
+    let h=((podeGuia()&&comGuia)||comPdf?'<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">'
+        +(podeGuia()&&comGuia?'<button class="btn mini" onclick="avisarPasseios(null)">📲 Avisar guias'+(PLANO.saida==="todas"?" (Porto e Recife)":rotSaida)+'</button>':'')
+        +(comPdf?'<button class="btn mini sec" onclick="enviarPdfPasseios(null)">📄 Enviar PDF da escala'+(podeGuia()?rotSaida:" de Porto")+'</button>':'')
+        +'</div>':'')
       +'<div class="cards-resumo"><div class="resumo"><div class="num">'+lista.length+'</div><div class="lbl">Passeios</div></div><div class="resumo"><div class="num">'+carros+'</div><div class="lbl">Carros</div></div><div class="resumo '+(semGuia?"alerta":"ok")+'"><div class="num">'+semGuia+'</div><div class="lbl">Sem guia</div></div></div>';
     const REG={porto:"📍 Saindo de Porto de Galinhas",recife:"📍 Saindo de Recife / Cabo"};
     for(const reg of ["porto","recife"]){
@@ -674,11 +680,12 @@
       h+='<h3 style="font-size:1rem;color:var(--tinta);margin:6px 0 10px;">'+REG[reg]+'</h3>';
       for(const p of daReg){
         const falta=p.carros.filter(c=>!c.guia).length;
+        const temGuia=p.carros.some(c=>c.guia), btAv=podeGuia()&&temGuia, btPdf=temGuia&&podePdf(p);
         h+='<div class="card" style="padding:14px 18px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;"><b style="color:var(--tinta)">🏖️ '+esc(p.nome)+'</b>'
           +(p.obs?'<span class="chip on" style="font-size:.66rem;padding:1px 8px;background:var(--aviso);border-color:var(--aviso);color:#fff;">'+esc(p.obs)+'</span>':'')
           +'<span style="font-size:.78rem;color:'+(falta?"var(--alerta)":"var(--ok)")+';font-weight:600;">'+p.carros.length+' carro(s)'+(falta?' · '+falta+' sem guia':' · completo')+'</span>'
-          +(podeGuia()&&p.carros.some(c=>c.guia)?'<button class="btn mini sec" style="margin-left:'+(p.saida===minhaSaida()?'auto':'auto')+'" onclick="avisarPasseios(\''+p.id+'\')">📲 Avisar</button><button class="btn mini sec" onclick="enviarPdfPasseios(\''+p.id+'\')">📄 PDF</button>':'')
-          +(p.saida===minhaSaida()?'<span style="'+(podeGuia()&&p.carros.some(c=>c.guia)?'':'margin-left:auto;')+'display:flex;gap:6px;"><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
+          +(btAv||btPdf?'<span style="margin-left:auto;display:flex;gap:6px;">'+(btAv?'<button class="btn mini sec" onclick="avisarPasseios(\''+p.id+'\')">📲 Avisar</button>':'')+(btPdf?'<button class="btn mini sec" onclick="enviarPdfPasseios(\''+p.id+'\')">📄 PDF</button>':'')+'</span>':'')
+          +(p.saida===minhaSaida()?'<span style="'+(btAv||btPdf?'':'margin-left:auto;')+'display:flex;gap:6px;"><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
         p.carros.forEach((c,i)=>{
           const campoGuia = podeGuia()
             ? '<input class="plano-guia" value="'+esc(c.guia||"")+'" placeholder="Nome do guia" style="max-width:220px;padding:6px 10px;border:1px solid var(--linha);border-radius:8px;font-size:.84rem;text-transform:uppercase;" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarGuia(\''+p.id+'\',\''+c.id+'\',this)">'
@@ -687,7 +694,7 @@
             +'<div style="min-width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+(i+1)+'</div>'
             +'<div style="min-width:120px"><b>'+esc(tipoCarro(c.tipo))+'</b>'+(idiomaCarro(c)?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;">'+esc(idiomaCarro(c).toLowerCase())+'</span>':'')
             +(c.privativo?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;background:var(--tinta);border-color:var(--tinta);color:#fff;">PVT'+(c.privativo.reserva?' '+esc(c.privativo.reserva):'')+(c.privativo.pax?' · '+c.privativo.pax+' pax':'')+'</span>':'')+'</div>'
-            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia).replace("enviado","avisado")+' '+statusEnvio(PLANO.data,"pdf",c.guia).replace("enviado","PDF"):'')+'</div>';
+            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podePdf(p)?(podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia).replace("enviado","avisado")+' ':'')+statusEnvio(PLANO.data,"pdf",c.guia).replace("enviado","PDF"):'')+'</div>';
         });
         h+='</div>';
       }
@@ -858,7 +865,7 @@
   }
 
   function enviarPdfPasseios(passeioId){
-    const ps=(PLANO.plano.passeios||[]).filter(p=>passeioId?p.id===passeioId:(PLANO.saida==="todas"||p.saida===PLANO.saida));
+    const ps=(PLANO.plano.passeios||[]).filter(p=>podePdf(p)&&(passeioId?p.id===passeioId:(PLANO.saida==="todas"||p.saida===PLANO.saida)));
     const guias={};
     for(const p of ps) for(const c of p.carros) if(c.guia) guias[normGuia(c.guia)]=c.guia;
     const itens=Object.values(guias).map(g=>({guia:g,mensagem:"📄 PDF da Ordem de Serviço do Guia de "+dataBR(PLANO.data)+", gerado na hora pelo Phoenix."+RODAPE}));
