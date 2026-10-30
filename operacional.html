@@ -664,7 +664,7 @@
     if(info) info.textContent=PLANO.plano.atualizadoPor?("Última alteração: "+PLANO.plano.atualizadoPor+" às "+new Date(PLANO.plano.atualizadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})):"";
     if(!lista.length){ box.innerHTML='<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio planejado</h3><p>Clique em “Adicionar passeio” para montar os carros de '+dataBR(PLANO.data)+'.</p></div>'; return; }
     const comGuia=lista.reduce((s,p)=>s+p.carros.filter(c=>c.guia).length,0);
-    let h=(podeGuia()&&comGuia?'<div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button class="btn mini" onclick="avisarPasseios(null)">📲 Avisar guias'+(PLANO.saida==="todas"?" (Porto e Recife)":PLANO.saida==="porto"?" de Porto":" de Recife")+'</button></div>':'')
+    let h=(podeGuia()&&comGuia?'<div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button class="btn mini" onclick="avisarPasseios(null)">📲 Avisar guias'+(PLANO.saida==="todas"?" (Porto e Recife)":PLANO.saida==="porto"?" de Porto":" de Recife")+'</button><button class="btn mini sec" style="margin-left:8px" onclick="enviarPdfPasseios(null)">📄 Enviar PDF da escala'+(PLANO.saida==="todas"?"":PLANO.saida==="porto"?" de Porto":" de Recife")+'</button></div>':'')
       +'<div class="cards-resumo"><div class="resumo"><div class="num">'+lista.length+'</div><div class="lbl">Passeios</div></div><div class="resumo"><div class="num">'+carros+'</div><div class="lbl">Carros</div></div><div class="resumo '+(semGuia?"alerta":"ok")+'"><div class="num">'+semGuia+'</div><div class="lbl">Sem guia</div></div></div>';
     const REG={porto:"📍 Saindo de Porto de Galinhas",recife:"📍 Saindo de Recife / Cabo"};
     for(const reg of ["porto","recife"]){
@@ -676,7 +676,7 @@
         h+='<div class="card" style="padding:14px 18px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;"><b style="color:var(--tinta)">🏖️ '+esc(p.nome)+'</b>'
           +(p.obs?'<span class="chip on" style="font-size:.66rem;padding:1px 8px;background:var(--aviso);border-color:var(--aviso);color:#fff;">'+esc(p.obs)+'</span>':'')
           +'<span style="font-size:.78rem;color:'+(falta?"var(--alerta)":"var(--ok)")+';font-weight:600;">'+p.carros.length+' carro(s)'+(falta?' · '+falta+' sem guia':' · completo')+'</span>'
-          +(podeGuia()&&p.carros.some(c=>c.guia)?'<button class="btn mini sec" style="margin-left:'+(p.saida===minhaSaida()?'auto':'auto')+'" onclick="avisarPasseios(\''+p.id+'\')">📲 Avisar</button>':'')
+          +(podeGuia()&&p.carros.some(c=>c.guia)?'<button class="btn mini sec" style="margin-left:'+(p.saida===minhaSaida()?'auto':'auto')+'" onclick="avisarPasseios(\''+p.id+'\')">📲 Avisar</button><button class="btn mini sec" onclick="enviarPdfPasseios(\''+p.id+'\')">📄 PDF</button>':'')
           +(p.saida===minhaSaida()?'<span style="'+(podeGuia()&&p.carros.some(c=>c.guia)?'':'margin-left:auto;')+'display:flex;gap:6px;"><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
         p.carros.forEach((c,i)=>{
           const campoGuia = podeGuia()
@@ -686,7 +686,7 @@
             +'<div style="min-width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+(i+1)+'</div>'
             +'<div style="min-width:120px"><b>'+esc(tipoCarro(c.tipo))+'</b>'+(idiomaCarro(c)?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;">'+esc(idiomaCarro(c).toLowerCase())+'</span>':'')
             +(c.privativo?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;background:var(--tinta);border-color:var(--tinta);color:#fff;">PVT'+(c.privativo.reserva?' '+esc(c.privativo.reserva):'')+(c.privativo.pax?' · '+c.privativo.pax+' pax':'')+'</span>':'')+'</div>'
-            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia):'')+'</div>';
+            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia).replace("enviado","avisado")+' '+statusEnvio(PLANO.data,"pdf",c.guia).replace("enviado","PDF"):'')+'</div>';
         });
         h+='</div>';
       }
@@ -852,6 +852,14 @@
     abrirEnvio("passeio",PLANO.data,itens,()=>desenharPlano());
   }
 
+  function enviarPdfPasseios(passeioId){
+    const ps=(PLANO.plano.passeios||[]).filter(p=>passeioId?p.id===passeioId:(PLANO.saida==="todas"||p.saida===PLANO.saida));
+    const guias={};
+    for(const p of ps) for(const c of p.carros) if(c.guia) guias[normGuia(c.guia)]=c.guia;
+    const itens=Object.values(guias).map(g=>({guia:g,mensagem:"📄 PDF da Ordem de Serviço do Guia de "+dataBR(PLANO.data)+", gerado na hora pelo Phoenix."+RODAPE}));
+    abrirEnvio("pdf",PLANO.data,itens,()=>desenharPlano());
+  }
+
   // ---- janela de confirmação do envio ----
   async function abrirEnvio(tipo,data,itens,depois){
     if(!itens.length){ alert("Nenhum guia para enviar."); return; }
@@ -876,7 +884,7 @@
     const prontos=J.itens.filter(it=>contatoDe(it.guia)&&!it.fora&&!it.resultado).length;
     const semTel=J.itens.filter(it=>!contatoDe(it.guia)).length;
     f.innerHTML='<div class="card" style="max-width:720px;width:100%;margin:0;">'
-      +'<h3 style="margin-bottom:4px;">📲 '+(J.tipo==="escala"?"Enviar escala":"Avisar passeio")+' · '+dataBR(J.data)+'</h3>'
+      +'<h3 style="margin-bottom:4px;">'+(J.tipo==="escala"?"📲 Enviar escala":J.tipo==="pdf"?"📄 Enviar PDF da escala":"📲 Avisar passeio")+' · '+dataBR(J.data)+'</h3>'
       +'<p style="font-size:.8rem;color:var(--muted);margin-bottom:8px;">'+J.itens.length+' guia(s)'+(semTel?' · <span style="color:var(--alerta)">'+semTel+' sem telefone</span>':'')+'. As mensagens saem pelo WhatsApp da Z-API, uma a cada 1,5 segundo.</p>'
       +linhas
       +'<div id="envProgresso" style="font-size:.82rem;color:var(--muted);margin-top:10px;"></div>'
@@ -895,11 +903,12 @@
     const fila=J.itens.filter(it=>contatoDe(it.guia)&&!it.fora&&!it.resultado);
     const b=document.getElementById("envBtn"); if(b){ b.disabled=true; b.textContent="Enviando..."; }
     const prog=document.getElementById("envProgresso");
-    for(let k=0;k<fila.length;k+=10){
-      const lote=fila.slice(k,k+10);
-      if(prog) prog.textContent="Enviando "+(k+1)+"–"+(k+lote.length)+" de "+fila.length+"...";
+    const TAM=J.tipo==="pdf"?3:10;
+    for(let k=0;k<fila.length;k+=TAM){
+      const lote=fila.slice(k,k+TAM);
+      if(prog) prog.textContent=(J.tipo==="pdf"?"Gerando PDF no Phoenix e enviando ":"Enviando ")+(k+1)+"–"+(k+lote.length)+" de "+fila.length+"...";
       try{
-        const j=await chamarEnvios("enviar",{data:J.data,tipo:J.tipo,itens:lote.map(it=>({guia:it.guia,mensagem:it.mensagem,assinatura:assinatura(it.mensagem)}))});
+        const j=await chamarEnvios(J.tipo==="pdf"?"enviarPdf":"enviar",{data:J.data,tipo:J.tipo,itens:lote.map(it=>({guia:it.guia,mensagem:it.mensagem,assinatura:assinatura(it.mensagem)}))});
         if(!j.ok){ lote.forEach(it=>it.resultado={ok:false,motivo:j.erro}); }
         else j.resultados.forEach((r,x)=>{ lote[x].resultado=r; });
       }catch(e){ lote.forEach(it=>it.resultado={ok:false,motivo:"erro de conexão"}); }
