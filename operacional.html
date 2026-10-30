@@ -198,7 +198,7 @@
     else if(r.ok){ USUARIO=r; iniciarApp(); }
     else msg(r.erro||"Erro ao entrar.","erro");
   }
-  function sair(){ pararAcompanhamento(); USUARIO=null; document.getElementById("app").classList.remove("ativo"); document.getElementById("telaAcesso").style.display="flex"; loginSenha.value=""; }
+  function sair(){ if(AVISOS_TIMER){ clearInterval(AVISOS_TIMER); AVISOS_TIMER=null; } PLANO.avisos=[]; pararAcompanhamento(); USUARIO=null; document.getElementById("app").classList.remove("ativo"); document.getElementById("telaAcesso").style.display="flex"; loginSenha.value=""; }
 
   // ---- App ----
   const ABAS = {
@@ -234,6 +234,8 @@
     document.getElementById("userInfo").innerHTML=(USUARIO.nome||USUARIO.email)+"<br><span style='color:#9fc9c1;font-size:.68rem;'>"+(USUARIO.admin?"Admin · vê tudo":"Acesso liberado")+"</span>";
     montarMenu();
     aplicarPrefSidebar();
+    if(AVISOS_TIMER) clearInterval(AVISOS_TIMER);
+    if(USUARIO.admin||(USUARIO.areas||[]).includes("central")){ atualizarAvisosPlano(); AVISOS_TIMER=setInterval(atualizarAvisosPlano,60000); }
   }
 
   function montarMenu(){
@@ -244,7 +246,7 @@
       bloco.innerHTML='<div class="sb-area-tit">'+area.nome+'</div>';
       for(const it of area.itens){
         const d=document.createElement("div"); d.className="sb-item";
-        d.innerHTML='<span class="ic">'+it.ic+'</span> <span class="rotulo">'+it.nome+'</span>';
+        d.innerHTML='<span class="ic">'+it.ic+'</span> <span class="rotulo">'+it.nome+'</span> <span class="pend" id="selo-'+it.id+'" style="display:none"></span>';
         d.onclick=()=>abrir(it.id, it.nome, area.nome, d);
         bloco.appendChild(d);
       }
@@ -623,18 +625,20 @@
   const podePdf=(p)=>podeGuia()||(PLANO.area==="porto"&&p.saida==="porto"&&(USUARIO.admin||(USUARIO.areas||[]).includes("porto")));
   const podeGuia=()=>PLANO.area==="central"&&(USUARIO.admin||(USUARIO.areas||[]).includes("central"));
   async function chamarPlano(acao,dados){
-    const r=await fetch(API_PLANO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:PLANO.data,...dados})});
+    const r=await fetch(API_PLANO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:PLANO.data||amanhaISO(),origem:PLANO.area,...dados})});
     const j=await r.json(); sessaoExpirou(j); return j;
   }
   function renderPlano(m, area){
     pararAcompanhamento();
     PLANO.area=area; if(!PLANO.data) PLANO.data=amanhaISO(); PLANO.editando=null;
+    if(area==="porto") PLANO.saida="porto"; else if(PLANO.saidaForcada) PLANO.saida="todas";
+    PLANO.saidaForcada=area==="porto";
     const chip=(v,t)=>'<span class="chip '+(PLANO.saida===v?"on":"")+'" onclick="PLANO.saida=\''+v+'\';desenharPlano()">'+t+'</span>';
     m.innerHTML=`
       <div class="barra-busca" style="flex-wrap:wrap;gap:8px;">
         <input type="date" id="planoData" value="${PLANO.data}" style="flex:0;" onchange="PLANO.data=this.value;carregarPlano()">
         <button class="btn" onclick="editarPasseio(null)">＋ Passeio saindo de ${NOME_SAIDA[minhaSaida()]}</button>
-        <button class="btn sec" onclick="abrirImportar()">📋 Colar mensagem</button>
+        ${area==="porto"?"":'<button class="btn sec" onclick="abrirImportar()">📋 Colar mensagem</button>'}
         <span id="planoInfo" style="font-size:.8rem;color:var(--muted);"></span>
         <button class="btn sec" style="margin-left:auto" onclick="ESC.data=PLANO.data;renderEscala(document.getElementById('mainConteudo'),'passeios')">🔎 Ver como ficou no Phoenix</button>
       </div>
@@ -658,17 +662,18 @@
     const box=document.getElementById("planoConteudo"); if(!box||!PLANO.plano) return;
     if((podeGuia()||PLANO.area==="porto")&&envPrecisaCarregar(PLANO.data)){ envCarregar(PLANO.data).then(desenharPlano); }
     const ch=document.getElementById("planoChips");
-    if(ch) ch.innerHTML=PLANO.chip("todas","Todas as saídas")+PLANO.chip("porto","Porto de Galinhas")+PLANO.chip("recife","Recife / Cabo");
+    if(ch) ch.innerHTML=PLANO.area==="porto"?"":PLANO.chip("todas","Todas as saídas")+PLANO.chip("porto","Porto de Galinhas")+PLANO.chip("recife","Recife / Cabo");
     const todos=PLANO.plano.passeios||[];
     const lista=todos.filter(p=>PLANO.saida==="todas"||p.saida===PLANO.saida);
     const carros=lista.reduce((s,p)=>s+p.carros.length,0), semGuia=lista.reduce((s,p)=>s+p.carros.filter(c=>!c.guia).length,0);
     const info=document.getElementById("planoInfo");
     if(info) info.textContent=PLANO.plano.atualizadoPor?("Última alteração: "+PLANO.plano.atualizadoPor+" às "+new Date(PLANO.plano.atualizadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})):"";
-    if(!lista.length){ box.innerHTML='<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio planejado</h3><p>Clique em “Adicionar passeio” para montar os carros de '+dataBR(PLANO.data)+'.</p></div>'; return; }
+    if(!lista.length){ box.innerHTML=(podeGuia()?htmlAvisosPlano():"")+'<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio planejado</h3><p>Clique em “Adicionar passeio” para montar os carros de '+dataBR(PLANO.data)+'.</p></div>'; return; }
     const comGuia=lista.reduce((s,p)=>s+p.carros.filter(c=>c.guia).length,0);
     const comPdf=lista.some(p=>podePdf(p)&&p.carros.some(c=>c.guia));
+    const bannerAvisos=podeGuia()?htmlAvisosPlano():"";
     const rotSaida=PLANO.saida==="todas"?"":PLANO.saida==="porto"?" de Porto":" de Recife";
-    let h=((podeGuia()&&comGuia)||comPdf?'<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">'
+    let h=bannerAvisos+((podeGuia()&&comGuia)||comPdf?'<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">'
         +(podeGuia()&&comGuia?'<button class="btn mini" onclick="avisarPasseios(null)">📲 Avisar guias'+(PLANO.saida==="todas"?" (Porto e Recife)":rotSaida)+'</button>':'')
         +(comPdf?'<button class="btn mini sec" onclick="enviarPdfPasseios(null)">📄 Enviar PDF da escala'+(podeGuia()?rotSaida:" de Porto")+'</button>':'')
         +'</div>':'')
@@ -685,7 +690,7 @@
           +(p.obs?'<span class="chip on" style="font-size:.66rem;padding:1px 8px;background:var(--aviso);border-color:var(--aviso);color:#fff;">'+esc(p.obs)+'</span>':'')
           +'<span style="font-size:.78rem;color:'+(falta?"var(--alerta)":"var(--ok)")+';font-weight:600;">'+p.carros.length+' carro(s)'+(falta?' · '+falta+' sem guia':' · completo')+'</span>'
           +(btAv||btPdf?'<span style="margin-left:auto;display:flex;gap:6px;">'+(btAv?'<button class="btn mini sec" onclick="avisarPasseios(\''+p.id+'\')">📲 Avisar</button>':'')+(btPdf?'<button class="btn mini sec" onclick="enviarPdfPasseios(\''+p.id+'\')">📄 PDF</button>':'')+'</span>':'')
-          +(p.saida===minhaSaida()?'<span style="'+(btAv||btPdf?'':'margin-left:auto;')+'display:flex;gap:6px;"><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
+          +(p.saida===minhaSaida()?'<span style="'+(btAv||btPdf?'':'margin-left:auto;')+'display:flex;gap:6px;"><button class="btn mini sec" onclick="maisCarro(\''+p.id+'\')">＋ Carro</button><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">✏️ Editar</button><button class="btn mini danger" onclick="removerPasseio(\''+p.id+'\')">🗑️</button></span>':'')+'</div>';
         p.carros.forEach((c,i)=>{
           const campoGuia = podeGuia()
             ? '<input class="plano-guia" value="'+esc(c.guia||"")+'" placeholder="Nome do guia" style="max-width:220px;padding:6px 10px;border:1px solid var(--linha);border-radius:8px;font-size:.84rem;text-transform:uppercase;" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarGuia(\''+p.id+'\',\''+c.id+'\',this)">'
@@ -694,7 +699,7 @@
             +'<div style="min-width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+(i+1)+'</div>'
             +'<div style="min-width:120px"><b>'+esc(tipoCarro(c.tipo))+'</b>'+(idiomaCarro(c)?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;">'+esc(idiomaCarro(c).toLowerCase())+'</span>':'')
             +(c.privativo?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;background:var(--tinta);border-color:var(--tinta);color:#fff;">PVT'+(c.privativo.reserva?' '+esc(c.privativo.reserva):'')+(c.privativo.pax?' · '+c.privativo.pax+' pax':'')+'</span>':'')+'</div>'
-            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podePdf(p)?(podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia).replace("enviado","avisado")+' ':'')+statusEnvio(PLANO.data,"pdf",c.guia).replace("enviado","PDF"):'')+'</div>';
+            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podePdf(p)?(podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia).replace("enviado","avisado")+' ':'')+statusEnvio(PLANO.data,"pdf",c.guia).replace("enviado","PDF"):'')+(p.saida===minhaSaida()?'<button class="btn mini danger" style="padding:3px 9px" title="Cancelar este carro" onclick="removerCarro(\''+p.id+'\',\''+c.id+'\','+(i+1)+')">✕</button>':'')+'</div>';
         });
         h+='</div>';
       }
@@ -1009,6 +1014,53 @@
     document.getElementById("senhaFundo").remove();
     if(l.ok){ USUARIO=l; iniciarApp(); alert("Senha trocada com sucesso."); }
     else { sair(); msg("Senha trocada. Entre de novo com a senha nova.","ok"); }
+  }
+
+
+  // ---- Cancelar carro / pedir mais carro (Porto) e avisos para a Central ----
+  let AVISOS_TIMER=null;
+  async function removerCarro(passeioId,carroId,n){
+    const p=(PLANO.plano.passeios||[]).find(x=>x.id===passeioId); if(!p) return;
+    const c=p.carros.find(x=>x.id===carroId);
+    if(!confirm("Cancelar o carro "+n+" ("+tipoCarro(c.tipo)+(c.guia?", guia "+c.guia:"")+") do "+p.nome+"?"+(PLANO.area==="porto"?"\n\nA Central de Guias será avisada.":"")+(p.carros.length===1?"\n\nÉ o único carro: o passeio sai do planejamento.":""))) return;
+    const j=await chamarPlano("removerCarro",{passeioId,carroId});
+    if(!j.ok){ alert(j.erro||"Erro"); return; }
+    PLANO.plano=j.plano; desenharPlano();
+  }
+  function maisCarro(passeioId){
+    editarPasseio(passeioId);
+    const cs=PLANO.editando.carros, ult=cs[cs.length-1]||{tipo:"Bus"};
+    cs.push({tipo:tipoCarro(ult.tipo)||"Bus",idioma:"",privativo:null});
+    desenharEditor();
+  }
+  async function atualizarAvisosPlano(){
+    try{
+      const j=await chamarPlano("avisos",{});
+      if(!j.ok) return;
+      PLANO.avisos=j.avisos||[];
+      const s=document.getElementById("selo-cen-passeios");
+      if(s){ s.textContent=PLANO.avisos.length; s.style.display=PLANO.avisos.length?"inline-block":"none"; }
+      if(PLANO.area==="central"&&document.getElementById("planoConteudo")&&!PLANO.editando) desenharPlano();
+    }catch(e){}
+  }
+  function htmlAvisosPlano(){
+    const L=PLANO.avisos||[]; if(!L.length) return "";
+    const COR={cancelou:"var(--alerta)",pediu:"var(--aviso)",novo:"var(--verde)"}, IC={cancelou:"🚫",pediu:"➕",novo:"🆕"};
+    return '<div class="card" style="border:2px solid var(--aviso);padding:12px 16px;">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><b>🔔 Mudanças de Porto ('+L.length+')</b><button class="btn mini sec" style="margin-left:auto" onclick="cienteAvisos(null)">Ciente em todos</button></div>'
+      +L.map(a=>'<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--linha);font-size:.84rem;flex-wrap:wrap;">'
+        +'<a href="#" onclick="event.preventDefault();PLANO.data=\''+a.data+'\';document.getElementById(\'planoData\').value=\''+a.data+'\';carregarPlano()" style="font-weight:700;color:var(--verde);min-width:44px">'+dataBR(a.data).slice(0,5)+'</a>'
+        +'<span style="color:'+(COR[a.tipo]||"inherit")+'">'+(IC[a.tipo]||"•")+'</span><span style="flex:1">'+esc(a.texto)+'</span>'
+        +'<span style="font-size:.74rem;color:var(--muted)">'+esc(a.por)+' · '+new Date(a.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+'</span>'
+        +'<button class="btn mini sec" onclick="cienteAvisos([\''+a.id+'\'])">Ciente</button></div>').join("")
+      +'</div>';
+  }
+  async function cienteAvisos(ids){
+    ids=ids||(PLANO.avisos||[]).map(a=>a.id); if(!ids.length) return;
+    const j=await chamarPlano("ciente",{ids}); if(!j.ok){ alert(j.erro||"Erro"); return; }
+    PLANO.avisos=(PLANO.avisos||[]).filter(a=>!ids.includes(a.id));
+    const s=document.getElementById("selo-cen-passeios"); if(s){ s.textContent=PLANO.avisos.length; s.style.display=PLANO.avisos.length?"inline-block":"none"; }
+    desenharPlano();
   }
 
   // ---- Usuários (admin) ----
