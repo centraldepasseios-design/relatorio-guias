@@ -647,6 +647,7 @@
       <div id="planoConteudo"><div class="card" style="color:var(--muted)">Carregando...</div></div>`;
     PLANO.chip=chip;
     carregarPlano();
+    carregarCatalogo();
     PLANO.timer=setInterval(()=>{ const a=document.activeElement; if(!PLANO.editando && !(a&&a.classList&&a.classList.contains("plano-guia"))) carregarPlano(true); },30000);
   }
   async function carregarPlano(silencioso){
@@ -699,7 +700,7 @@
             +'<div style="min-width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">'+(i+1)+'</div>'
             +'<div style="min-width:120px"><b>'+esc(tipoCarro(c.tipo))+'</b>'+(idiomaCarro(c)?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;">'+esc(idiomaCarro(c).toLowerCase())+'</span>':'')
             +(c.privativo?' <span class="chip on" style="font-size:.66rem;padding:1px 7px;background:var(--tinta);border-color:var(--tinta);color:#fff;">PVT'+(c.privativo.reserva?' '+esc(c.privativo.reserva):'')+(c.privativo.pax?' · '+c.privativo.pax+' pax':'')+'</span>':'')+'</div>'
-            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podePdf(p)?(podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia).replace("enviado","avisado")+' ':'')+statusEnvio(PLANO.data,"pdf",c.guia).replace("enviado","PDF"):'')+(p.saida===minhaSaida()?'<button class="btn mini danger" style="padding:3px 9px" title="Cancelar este carro" onclick="removerCarro(\''+p.id+'\',\''+c.id+'\','+(i+1)+')">✕</button>':'')+'</div>';
+            +'<div style="flex:1;min-width:180px">'+campoGuia+'</div>'+(c.guia&&podePdf(p)?(podeGuia()?statusEnvio(PLANO.data,"passeio",c.guia).replace("enviado","avisado")+' ':'')+statusEnvio(PLANO.data,"pdf",c.guia).replace("enviado","PDF"):'')+(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')+(p.saida===minhaSaida()?'<button class="btn mini danger" style="padding:3px 9px" title="Cancelar este carro" onclick="removerCarro(\''+p.id+'\',\''+c.id+'\','+(i+1)+')">✕</button>':'')+'</div>';
         });
         h+='</div>';
       }
@@ -734,7 +735,7 @@
       +'<h3 style="margin-bottom:12px;">'+(e.id?"Editar passeio":"Novo passeio")+' · '+dataBR(PLANO.data)+'</h3>'
       +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">'
       +'<input id="edNome" list="edSug" placeholder="Nome do passeio (ex.: MARAGOGI)" value="'+esc(e.nome)+'" oninput="PLANO.editando.nome=this.value" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--linha);border-radius:9px;text-transform:uppercase;">'
-      +'<datalist id="edSug">'+PLANO.sugestoes.map(s=>'<option value="'+esc(s)+'">').join("")+'</datalist>'
+      +'<datalist id="edSug">'+opcoesPasseio(e.saida)+'</datalist>'
       +'<input placeholder="Obs. (ex.: EXTRA)" value="'+esc(e.obs)+'" oninput="PLANO.editando.obs=this.value" style="width:170px;padding:9px 12px;border:1px solid var(--linha);border-radius:9px;text-transform:uppercase;">'
       +'<span style="align-self:center;font-size:.85rem;color:var(--muted);">Saindo de '+NOME_SAIDA[e.saida]+'</span>'
       +'<label style="display:flex;align-items:center;gap:6px;font-size:.85rem;">Quantidade <input type="number" min="1" max="30" value="'+e.carros.length+'" onchange="ajustarQtd(this.value)" style="width:64px;padding:8px;border:1px solid var(--linha);border-radius:9px;"></label></div>'
@@ -781,6 +782,21 @@
     const j=await chamarPlano("importar",{passeios:r.passeios});
     if(!j.ok){ alert(j.erro||"Erro ao importar."); b.disabled=false; b.textContent="Importar"; return; }
     PLANO.plano=j.plano; PLANO.editando=null; desenharEditor(); desenharPlano();
+  }
+  // nomes de passeio do Phoenix (catálogo atualizado 1x por dia) + nomes já usados no planejamento
+  async function carregarCatalogo(){
+    if(PLANO.catalogo||PLANO.carregandoCatalogo) return;
+    PLANO.carregandoCatalogo=true;
+    try{
+      const r=await fetch(API_ESCALA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"catalogo",token:USUARIO.token})});
+      const j=await r.json(); if(sessaoExpirou(j)) return;
+      if(j.ok){ PLANO.catalogo=j.nomes||[]; const d=document.getElementById("edSug"); if(d&&PLANO.editando) d.innerHTML=opcoesPasseio(PLANO.editando.saida); }
+    }catch(e){} finally{ PLANO.carregandoCatalogo=false; }
+  }
+  function opcoesPasseio(saida){
+    const doPhoenix=(PLANO.catalogo||[]).filter(n=>regiaoServ(n)===saida);
+    const nomes=[...new Set([...doPhoenix,...(PLANO.sugestoes||[])])].sort();
+    return nomes.map(s=>'<option value="'+esc(s)+'">').join("");
   }
   function ajustarQtd(v){
     const n=Math.max(1,Math.min(30,parseInt(v,10)||1)), cs=PLANO.editando.carros;
@@ -877,6 +893,10 @@
     abrirEnvio("pdf",PLANO.data,itens,()=>desenharPlano());
   }
 
+  function enviarPdfGuia(guia){
+    abrirEnvio("pdf",PLANO.data,[{guia,mensagem:"📄 PDF da Ordem de Serviço do Guia de "+dataBR(PLANO.data)+", gerado na hora pelo Phoenix."+RODAPE}],()=>desenharPlano());
+  }
+
   // ---- janela de confirmação do envio ----
   async function abrirEnvio(tipo,data,itens,depois){
     if(!itens.length){ alert("Nenhum guia para enviar."); return; }
@@ -900,9 +920,19 @@
     }).join("");
     const prontos=J.itens.filter(it=>contatoDe(it.guia)&&!it.fora&&!it.resultado).length;
     const semTel=J.itens.filter(it=>!contatoDe(it.guia)).length;
+    const jaRecebeu=J.tipo==="pdf"?J.itens.filter(it=>envioDe(J.data,"pdf",it.guia)&&!it.resultado).length:0;
+    if(jaRecebeu&&!J.reenvio) J.reenvio={usar:true,texto:"Entrou pax extra, considerar esta escala."};
+    const MOTIVOS=["Entrou pax extra, considerar esta escala.","Saiu pax, considerar esta escala.","Mudou horário, considerar esta escala.","Mudou carro/motorista, considerar esta escala."];
+    const blocoReenvio=jaRecebeu?'<div style="background:#fff7e8;border:1px solid var(--aviso);border-radius:10px;padding:12px 14px;margin:6px 0 10px;font-size:.84rem;">'
+      +'<label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" '+(J.reenvio.usar?'checked':'')+' onchange="ENV.janela.reenvio.usar=this.checked;desenharEnvio()"> '+jaRecebeu+' guia(s) já receberam o PDF hoje: avisar que é uma escala atualizada</label>'
+      +(J.reenvio.usar?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+MOTIVOS.map(m=>'<span class="chip '+(J.reenvio.texto===m?'on':'')+'" style="cursor:pointer" onclick="ENV.janela.reenvio.texto=\''+m+'\';desenharEnvio()">'+m.split(",")[0]+'</span>').join("")+'</div>'
+        +'<input value="'+esc(J.reenvio.texto)+'" oninput="ENV.janela.reenvio.texto=this.value" maxlength="200" style="width:100%;margin-top:8px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;font-size:.84rem">'
+        +'<div style="color:var(--muted);font-size:.76rem;margin-top:6px">Quem já recebeu ganha no topo: ⚠️ <b>ESCALA ATUALIZADA</b> + essa mensagem. Quem ainda não recebeu ganha o PDF normal.</div>':'')
+      +'</div>':'';
     f.innerHTML='<div class="card" style="max-width:720px;width:100%;margin:0;">'
       +'<h3 style="margin-bottom:4px;">'+(J.tipo==="escala"?"📲 Enviar escala":J.tipo==="pdf"?"📄 Enviar PDF da escala":"📲 Avisar passeio")+' · '+dataBR(J.data)+'</h3>'
       +'<p style="font-size:.8rem;color:var(--muted);margin-bottom:8px;">'+J.itens.length+' guia(s)'+(semTel?' · <span style="color:var(--alerta)">'+semTel+' sem telefone</span>':'')+'. As mensagens saem pelo WhatsApp da Z-API, uma a cada 1,5 segundo.</p>'
+      +blocoReenvio
       +linhas
       +'<div id="envProgresso" style="font-size:.82rem;color:var(--muted);margin-top:10px;"></div>'
       +'<div style="display:flex;gap:8px;margin-top:12px;"><span style="margin-left:auto"></span><button class="btn sec" onclick="fecharEnvio()">Fechar</button>'
@@ -925,7 +955,7 @@
       const lote=fila.slice(k,k+TAM);
       if(prog) prog.textContent=(J.tipo==="pdf"?"Gerando PDF no Phoenix e enviando ":"Enviando ")+(k+1)+"–"+(k+lote.length)+" de "+fila.length+"...";
       try{
-        const j=await chamarEnvios(J.tipo==="pdf"?"enviarPdf":"enviar",{data:J.data,tipo:J.tipo,itens:lote.map(it=>({guia:it.guia,mensagem:it.mensagem,assinatura:assinatura(it.mensagem)}))});
+        const j=await chamarEnvios(J.tipo==="pdf"?"enviarPdf":"enviar",{data:J.data,tipo:J.tipo,itens:lote.map(it=>({guia:it.guia,mensagem:it.mensagem,assinatura:assinatura(it.mensagem),aviso:(J.tipo==="pdf"&&J.reenvio&&J.reenvio.usar&&envioDe(J.data,"pdf",it.guia))?J.reenvio.texto:""}))});
         if(!j.ok){ lote.forEach(it=>it.resultado={ok:false,motivo:j.erro}); }
         else j.resultados.forEach((r,x)=>{ lote[x].resultado=r; });
       }catch(e){ lote.forEach(it=>it.resultado={ok:false,motivo:"erro de conexão"}); }
