@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meu pagamento · Luck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--acc:#0e7c6b;--acc-esc:#0b4f44;--claro:#e3f2ee;--bg:#f5f7f6;--tinta:#17302b;--muted:#5c706b;--linha:#e3ebe8;--alerta:#9f2a15;--alerta-bg:#fde4df;--aviso:#8a4a0c;--aviso-bg:#fff1e0}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--tinta);font-family:'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:480px;margin:0 auto;padding:20px 16px 48px;padding-top:calc(20px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:14px}
+  h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.4px} .sub{font-size:13px;color:var(--muted);font-weight:600}
+  .card{background:#fff;border:1px solid var(--linha);border-radius:18px;padding:16px}
+  .passos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .passo{height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;background:#fff;color:var(--muted);border:1px solid var(--linha)}
+  .passo.feito{background:var(--claro);color:var(--acc-esc);border-color:var(--claro)} .passo.atual{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .valor{background:var(--acc);color:#fff;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:10px}
+  .valor .lbl{font-size:12px;font-weight:700;color:#d6efe9} .valor .num{font-size:32px;font-weight:800;letter-spacing:-.5px}
+  .grade{display:grid;grid-template-columns:1fr auto;gap:6px 14px;font-size:13px;color:#e8f6f2} .grade b{text-align:right}
+  .espera{background:var(--aviso-bg);color:var(--aviso);border-radius:14px;padding:12px 14px;font-size:13px;font-weight:600;line-height:1.45}
+  .linha{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #edf2f0;font-size:14px} .linha:first-child{border-top:none}
+  .linha .d{width:44px;font-weight:800;font-size:13px} .linha .s{flex:1;font-weight:600} .linha .v{font-weight:800}
+  .mini{border:none;background:none;color:var(--acc-esc);font-family:inherit;font-weight:800;font-size:12px;padding:8px 4px;cursor:pointer}
+  .btn{height:50px;border-radius:14px;border:none;background:var(--acc);color:#fff;font-family:inherit;font-weight:800;font-size:15px;width:100%;cursor:pointer}
+  .btn.sec{background:#fff;color:var(--tinta);border:1px solid #cfdcd8} .btn:disabled{opacity:.6}
+  .tag{font-size:11px;font-weight:800;border-radius:999px;padding:4px 10px;display:inline-block}
+  .desc{margin:8px 0 10px;font-size:12px;line-height:1.55;color:#3c524d;background:var(--bg);border-radius:10px;padding:10px 12px;font-family:ui-monospace,monospace;word-break:break-word}
+  .ok{background:var(--claro);border-radius:18px;padding:16px;color:var(--acc-esc)} .prob{background:var(--alerta-bg);border-radius:18px;padding:16px;color:var(--alerta)}
+  textarea,select,input[type=text]{width:100%;border:1px solid #cfdcd8;border-radius:12px;padding:10px 12px;font-family:inherit;font-size:15px;background:#fff;color:var(--tinta)}
+  label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#3c524d}
+  .fundo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
+  .folha{background:#fff;width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="sub">Carregando...</p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  const API="https://us-central1-operacional-luck.cloudfunctions.net/piloto";
+  const T=new URLSearchParams(location.search).get("t")||"";
+  let D=null;
+  const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const brl=(v)=>"R$ "+Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const dBR=(iso)=>{const [a,m,d]=String(iso).split("-");return d+"/"+m;};
+  const MESES=["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+  async function api(acao,dados){ const r=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,t:T,...dados})}); return r.json(); }
+  // ---- Leitura de nota fiscal de guia (DANFSe padrão nacional v1/v2 e nota avulsa de prefeitura) ----
+// Recebe o texto do PDF (linhas) e devolve os dados que interessam para a conferência.
+const LUCK_CNPJ = "10866549000117";
+function lerNota(texto) {
+  const t = String(texto || "");
+  const plano = t.replace(/\s+/g, " ");
+  const so = (s) => String(s || "").replace(/\D/g, "");
+  const dinheiro = (s) => parseFloat(String(s).replace(/\./g, "").replace(",", "."));
+  const r = { tipo: "desconhecido", numero: null, chave: null, emissao: null, competencia: null, periodo: null,
+    prestadorDoc: null, prestadorNome: null, luck: false, valor: null, comissao: null, servicos: [], somaServicos: 0, avisos: [] };
+
+  if (/DANFSe/i.test(plano) || /Documento Auxiliar da NFS-e/i.test(plano)) r.tipo = "nfse";
+  else if (/NOTA FISCAL AVULSA/i.test(plano)) r.tipo = "avulsa";
+
+  // documentos (CNPJ/CPF) na ordem em que aparecem; o 1º que não é da Luck é o do prestador
+  const docs = [...plano.matchAll(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2})\b/g)].map((m) => so(m[1]));
+  r.luck = docs.includes(LUCK_CNPJ);
+  r.prestadorDoc = docs.find((d) => d !== LUCK_CNPJ && d !== "10091536000113") || null; // 2º: CNPJ da prefeitura de Caruaru no cabeçalho
+
+  if (r.tipo === "nfse") {
+    const ch = plano.match(/CHAVE DE ACESSO DA NFS-e\s*(\d{40,60})/i); if (ch) r.chave = ch[1];
+    const nm = plano.match(/N[ÚU]MERO DA NFS-e\s+COMPET[ÊE]NCIA DA NFS-e\s+DATA E HORA DA EMISS[ÃA]O DA NFS-e\s+(\d+)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})/i);
+    if (nm) { r.numero = nm[1]; r.competencia = nm[2]; r.emissao = nm[3]; }
+    const nome = plano.match(/Nome \/ Nome Empresarial\s+(?:Munic[íi]pio[^\n]*?CEP\s+|E-mail\s+)?\d{2}\.\d{3}\.\d{3}\s+([A-ZÀ-Ú ]+?)\s{1,}(?:[A-ZÀ-Ú][a-zà-ú]|[A-Z]+@|Recife|Igarassu|Olinda|Jaboat|Ipojuca|Paulista|Cabo|Caruaru|\(|$)/);
+    if (nome) r.prestadorNome = nome[1].trim();
+  } else if (r.tipo === "avulsa") {
+    const nm = plano.match(/N[úu]mero:?\s*(?:Data Emiss[ãa]o:?\s*)?(\d{4,})/i) || plano.match(/\b(\d{6})\b(?=.*Imposto Sobre)/);
+    if (nm) r.numero = nm[1];
+    const pe = plano.match(/(\d{2}\/\d{2}\/\d{4})\s*(?:PRESTA[ÇC][ÃA]O DE SERVI[ÇC]O\s*)?(?:\d{2}\/\d{2}\/\d{4}\s*)?(?:\d+\s*)?(?:[A-Z]\s*)?(?:PE\s*)*-\s*(\d{2}\/\d{2}\/\d{4})/);
+    if (pe) r.periodo = [pe[1], pe[2]];
+    const nome = t.match(/Nome\/Raz[ãa]o Social:\s*\n\s*([A-ZÀ-Ú ]{5,})/);
+    if (nome) r.prestadorNome = nome[1].trim();
+  }
+
+  // valor da nota: o maior valor em reais do documento (é sempre o total da nota)
+  const valores = [...plano.matchAll(/(?<![\d.,\/])(\d{1,3}(?:\.\d{3})*,\d{2})(?![\d])/g)].map((m) => dinheiro(m[1])).filter((v) => v > 0);
+  if (valores.length) r.valor = Math.max(...valores);
+
+  // descrição dos serviços: trecho entre "Descrição do Serviço" e a tributação (NFS-e) ou a tabela (avulsa)
+  let desc = "";
+  const d1 = plano.match(/Descri[çc][ãa]o do Servi[çc]o\s+(.*?)\s+(?:TRIBUTA[ÇC][ÃA]O MUNICIPAL|Tipo de Tributa[çc][ãa]o|Prefeitura|$)/i);
+  if (r.tipo === "nfse" && d1) desc = d1[1];
+  if (r.tipo === "avulsa") { const d2 = plano.match(/Total\s+(1\s+UNI?\b.*?)\s+VALOR TOTAL DA NOTA/i); if (d2) desc = d2[1]; }
+  r.descricao = desc;
+  const com = desc.match(/COMISS[ÃA]?O?\s*(?:VENDAS[^\d]*\d{2}\/\d{2}\/\d{4}\s*A\s*\d{2}\/\d{2}\/\d{4}\s*)?[^\d$]{0,15}(?:R?\$)?\s*([\d.]+[.,]\d{2})/i);
+  if (com) r.comissao = dinheiro(com[1].replace(/\.(\d{2})$/, ",$1"));
+  // serviços: data dd/mm(/aaaa) seguida do nome e de um valor
+  const reServ = /(\d{2}\/\d{2})(?:\/\d{2,4}|\/20\/26)?\s*([A-ZÀ-Úa-zà-ú][^#\/$]*?|[A-Z]+?)\s*(?:R?\$\s*)?(\d{1,4}(?:,\d{2})?)(?=\s|\/|#|$|,|;|\.|[A-Z]|\*)/g;
+  if (desc) {
+    const semCom = desc.replace(/COMISS.*$/i, "");
+    for (const m of semCom.matchAll(reServ)) {
+      const v = dinheiro(m[3].includes(",") ? m[3] : m[3] + ",00");
+      if (v > 0 && v < 2000) r.servicos.push({ data: m[1], servico: m[2].replace(/\*/g, "").trim(), valor: v });
+    }
+    // na nota avulsa o valor aparece duas vezes (unitário e total): conta uma
+    r.somaServicos = Math.round(r.servicos.reduce((s, x) => s + x.valor, 0) * 100) / 100;
+  }
+  if (!r.luck) r.avisos.push("CNPJ da Luck não aparece na nota");
+  if (!r.valor) r.avisos.push("Não consegui ler o valor da nota");
+  return r;
+}
+
+
+  // nome curto do serviço, no jeito que os guias já escrevem na nota (#16/10 IN PT $83)
+  function curto(s){
+    const S=String(s).toUpperCase(); const lugar=/BOA VIAGEM|PIEDADE|RECIFE/.test(S)?"REC":/CABO/.test(S)?"CB":/PORTO DE GALINHAS/.test(S)?"PT":"";
+    if(/APOIO/.test(S)) return /VOLTA/.test(S)?"APOIO VOLTA":"APOIO";
+    const m=S.match(/^(IN|OUT)\b/); if(m) return m[1]+(lugar?" "+lugar:"");
+    return S.split(" (")[0].replace(/\s+/g," ").slice(0,28)+(lugar==="REC"?" REC":"");
+  }
+  function descricao(){
+    const [ini,fim]=D.periodo; const v=D.valores;
+    const mes=MESES[parseInt(fim.slice(5,7),10)-1];
+    const fmt=(x)=>Number(x||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+    return "ref "+ini.slice(8)+" a "+fim.slice(8)+" "+mes+" "
+      +D.linhas.map(l=>"#"+dBR(l.data)+" "+curto(l.servico)+" $"+fmt(l.valor).replace(/,00$/,"")).join(" ")
+      +", SERV: R$"+fmt(v.serv)+" COMISS: R$"+fmt(v.com)+(v.reemb?" - REEMB R$"+fmt(v.reemb):"")+(v.maq?" - MAQ R$"+fmt(v.maq):"")+" TOTAL: R$"+fmt(v.liq);
+  }
+  async function carregar(){
+    if(!T){ document.getElementById("app").innerHTML='<div class="prob">Link incompleto. Peça o seu link para a Central de Guias.</div>'; return; }
+    const j=await api("ver",{});
+    if(!j.ok){ document.getElementById("app").innerHTML='<div class="prob">'+esc(j.erro)+'</div>'; return; }
+    D=j; desenhar();
+  }
+  function desenhar(){
+    const [ini,fim]=D.periodo; const conferido=["conferido","nota_ok","nota_com_problema"].includes(D.status)||!!D.nota;
+    const passo=D.nota&&D.nota.ok?3:(D.liberado&&conferido?(D.nota?2:1):0);
+    const cls=(i)=>i<passo?"passo feito":(i===passo?"passo atual":"passo");
+    let h='<div style="display:flex;flex-direction:column;gap:2px"><span class="sub">'+dBR(ini)+' a '+dBR(fim)+'</span><h1>Olá, '+esc(D.nome.split(" ")[0].charAt(0)+D.nome.split(" ")[0].slice(1).toLowerCase())+'</h1></div>';
+    h+='<div class="passos"><div class="'+cls(0)+'">1. Conferir</div><div class="'+cls(1)+'">2. Emitir nota</div><div class="'+cls(2)+'">3. Enviar</div></div>';
+    if(D.liberado){ const v=D.valores;
+      h+='<section class="valor"><div><div class="lbl">VALOR DA SUA NOTA</div><div class="num">'+brl(v.liq)+'</div></div><div class="grade"><span>Serviços</span><b>'+brl(v.serv)+'</b><span>Comissão</span><b>'+brl(v.com)+'</b>'+(v.reemb?'<span>Reembolso</span><b>− '+brl(v.reemb)+'</b>':'')+(v.maq?'<span>Maquineta</span><b>− '+brl(v.maq)+'</b>':'')+'</div></section>';
+    } else h+='<div class="espera">Confira seus serviços abaixo. O valor da nota aparece aqui quando o financeiro lançar a comissão da quinzena.</div>';
+    const total=D.linhas.reduce((s,l)=>s+l.valor,0);
+    h+='<div class="card" style="padding:4px 16px"><div style="display:flex;justify-content:space-between;padding:12px 0 6px"><b>Seus serviços ('+D.linhas.length+')</b><span class="sub">'+brl(total)+'</span></div>';
+    h+=D.linhas.map((l,i)=>'<div class="linha"><span class="d">'+dBR(l.data)+'</span><span class="s">'+esc(curto(l.servico))+'</span><span class="v">'+brl(l.valor).replace(",00","")+'</span><button class="mini" onclick="abrirContestar('+i+')">Erro?</button></div>').join("");
+    h+='<div style="border-top:1px solid #edf2f0;padding:6px 0"><button class="mini" onclick="abrirContestar(-1)">＋ Faltou um serviço</button></div></div>';
+    if(D.contestacoes.length){
+      const ST={aberta:["Em análise","var(--aviso-bg)","var(--aviso)"],aceita:["Aceita","var(--claro)","var(--acc-esc)"],negada:["Negada","var(--alerta-bg)","var(--alerta)"]};
+      h+='<div class="card"><b style="font-size:14px">Suas contestações</b>'+D.contestacoes.map(c=>{const s=ST[c.status]||ST.aberta;return '<div style="padding:10px 0;border-top:1px solid #edf2f0;margin-top:8px;font-size:13px"><span class="tag" style="background:'+s[1]+';color:'+s[2]+'">'+s[0]+'</span> <b>'+esc(c.tipo)+'</b> · '+esc(c.data?dBR(c.data):"")+' '+esc(c.servico)+(c.obs?'<div style="color:var(--muted);margin-top:4px">'+esc(c.obs)+'</div>':'')+(c.resposta?'<div style="margin-top:4px">Central: '+esc(c.resposta)+'</div>':'')+'</div>';}).join("")+'</div>';
+    }
+    if(!conferido) h+='<button class="btn" onclick="confirmar()">Meus serviços estão certos</button>';
+    if(D.liberado&&conferido){
+      h+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:800;color:var(--muted)">DESCRIÇÃO PRONTA PARA A NOTA</span><b style="font-size:12px;color:var(--acc-esc)">'+brl(D.valores.liq)+'</b></div><p class="desc" id="desc">'+esc(descricao())+'</p><button class="btn sec" onclick="copiar()">Copiar descrição</button></div>';
+      if(D.nota) h+=(D.nota.ok?'<div class="ok"><b style="font-size:15px">✓ Nota '+esc(D.nota.numero)+' conferida</b><div style="font-size:13px;margin-top:6px">Valor '+brl(D.nota.valor)+' bate com a quinzena. Não precisa fazer mais nada.</div></div>':'<div class="prob"><b style="font-size:15px">⚠ Nota '+esc(D.nota.numero)+' com problema</b><div style="font-size:13px;margin-top:6px">'+D.nota.problemas.map(esc).join("<br>")+'</div><div style="font-size:13px;margin-top:6px">Corrija no emissor e envie a nota nova.</div></div>');
+      if(!(D.nota&&D.nota.ok)) h+='<label class="btn" style="display:flex;align-items:center;justify-content:center;flex-direction:row">'+(D.nota?'Enviar a nota corrigida (PDF)':'Enviar minha nota (PDF)')+'<input type="file" accept="application/pdf" style="display:none" onchange="enviarNota(this)"></label>';
+    }
+    h+='<p class="sub" style="text-align:center">Dúvidas? Fale com a Central de Guias.</p>';
+    document.getElementById("app").innerHTML=h;
+  }
+  async function confirmar(){ const j=await api("confirmar",{}); if(!j.ok){alert(j.erro);return;} D.status="conferido"; desenhar(); }
+  function copiar(){ const t=document.getElementById("desc").textContent; (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>alert("Descrição copiada. Cole no campo de descrição do serviço da nota.")).catch(()=>{ const r=document.createRange(); r.selectNode(document.getElementById("desc")); getSelection().removeAllRanges(); getSelection().addRange(r); alert("Selecionei o texto: toque em Copiar."); }); }
+  function abrirContestar(i){
+    const l=i>=0?D.linhas[i]:null; const f=document.createElement("div"); f.className="fundo"; f.id="fundo";
+    f.innerHTML='<div class="folha"><b style="font-size:18px">'+(l?'O que está errado?':'Qual serviço faltou?')+'</b>'
+      +(l?'<div class="sub">'+dBR(l.data)+' · '+esc(curto(l.servico))+' · '+brl(l.valor)+'</div><label>Motivo<select id="cTipo"><option>Não fiz esse serviço</option><option>Valor errado</option><option>Outro</option></select></label>'
+         :'<input type="hidden" id="cTipo" value="Faltou serviço"><label>Data<input type="text" id="cData" placeholder="ex.: 21/10" inputmode="numeric"></label><label>Serviço<input type="text" id="cServ" placeholder="ex.: IN Porto de Galinhas"></label>')
+      +'<label>Explique (opcional)<textarea id="cObs" rows="3" placeholder="Ex.: o voo foi cancelado, fiz com o motorista X..."></textarea></label>'
+      +'<button class="btn" id="cBtn">Enviar para a Central</button><button class="btn sec" onclick="document.getElementById(\'fundo\').remove()">Cancelar</button></div>';
+    document.body.appendChild(f);
+    document.getElementById("cBtn").onclick=async()=>{
+      let data=l?l.data:"", serv=l?l.servico:document.getElementById("cServ").value.trim();
+      if(!l){ const m=document.getElementById("cData").value.match(/(\d{1,2})\/(\d{1,2})/); if(!m||!serv){alert("Informe a data e o serviço.");return;} data=D.periodo[0].slice(0,5)+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0"); }
+      const j=await api("contestar",{tipo:document.getElementById("cTipo").value,data,servico:serv,ro:l?l.ro:"",obs:document.getElementById("cObs").value});
+      if(!j.ok){alert(j.erro);return;} f.remove(); carregar();
+    };
+  }
+  async function textoPdf(arq){
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const doc=await pdfjsLib.getDocument({data:new Uint8Array(await arq.arrayBuffer())}).promise; const out=[];
+    for(let p=1;p<=doc.numPages;p++){ const tc=await (await doc.getPage(p)).getTextContent(); const L={};
+      for(const it of tc.items){ const y=Math.round(it.transform[5]); (L[y]=L[y]||[]).push([it.transform[4],it.str]); }
+      Object.keys(L).sort((a,b)=>b-a).forEach(y=>out.push(L[y].sort((a,b)=>a[0]-b[0]).map(x=>x[1]).join(" "))); }
+    return out.join("\n");
+  }
+  async function enviarNota(inp){
+    const arq=inp.files[0]; if(!arq) return;
+    if(arq.size>650000){ alert("O PDF está muito grande. Envie o PDF da nota baixado do emissor."); return; }
+    const app=document.getElementById("app"); app.insertAdjacentHTML("beforeend",'<div class="espera" id="lendo">Lendo a nota...</div>');
+    try{
+      const leitura=lerNota(await textoPdf(arq));
+      const b64=await new Promise((ok,er)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=er; r.readAsDataURL(arq); });
+      const j=await api("nota",{pdf:b64,nomeArquivo:arq.name,leitura:{numero:leitura.numero,valor:leitura.valor,tipo:leitura.tipo,prestadorDoc:leitura.prestadorDoc,prestadorNome:leitura.prestadorNome,competencia:leitura.competencia,luck:leitura.luck}});
+      if(!j.ok){ alert(j.erro); } await carregar();
+    }catch(e){ alert("Não consegui ler esse PDF. Envie o PDF da nota baixado do emissor."); const x=document.getElementById("lendo"); if(x) x.remove(); }
+  }
+  carregar();
+</script>
+</body>
+</html>

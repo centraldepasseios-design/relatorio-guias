@@ -219,6 +219,7 @@
       {id:"cen-vagas", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 17h4V5H2v12h3\"/><path d=\"M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1\"/><circle cx=\"7.5\" cy=\"17.5\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"17.5\" r=\"2.5\"/></svg>", nome:"Vagas"},
       {id:"cen-escala", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 2v4M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/></svg>", nome:"Escala dos guias"},
       {id:"cen-contatos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z\"/></svg>", nome:"Contatos dos guias"},
+      {id:"cen-pagamentos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M2 10h20M6 15h4\"/></svg>", nome:"Pagamentos"},
       {id:"cen-disp", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><path d=\"m9 11 3 3L22 4\"/></svg>", nome:"Disponibilidade"},
       {id:"cen-reclam", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>", nome:"Reclamações"},
       {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12a10 10 0 1 0-20 0\"/><path d=\"M12 12 8 22M12 12l4 10M2 12h20\"/></svg>", nome:"Passeios"},
@@ -284,6 +285,7 @@
     if(id==="rec-comparador"){ renderComparador(m); return; }
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
     if(id==="cen-contatos"){ renderContatos(m); return; }
+    if(id==="cen-pagamentos"){ renderPagamentos(m); return; }
     if(id==="porto-escala"||id==="cen-escala"){ renderEscala(m,"guias"); return; }
     if(id==="porto-passeios"||id==="cen-passeios"){ renderPlano(m, id==="cen-passeios"?"central":"porto"); return; }
     // demais abas: em breve (preencheremos uma a uma)
@@ -1099,6 +1101,474 @@
     PLANO.avisos=(PLANO.avisos||[]).filter(a=>!ids.includes(a.id));
     const s=document.getElementById("selo-cen-passeios"); if(s){ s.textContent=PLANO.avisos.length; s.style.display=PLANO.avisos.length?"inline-block":"none"; }
     desenharPlano();
+  }
+
+
+  // ======================= PAGAMENTOS: CONFERÊNCIA DAS NOTAS FISCAIS =======================
+  // Tudo roda no navegador: lê a PGG (Excel), o mapa do PAAR (Excel, opcional) e os PDFs das notas,
+  // identifica o guia de cada nota e compara o valor com o "VALOR LIQUIDO A PAGAR" da PGG.
+    // ---- Leitura de nota fiscal de guia (DANFSe padrão nacional v1/v2 e nota avulsa de prefeitura) ----
+  // Recebe o texto do PDF (linhas) e devolve os dados que interessam para a conferência.
+  const LUCK_CNPJ = "10866549000117";
+  function lerNota(texto) {
+    const t = String(texto || "");
+    const plano = t.replace(/\s+/g, " ");
+    const so = (s) => String(s || "").replace(/\D/g, "");
+    const dinheiro = (s) => parseFloat(String(s).replace(/\./g, "").replace(",", "."));
+    const r = { tipo: "desconhecido", numero: null, chave: null, emissao: null, competencia: null, periodo: null,
+      prestadorDoc: null, prestadorNome: null, luck: false, valor: null, comissao: null, servicos: [], somaServicos: 0, avisos: [] };
+
+    if (/DANFSe/i.test(plano) || /Documento Auxiliar da NFS-e/i.test(plano)) r.tipo = "nfse";
+    else if (/NOTA FISCAL AVULSA/i.test(plano)) r.tipo = "avulsa";
+
+    // documentos (CNPJ/CPF) na ordem em que aparecem; o 1º que não é da Luck é o do prestador
+    const docs = [...plano.matchAll(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2})\b/g)].map((m) => so(m[1]));
+    r.luck = docs.includes(LUCK_CNPJ);
+    r.prestadorDoc = docs.find((d) => d !== LUCK_CNPJ && d !== "10091536000113") || null; // 2º: CNPJ da prefeitura de Caruaru no cabeçalho
+
+    if (r.tipo === "nfse") {
+      const ch = plano.match(/CHAVE DE ACESSO DA NFS-e\s*(\d{40,60})/i); if (ch) r.chave = ch[1];
+      const nm = plano.match(/N[ÚU]MERO DA NFS-e\s+COMPET[ÊE]NCIA DA NFS-e\s+DATA E HORA DA EMISS[ÃA]O DA NFS-e\s+(\d+)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})/i);
+      if (nm) { r.numero = nm[1]; r.competencia = nm[2]; r.emissao = nm[3]; }
+      const nome = plano.match(/Nome \/ Nome Empresarial\s+(?:Munic[íi]pio[^\n]*?CEP\s+|E-mail\s+)?\d{2}\.\d{3}\.\d{3}\s+([A-ZÀ-Ú ]+?)\s{1,}(?:[A-ZÀ-Ú][a-zà-ú]|[A-Z]+@|Recife|Igarassu|Olinda|Jaboat|Ipojuca|Paulista|Cabo|Caruaru|\(|$)/);
+      if (nome) r.prestadorNome = nome[1].trim();
+    } else if (r.tipo === "avulsa") {
+      const nm = plano.match(/N[úu]mero:?\s*(?:Data Emiss[ãa]o:?\s*)?(\d{4,})/i) || plano.match(/\b(\d{6})\b(?=.*Imposto Sobre)/);
+      if (nm) r.numero = nm[1];
+      const pe = plano.match(/(\d{2}\/\d{2}\/\d{4})\s*(?:PRESTA[ÇC][ÃA]O DE SERVI[ÇC]O\s*)?(?:\d{2}\/\d{2}\/\d{4}\s*)?(?:\d+\s*)?(?:[A-Z]\s*)?(?:PE\s*)*-\s*(\d{2}\/\d{2}\/\d{4})/);
+      if (pe) r.periodo = [pe[1], pe[2]];
+      const nome = t.match(/Nome\/Raz[ãa]o Social:\s*\n\s*([A-ZÀ-Ú ]{5,})/);
+      if (nome) r.prestadorNome = nome[1].trim();
+    }
+
+    // valor da nota: o maior valor em reais do documento (é sempre o total da nota)
+    const valores = [...plano.matchAll(/(?<![\d.,\/])(\d{1,3}(?:\.\d{3})*,\d{2})(?![\d])/g)].map((m) => dinheiro(m[1])).filter((v) => v > 0);
+    if (valores.length) r.valor = Math.max(...valores);
+
+    // descrição dos serviços: trecho entre "Descrição do Serviço" e a tributação (NFS-e) ou a tabela (avulsa)
+    let desc = "";
+    const d1 = plano.match(/Descri[çc][ãa]o do Servi[çc]o\s+(.*?)\s+(?:TRIBUTA[ÇC][ÃA]O MUNICIPAL|Tipo de Tributa[çc][ãa]o|Prefeitura|$)/i);
+    if (r.tipo === "nfse" && d1) desc = d1[1];
+    if (r.tipo === "avulsa") { const d2 = plano.match(/Total\s+(1\s+UNI?\b.*?)\s+VALOR TOTAL DA NOTA/i); if (d2) desc = d2[1]; }
+    r.descricao = desc;
+    const com = desc.match(/COMISS[ÃA]?O?\s*(?:VENDAS[^\d]*\d{2}\/\d{2}\/\d{4}\s*A\s*\d{2}\/\d{2}\/\d{4}\s*)?[^\d$]{0,15}(?:R?\$)?\s*([\d.]+[.,]\d{2})/i);
+    if (com) r.comissao = dinheiro(com[1].replace(/\.(\d{2})$/, ",$1"));
+    // serviços: data dd/mm(/aaaa) seguida do nome e de um valor
+    const reServ = /(\d{2}\/\d{2})(?:\/\d{2,4}|\/20\/26)?\s*([A-ZÀ-Úa-zà-ú][^#\/$]*?|[A-Z]+?)\s*(?:R?\$\s*)?(\d{1,4}(?:,\d{2})?)(?=\s|\/|#|$|,|;|\.|[A-Z]|\*)/g;
+    if (desc) {
+      const semCom = desc.replace(/COMISS.*$/i, "");
+      for (const m of semCom.matchAll(reServ)) {
+        const v = dinheiro(m[3].includes(",") ? m[3] : m[3] + ",00");
+        if (v > 0 && v < 2000) r.servicos.push({ data: m[1], servico: m[2].replace(/\*/g, "").trim(), valor: v });
+      }
+      // na nota avulsa o valor aparece duas vezes (unitário e total): conta uma
+      r.somaServicos = Math.round(r.servicos.reduce((s, x) => s + x.valor, 0) * 100) / 100;
+    }
+    if (!r.luck) r.avisos.push("CNPJ da Luck não aparece na nota");
+    if (!r.valor) r.avisos.push("Não consegui ler o valor da nota");
+    return r;
+  }
+
+
+  const PAG={ pgg:null, paar:[], notas:[], arquivos:{} };
+  function carregarScript(src){ return new Promise((ok,erro)=>{ if(document.querySelector('script[src="'+src+'"]')) return ok(); const s=document.createElement("script"); s.src=src; s.onload=ok; s.onerror=()=>erro(new Error("não carregou "+src)); document.head.appendChild(s); }); }
+  async function libsPagamentos(){
+    await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+    await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+    await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+  const normP=(s)=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/-?\s*GUIA\s*$/,"").replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
+  const brlP=(v)=>v==null||isNaN(v)?"—":"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const soDig=(s)=>String(s||"").replace(/\D/g,"");
+  async function textoPdf(arquivo){
+    const doc=await window.pdfjsLib.getDocument({data:new Uint8Array(await arquivo.arrayBuffer())}).promise;
+    const out=[];
+    for(let p=1;p<=doc.numPages;p++){
+      const tc=await (await doc.getPage(p)).getTextContent(); const linhas={};
+      for(const it of tc.items){ const y=Math.round(it.transform[5]); (linhas[y]=linhas[y]||[]).push([it.transform[4],it.str]); }
+      Object.keys(linhas).sort((a,b)=>b-a).forEach(y=>out.push(linhas[y].sort((a,b)=>a[0]-b[0]).map(x=>x[1]).join(" ")));
+    }
+    return out.join("\n");
+  }
+  async function lerPGG(arquivo){
+    const wb=XLSX.read(await arquivo.arrayBuffer());
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const linhas=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+    const periodo=String((linhas[0]||[])[0]||"");
+    const num=(v)=>v==null||v===""?null:(typeof v==="number"?v:parseFloat(String(v).replace(/[R$\s.]/g,"").replace(",",".")));
+    const rows=[];
+    for(const r of linhas.slice(1)){
+      const nome=String(r[0]||"").trim(); if(!nome||/^TOTAL/i.test(nome)) continue;
+      rows.push({nome, serv:num(r[1]), com:num(r[2]), reemb:num(r[3]), maq:num(r[4]), liq:num(r[5]), reembCli:num(r[6]), obs:r[7]||""});
+    }
+    return {periodo, rows};
+  }
+  async function lerPAAR(arquivo){
+    const wb=XLSX.read(await arquivo.arrayBuffer()); const lista=[];
+    for(const n of wb.SheetNames){
+      const linhas=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true});
+      const cab=String((linhas[1]||[])[0]||"");
+      const doc=(cab.match(/CNPJ\/CPF:\s*([\d.\/-]+)/)||[])[1]; const razao=(cab.match(/Raz[ãa]o Social:\s*(.+)$/)||[])[1]||"";
+      lista.push({nome:String((linhas[0]||[])[0]||n).replace(/^Guia:\s*/,""), doc:soDig(doc), razao:razao.trim()});
+    }
+    return lista;
+  }
+  // o nome curto da PGG ("BRUNO M", "H.FARIAS") bate com um nome completo se cada pedaço for o começo de uma palavra dele
+  function nomeBate(curto,completo){
+    const a=normP(curto).split(" ").filter(Boolean), b=normP(completo).split(" ").filter(Boolean);
+    if(!a.length||!b.length) return false;
+    const usadas=new Set();
+    return a.every(t=>{ const i=b.findIndex((w,k)=>!usadas.has(k)&&w.startsWith(t)); if(i<0) return false; usadas.add(i); return true; });
+  }
+  // PAAR que corresponde à nota: mesmo CNPJ/CPF ou mesma razão social do prestador
+  function paarDaNota(n){
+    const nome=normP(n.prestadorNome);
+    return PAG.paar.filter(p=>(p.doc&&p.doc===n.prestadorDoc)||(nome&&normP(p.razao).replace(/^\d+\s*/,"")===nome));
+  }
+  function identificarGuia(n){
+    const rows=PAG.pgg?PAG.pgg.rows:[];
+    const hits=paarDaNota(n);
+    const escolher=(c)=>{
+      if(c.length>1){ const comValor=c.filter(r=>(r.liq||0)>0); if(comValor.length) c=comValor; }
+      if(c.length>1){ const mais=Math.max(...c.map(r=>normP(r.nome).split(" ").length)); c=c.filter(r=>normP(r.nome).split(" ").length===mais); }
+      return c.length===1?c[0].nome:null;
+    };
+    // 1) nome igual à aba do PAAR; 2) nome curto da PGG bate com a aba do PAAR; 3) bate com o nome da nota
+    let c=rows.filter(r=>hits.some(p=>normP(p.nome)===normP(r.nome)));
+    if(!c.length) c=rows.filter(r=>hits.some(p=>nomeBate(r.nome,p.nome)));
+    if(!c.length) c=rows.filter(r=>n.prestadorNome&&nomeBate(r.nome,n.prestadorNome));
+    return escolher(c);
+  }
+  function conferirNota(n){
+    const g=PAG.pgg&&PAG.pgg.rows.find(r=>r.nome===n.guia);
+    const ok=[], prob=[], info=[];
+    if(!n.valor) prob.push("não consegui ler o valor");
+    if(!n.luck) prob.push("CNPJ da Luck não aparece na nota");
+    if(!g){ prob.push("guia não identificado: escolha na lista"); return {ok,prob,info,dif:null}; }
+    let dif=null;
+    if(g.liq==null||g.liq===0) prob.push("PGG sem valor líquido (comissão ainda não lançada?)");
+    else { dif=Math.round((n.valor-g.liq)*100)/100; if(Math.abs(dif)<0.01) ok.push("valor bate com a PGG"); else prob.push("valor "+(dif>0?"acima":"abaixo")+" da PGG em "+brlP(Math.abs(dif))); }
+    const cad=paarDaNota(n)[0]||PAG.paar.find(p=>normP(p.nome)===normP(g.nome));
+    if(cad&&cad.doc&&n.prestadorDoc){
+      if(cad.doc===LUCK_CNPJ) info.push("cadastro do PAAR está com o CNPJ da Luck");
+      else if(cad.doc===n.prestadorDoc) ok.push("CNPJ igual ao cadastro");
+      else if(cad.doc.length===11&&n.prestadorDoc.length===14) info.push("cadastro do PAAR com CPF; nota com CNPJ do MEI");
+      else prob.push("CNPJ/CPF da nota diferente do cadastro no PAAR");
+    }
+    if(n.servicos.length&&g.serv!=null&&Math.abs(n.somaServicos-g.serv)>0.01) info.push("serviços da descrição somam "+brlP(n.somaServicos)+"; PGG: "+brlP(g.serv));
+    if(n.comissao!=null&&g.com!=null&&Math.abs(n.comissao-g.com)>0.01) info.push("comissão na nota "+brlP(n.comissao)+"; PGG: "+brlP(g.com));
+    if(n.tipo==="avulsa") info.push("nota avulsa da prefeitura (não é MEI)");
+    // nota de outro período (ex.: nota antiga enviada por engano)
+    const mesPgg=((PAG.pgg.periodo||"").match(/\d{1,2}\s*A\s*\d{1,2}\/(\d{1,2})/i)||[])[1];
+    const dataNota=n.competencia||(n.periodo&&n.periodo[0])||n.emissao;
+    if(mesPgg&&dataNota){ const [,mm,aa]=dataNota.split("/"); const atual=new Date().getFullYear();
+      const distancia=Math.abs((+aa-atual)*12+(+mm-(+mesPgg)));
+      if(distancia>1) prob.push("nota de outro período (competência "+mm+"/"+aa+")"); }
+    const dup=PAG.notas.filter(x=>x!==n&&x.numero&&x.numero===n.numero&&x.prestadorDoc===n.prestadorDoc);
+    if(dup.length) prob.push("nota repetida");
+    return {ok,prob,info,dif};
+  }
+  function renderPagamentos(m){
+    const aba=PAG.aba||"mapa";
+    const ab=(id,t)=>'<span class="chip '+(aba===id?"on":"")+'" style="font-size:.9rem;padding:8px 16px" onclick="PAG.aba=\''+id+'\';renderPagamentos(document.getElementById(\'mainConteudo\'))">'+t+'</span>';
+    if(aba==="piloto"){
+      m.innerHTML='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'+ab("mapa","1. Conferir mapa")+ab("notas","2. Conferir notas fiscais")+ab("piloto","3. Piloto app do guia")+'</div>'+htmlPiloto();
+      atualizarPiloto(); return;
+    }
+    if(aba==="mapa"){
+      m.innerHTML='<div style="display:flex;gap:8px;margin-bottom:14px">'+ab("mapa","1. Conferir mapa")+ab("notas","2. Conferir notas fiscais")+ab("piloto","3. Piloto app do guia")+'</div>'
+        +'<div class="card"><h3 style="margin-bottom:6px;">Conferir o mapa antes de enviar aos guias</h3>'
+        +'<p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;">Exporte do PAAR o mapa de todos os guias (.xlsx) e suba aqui. O sistema compara com os relatórios que os guias fizeram no app e aplica a regra do apoio.</p>'
+        +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><input type="file" id="mapaArq" accept=".xlsx,.xls"><button class="btn" id="mapaBtn" onclick="processarMapa()">Conferir mapa</button><span id="mapaInfo" style="font-size:.82rem;color:var(--muted)"></span></div></div>'
+        +'<div id="mapaResultado"></div>';
+      if(MAPA.resultado) desenharMapa();
+      return;
+    }
+    m.innerHTML='<div style="display:flex;gap:8px;margin-bottom:14px">'+ab("mapa","1. Conferir mapa")+ab("notas","2. Conferir notas fiscais")+ab("piloto","3. Piloto app do guia")+'</div>'+`
+      <div class="card">
+        <h3 style="margin-bottom:6px;">Conferir notas fiscais da quinzena</h3>
+        <p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;">Suba a PGG da quinzena, o mapa do PAAR (ajuda a reconhecer o guia pelo CNPJ) e as notas em PDF. O sistema lê cada nota e compara com o valor líquido a pagar da PGG. Nada sai do seu computador.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:.82rem;font-weight:600;">1. PGG (.xlsx)<input type="file" id="pagPgg" accept=".xlsx,.xls"></label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:.82rem;font-weight:600;">2. Mapa do PAAR (.xlsx, opcional)<input type="file" id="pagPaar" accept=".xlsx,.xls"></label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:.82rem;font-weight:600;">3. Notas fiscais (PDF, pode selecionar várias)<input type="file" id="pagNotas" accept=".pdf" multiple></label>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;">
+          <button class="btn" id="pagBtn" onclick="processarPagamentos()">Conferir</button>
+          <span id="pagInfo" style="font-size:.82rem;color:var(--muted);"></span>
+        </div>
+      </div>
+      <div id="pagResultado"></div>`;
+  }
+  async function processarPagamentos(){
+    const info=document.getElementById("pagInfo"), b=document.getElementById("pagBtn");
+    const fPgg=document.getElementById("pagPgg").files[0], fPaar=document.getElementById("pagPaar").files[0], fNotas=[...document.getElementById("pagNotas").files];
+    if(!fPgg||!fNotas.length){ alert("Selecione a PGG e pelo menos uma nota."); return; }
+    b.disabled=true;
+    try{
+      info.textContent="Carregando leitores..."; await libsPagamentos();
+      info.textContent="Lendo a PGG..."; PAG.pgg=await lerPGG(fPgg);
+      PAG.paar=fPaar?await lerPAAR(fPaar):[];
+      PAG.notas=[]; PAG.arquivos={};
+      for(let i=0;i<fNotas.length;i++){
+        info.textContent="Lendo nota "+(i+1)+" de "+fNotas.length+"...";
+        let n;
+        try{ n=lerNota(await textoPdf(fNotas[i])); }catch(e){ n={tipo:"erro",avisos:["não consegui abrir o PDF"],servicos:[],somaServicos:0}; }
+        n.arquivo=fNotas[i].name; n.id=i; PAG.arquivos[i]=fNotas[i];
+        PAG.notas.push(n);
+      }
+      PAG.notas.forEach(n=>{ n.guia=identificarGuia(n); });
+      info.textContent=fNotas.length+" nota(s) lida(s) · PGG "+(PAG.pgg.periodo||"")+" com "+PAG.pgg.rows.length+" guias";
+      desenharPagamentos();
+    }catch(e){ console.error(e); alert("Erro: "+e.message); info.textContent=""; }
+    finally{ b.disabled=false; }
+  }
+  function desenharPagamentos(){
+    const box=document.getElementById("pagResultado"); if(!box) return;
+    const res=PAG.notas.map(n=>({n,c:conferirNota(n)}));
+    const bate=res.filter(x=>!x.c.prob.length).length, dif=res.length-bate;
+    const comNota=new Set(PAG.notas.map(n=>n.guia).filter(Boolean));
+    const semNota=PAG.pgg.rows.filter(r=>!comNota.has(r.nome)&&(r.liq||0)>0);
+    const opts=(sel)=>'<option value="">— escolher guia —</option>'+PAG.pgg.rows.map(r=>'<option'+(r.nome===sel?' selected':'')+'>'+esc(r.nome)+'</option>').join("");
+    let h='<div class="cards-resumo"><div class="resumo ok"><div class="num">'+bate+'</div><div class="lbl">Notas certas</div></div><div class="resumo '+(dif?"alerta":"")+'"><div class="num">'+dif+'</div><div class="lbl">Com problema</div></div><div class="resumo"><div class="num">'+semNota.length+'</div><div class="lbl">Guias da PGG sem nota</div></div></div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"><button class="btn sec" onclick="baixarResultadoPag()">Baixar resultado (CSV)</button><button class="btn sec" onclick="baixarNotasRenomeadas()">Baixar notas renomeadas (.zip)</button></div>';
+    res.sort((a,b)=>(b.c.prob.length?1:0)-(a.c.prob.length?1:0));
+    h+='<div class="card" style="padding:6px 18px;">'+res.map(({n,c})=>{
+      const st=c.prob.length?'<span style="color:var(--alerta);font-weight:700">⚠️ '+esc(c.prob.join(" · "))+'</span>':'<span style="color:var(--ok);font-weight:700">✅ '+esc(c.ok.join(" · "))+'</span>';
+      return '<div style="display:grid;grid-template-columns:minmax(160px,1.1fr) 110px 110px minmax(240px,2fr);gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--linha);font-size:.84rem;">'
+        +'<div style="display:flex;flex-direction:column;gap:4px"><select onchange="PAG.notas['+n.id+'].guia=this.value||null;desenharPagamentos()" style="padding:6px 8px;border:1px solid var(--linha);border-radius:8px;font-weight:700">'+opts(n.guia)+'</select><span style="font-size:.74rem;color:var(--muted)">'+esc(n.prestadorNome||n.arquivo)+'</span></div>'
+        +'<div><b>Nota '+esc(n.numero||"?")+'</b><div style="font-size:.74rem;color:var(--muted)">'+esc(n.tipo==="avulsa"?"avulsa":"NFS-e")+'</div></div>'
+        +'<div><b>'+brlP(n.valor)+'</b>'+(c.dif!=null&&Math.abs(c.dif)>=0.01?'<div style="font-size:.74rem;color:var(--alerta)">'+(c.dif>0?"+":"−")+brlP(Math.abs(c.dif))+'</div>':'')+'</div>'
+        +'<div style="display:flex;flex-direction:column;gap:3px">'+st+(c.info.length?'<span style="font-size:.76rem;color:var(--muted)">ℹ️ '+esc(c.info.join(" · "))+'</span>':'')+'</div></div>';
+    }).join("")+'</div>';
+    if(semNota.length) h+='<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Guias da PGG sem nota</h3><div style="font-size:.84rem;line-height:1.9">'+semNota.map(r=>esc(r.nome.trim())+' <span style="color:var(--muted)">('+brlP(r.liq)+')</span>').join(" · ")+'</div></div>';
+    box.innerHTML=h;
+  }
+  function baixarArquivo(nome,blob){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nome; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); }
+  const nomeArquivoNota=(n)=>(normP(n.guia||n.prestadorNome||"SEM_GUIA").replace(/ /g,"_")+"_"+(n.numero||"SN")+".pdf");
+  function baixarResultadoPag(){
+    const linhas=[["Guia (PGG)","Prestador na nota","Nota","Tipo","Valor da nota","Valor PGG","Diferença","Situação","Observações","Arquivo"]];
+    for(const n of PAG.notas){ const c=conferirNota(n); const g=PAG.pgg.rows.find(r=>r.nome===n.guia);
+      linhas.push([n.guia||"",n.prestadorNome||"",n.numero||"",n.tipo,n.valor??"",g?g.liq??"":"",c.dif??"",c.prob.length?"PROBLEMA: "+c.prob.join(" / "):"OK",c.info.join(" / "),n.arquivo]); }
+    const csv="\ufeff"+linhas.map(l=>l.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\n");
+    baixarArquivo("conferencia_notas.csv",new Blob([csv],{type:"text/csv"}));
+  }
+  async function baixarNotasRenomeadas(){
+    const zip=new JSZip(); const usados={};
+    for(const n of PAG.notas){ let nome=nomeArquivoNota(n); if(usados[nome]) nome=nome.replace(".pdf","_"+(++usados[nome])+".pdf"); else usados[nome]=1; zip.file(nome,PAG.arquivos[n.id]); }
+    baixarArquivo("notas_renomeadas.zip",await zip.generateAsync({type:"blob"}));
+  }
+
+
+  // ======================= PAGAMENTOS: CONFERÊNCIA DO MAPA (PAAR × RELATÓRIOS) =======================
+  const API_CONFERENCIA = "https://us-central1-operacional-luck.cloudfunctions.net/conferencia";
+  const MAPA={ guias:[], periodo:null, resultado:null, filtro:"pend", abertos:{} };
+  const ALERTA={
+    falta:["Falta no mapa","#fde4df","#9f2a15","Colocar o guia nesse serviço no Phoenix"],
+    naofez:["Relatório diz que não fez","#fff1e0","#8a4a0c","Tirar o guia desse serviço no Phoenix"],
+    semrelato:["No mapa, sem relato no dia","#fff1e0","#8a4a0c","Conferir com o guia ou no Phoenix"],
+    apoio:["Apoio a mais","#fde4df","#9f2a15","Paga só o permitido no dia: tirar o excedente"],
+    pendente:["Relatório pendente","#eef1f0","#3c524d","Cobrar o relatório do dia"],
+    zero:["Valor zerado","#eef1f0","#3c524d","Confirmar se está certo"],
+    cnpj:["CNPJ da Luck no cadastro","#e6ecfb","#1e3a8a","Corrigir o cadastro do guia no PAAR"],
+    nome:["Nenhum relatório com esse nome","#e6ecfb","#1e3a8a","Nome do guia diferente no app?"]
+  };
+  async function lerMapaPAAR(arquivo){
+    const wb=XLSX.read(await arquivo.arrayBuffer()); const guias=[]; let periodo=null;
+    for(const n of wb.SheetNames){
+      const L=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true});
+      const cab=String((L[1]||[])[0]||"");
+      const per=cab.match(/(\d{4}-\d{2}-\d{2})\s*a\s*(\d{4}-\d{2}-\d{2})/); if(per&&!periodo) periodo=[per[1],per[2]];
+      const linhas=[];
+      for(const r of L.slice(4)){
+        if(!r||!r[0]||String(r[0]).startsWith("VALOR")) continue;
+        linhas.push({data:String(r[0]).slice(0,10),hora:String(r[1]||""),ro:String(r[2]||""),modo:String(r[3]||""),servico:String(r[4]||""),veiculo:String(r[5]||""),motorista:String(r[6]||"").trim(),valor:typeof r[11]==="number"?r[11]:parseFloat(r[11])||0});
+      }
+      guias.push({nome:String((L[0]||[])[0]||n).replace(/^Guia:\s*/,"").replace(/\s*-\s*GUIA\s*$/i,"").trim(),doc:soDig((cab.match(/CNPJ\/CPF:\s*([\d.\/-]+)/)||[])[1]),linhas});
+    }
+    return {guias,periodo};
+  }
+  function catMapa(s){ const S=String(s).toUpperCase();
+    if(/APOIO/.test(S)) return /VOLTA/.test(S)?"apoio-volta":"apoio-ida";
+    if(/^IN\b/.test(S)) return "chegada"; if(/^OUT\b/.test(S)) return "saida";
+    if(/^(TRF|TRANSFER)\b|TRANSFER/.test(S)) return "trf"; return "passeio"; }
+  function catRel(s){ s=String(s||"");
+    if(s.startsWith("chegada")) return "chegada"; if(s.startsWith("saida")) return "saida";
+    if(s==="apoio-recife-tarde") return "apoio-volta"; if(s.startsWith("apoio")) return "apoio";
+    if(s==="passeio") return "passeio"; if(s==="so-vendas"||!s) return null; return "trf"; }
+  // regras combinadas com a coordenação: passeio não precisa de relatório; apoio de manhã paga 1
+  // (2 se tiver Maragogi + outro passeio); apoio da tarde (VOLTA) paga 1
+  function conferirMapa(guias,relatorios,ros){
+    const porGuiaDia={};
+    for(const r of relatorios){ const k=normP(r.guia)+"|"+r.data; (porGuiaDia[k]=porGuiaDia[k]||[]).push(...r.itens); }
+    const nomesRel=[...new Set(relatorios.map(r=>normP(r.guia)))];
+    return guias.map(g=>{
+      const alertas=[]; const nomeG=normP(g.nome);
+      const chaveNome=nomesRel.includes(nomeG)?nomeG:(nomesRel.find(x=>nomeBate(g.nome,x)||nomeBate(x,g.nome))||nomeG);
+      const add=(tipo,l,detalhe,valor)=>alertas.push({tipo,data:l?l.data:"",ro:l?l.ro:"",servico:l?l.servico:"",detalhe,valor:valor==null?(l?l.valor:0):valor});
+      if(g.doc===LUCK_CNPJ) add("cnpj",null,"O cadastro desse guia no PAAR está com o CNPJ da Luck",0);
+      const dias=[...new Set(g.linhas.map(l=>l.data))].sort();
+      let precisaRelato=0, temRelato=0;
+      for(const d of dias){
+        const L=g.linhas.filter(l=>l.data===d); const itens=porGuiaDia[chaveNome+"|"+d]; const temDoc=!!itens;
+        L.filter(l=>l.valor===0).forEach(l=>add("zero",l,"Valor R$ 0,00 no mapa",0));
+        for(const cat of ["chegada","saida","trf"]){
+          const mapaL=L.filter(l=>catMapa(l.servico)===cat); const feitos=(itens||[]).filter(i=>catRel(i.servico)===cat&&!i.naoRealizado); const nao=(itens||[]).filter(i=>catRel(i.servico)===cat&&i.naoRealizado);
+          if(!mapaL.length&&!feitos.length) continue;
+          precisaRelato+=mapaL.length?1:0; if(temDoc) temRelato++;
+          if(!temDoc){ mapaL.forEach(l=>add("pendente",l,"Sem relatório do guia neste dia")); continue; }
+          let resto=[...mapaL];
+          for(const i of nao){ let k=resto.findIndex(l=>normP(l.motorista)&&normP(l.motorista)===normP(i.motorista)); if(k<0) k=0; if(resto[k]){ add("naofez",resto[k],"Marcado no relatório como não realizado"+(i.motivo?": "+i.motivo:"")); resto.splice(k,1);} }
+          if(feitos.length<resto.length){ const sobra=resto.filter(l=>!feitos.some(i=>normP(i.motorista)===normP(l.motorista))); (sobra.length?sobra:resto).slice(0,resto.length-feitos.length).forEach(l=>add("semrelato",l,"Está no mapa, mas o relatório do dia não tem esse serviço")); }
+          if(feitos.length>resto.length) add("falta",{data:d,ro:"",servico:cat.toUpperCase().replace("CHEGADA","IN").replace("SAIDA","OUT").replace("TRF","TRANSFER"),valor:0},"O relatório tem "+(feitos.length-resto.length)+" serviço(s) a mais que o mapa neste dia",0);
+        }
+        // apoio
+        const idas=L.filter(l=>catMapa(l.servico)==="apoio-ida"), voltas=L.filter(l=>catMapa(l.servico)==="apoio-volta");
+        if(idas.length||voltas.length){
+          if(!temDoc) [...idas,...voltas].forEach(l=>add("pendente",l,"Sem relatório do guia neste dia"));
+          else if(!(itens||[]).some(i=>String(catRel(i.servico)).startsWith("apoio"))) [...idas,...voltas].forEach(l=>add("semrelato",l,"Está no mapa, mas o relatório do dia não tem apoio"));
+          const passeios=idas.map(l=>String((ros[l.ro]||{}).servico||"").toUpperCase());
+          const mar=passeios.some(p=>/MARAGOGI/.test(p)), outros=passeios.some(p=>!/MARAGOGI/.test(p));
+          const pagos=idas.length?((mar&&outros)?2:1):0;
+          if(idas.length>pagos){ const ext=[...idas].sort((a,b)=>b.hora.localeCompare(a.hora)).slice(0,idas.length-pagos);
+            ext.forEach(l=>add("apoio",l,idas.length+" apoios de manhã ("+(passeios.filter(Boolean).map(p=>p.split(" (")[0]).join(", ")||"passeio não identificado")+"): paga "+pagos)); }
+          if(voltas.length>1) voltas.slice(1).forEach(l=>add("apoio",l,voltas.length+" apoios de volta no dia: paga 1"));
+        }
+      }
+      if(precisaRelato&&!temRelato&&!nomesRel.includes(nomeG)) add("nome",null,"Nenhum relatório com o nome \""+g.nome+"\" na quinzena",0);
+      return {nome:g.nome,total:g.linhas.reduce((s,l)=>s+(l.valor||0),0),qtd:g.linhas.length,alertas};
+    });
+  }
+  async function processarMapa(){
+    const f=document.getElementById("mapaArq").files[0], info=document.getElementById("mapaInfo"), b=document.getElementById("mapaBtn");
+    if(!f){ alert("Selecione o arquivo do PAAR."); return; }
+    b.disabled=true;
+    try{
+      info.textContent="Carregando leitores..."; await libsPagamentos();
+      info.textContent="Lendo o mapa do PAAR..."; const m=await lerMapaPAAR(f); MAPA.guias=m.guias; MAPA.periodo=m.periodo;
+      if(!m.periodo) throw new Error("não achei o período no arquivo");
+      const chamar=async(acao)=>{ const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,inicio:m.periodo[0],fim:m.periodo[1]})}); const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro); return j; };
+      info.textContent="Buscando os relatórios dos guias..."; const rel=(await chamar("relatorios")).relatorios;
+      info.textContent="Buscando as escalas no Phoenix (para os apoios)... pode levar 1 a 2 minutos na primeira vez"; const ros=(await chamar("escalas")).ros;
+      MAPA.resultado=conferirMapa(m.guias,rel,ros);
+      info.textContent=m.guias.length+" guias · "+m.guias.reduce((s,g)=>s+g.linhas.length,0)+" serviços · "+rel.length+" relatórios · período "+dataBR(m.periodo[0])+" a "+dataBR(m.periodo[1]);
+      desenharMapa();
+    }catch(e){ console.error(e); alert("Erro: "+e.message); info.textContent=""; }
+    finally{ b.disabled=false; }
+  }
+  function desenharMapa(){
+    const box=document.getElementById("mapaResultado"); if(!box||!MAPA.resultado) return;
+    const R=MAPA.resultado, cont={}; R.forEach(g=>g.alertas.forEach(a=>cont[a.tipo]=(cont[a.tipo]||0)+1));
+    const comPend=R.filter(g=>g.alertas.some(a=>a.tipo!=="zero"));
+    const lista=(MAPA.filtro==="pend"?comPend:R).slice().sort((a,b)=>b.alertas.length-a.alertas.length||a.nome.localeCompare(b.nome));
+    const kpi=(t)=>'<div class="resumo'+(cont[t]?' alerta':'')+'"><div class="num">'+(cont[t]||0)+'</div><div class="lbl">'+ALERTA[t][0]+'</div></div>';
+    let h='<div class="cards-resumo">'+'<div class="resumo ok"><div class="num">'+(R.length-comPend.length)+'</div><div class="lbl">Guias sem pendência</div></div>'+kpi("falta")+kpi("naofez")+kpi("apoio")+kpi("pendente")+'</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;"><span class="chip '+(MAPA.filtro==="pend"?"on":"")+'" onclick="MAPA.filtro=\'pend\';desenharMapa()">Com pendência ('+comPend.length+')</span><span class="chip '+(MAPA.filtro==="todos"?"on":"")+'" onclick="MAPA.filtro=\'todos\';desenharMapa()">Todos ('+R.length+')</span><button class="btn sec mini" style="margin-left:auto" onclick="baixarConferenciaMapa()">Baixar pendências (CSV)</button></div>';
+    h+='<p style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Corrija no Phoenix (o PAAR atualiza sozinho), exporte o mapa de novo e confira outra vez até zerar. Passeio não entra: não precisa de relatório.</p>';
+    h+=lista.map(g=>{
+      const aberto=!!MAPA.abertos[g.nome]; const tipos={}; g.alertas.forEach(a=>tipos[a.tipo]=(tipos[a.tipo]||0)+1);
+      const pills=Object.keys(tipos).length?Object.entries(tipos).map(([t,n])=>'<span style="font-size:.7rem;font-weight:800;color:'+ALERTA[t][2]+';background:'+ALERTA[t][1]+';border-radius:999px;padding:3px 9px;white-space:nowrap">'+n+' · '+ALERTA[t][0]+'</span>').join(" "):'<span style="font-size:.7rem;font-weight:800;color:var(--ok);background:#e3f2ee;border-radius:999px;padding:3px 9px">Tudo certo</span>';
+      let det='';
+      if(aberto&&g.alertas.length) det='<div style="border-top:1px solid var(--linha);padding:4px 0 6px">'+g.alertas.map(a=>'<div style="display:grid;grid-template-columns:70px 120px minmax(0,1.2fr) minmax(0,1.8fr) 80px;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--linha);font-size:.8rem;"><b>'+esc(a.data?dataBR(a.data).slice(0,5):"")+'</b><span style="color:#1e3a8a;font-weight:700">'+esc(a.ro)+'</span><span style="font-weight:600">'+esc(a.servico)+'</span><span style="color:'+ALERTA[a.tipo][2]+'">'+esc(a.detalhe)+' <span style="color:var(--muted)">→ '+esc(ALERTA[a.tipo][3])+'</span></span><span style="text-align:right;font-weight:700">'+(a.valor?brlP(a.valor):"")+'</span></div>').join("")+'</div>';
+      return '<div class="card" style="padding:10px 16px;margin-bottom:8px;"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer" onclick="MAPA.abertos[\''+esc(g.nome).replace(/'/g,"")+'\']=!MAPA.abertos[\''+esc(g.nome).replace(/'/g,"")+'\'];desenharMapa()"><span style="font-size:1rem">'+(aberto?"▾":"▸")+'</span><div style="min-width:170px"><b>'+esc(g.nome)+'</b><div style="font-size:.74rem;color:var(--muted)">'+g.qtd+' serviços · '+brlP(g.total)+'</div></div><div style="flex:1;display:flex;flex-wrap:wrap;gap:6px">'+pills+'</div></div>'+det+'</div>';
+    }).join("");
+    box.innerHTML=h;
+  }
+  function baixarConferenciaMapa(){
+    const linhas=[["Guia","Data","Escala (RO)","Serviço","Situação","Detalhe","O que fazer","Valor"]];
+    (MAPA.resultado||[]).forEach(g=>g.alertas.forEach(a=>linhas.push([g.nome,a.data?dataBR(a.data):"",a.ro,a.servico,ALERTA[a.tipo][0],a.detalhe,ALERTA[a.tipo][3],a.valor||""])));
+    const csv="\ufeff"+linhas.map(l=>l.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\n");
+    baixarArquivo("conferencia_mapa.csv",new Blob([csv],{type:"text/csv"}));
+  }
+
+
+  // ======================= PAGAMENTOS: PILOTO (app do guia) =======================
+  const API_PILOTO = "https://us-central1-operacional-luck.cloudfunctions.net/piloto";
+  const PIL={ qid:"2026-10-16_2026-10-31", nomes:"LIDIANE, OLIVEIRA, ARTHUR, HENRIQUE FARIAS", dados:null };
+  async function chamarPiloto(acao,dados){ const r=await fetch(API_PILOTO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,qid:PIL.qid,...dados})}); const j=await r.json(); sessaoExpirou(j); return j; }
+  const idGuia=(s)=>normP(s).replace(/ /g,"_")||"SEM_NOME";
+  function htmlPiloto(){
+    const [ini,fim]=PIL.qid.split("_");
+    return '<div class="card"><h3 style="margin-bottom:6px">Piloto: pagamento pelo app do guia</h3>'
+      +'<p style="font-size:.84rem;color:var(--muted);margin-bottom:12px">Os guias do piloto recebem um link pessoal, conferem a quinzena, contestam o que estiver errado e enviam a nota pelo app. O relatório diário continua no app de sempre.</p>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
+      +'<label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Início<input type="date" id="pilIni" value="'+ini+'"></label>'
+      +'<label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Fim<input type="date" id="pilFim" value="'+fim+'"></label>'
+      +'<label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;flex:1;min-width:240px">Guias do piloto<input type="text" id="pilNomes" value="'+esc(PIL.nomes)+'" style="padding:8px 10px;border:1px solid var(--linha);border-radius:8px"></label>'
+      +'<button class="btn sec" onclick="trocarQuinzenaPiloto()">Abrir quinzena</button></div></div>'
+      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">1. Mapa do PAAR</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilMapa" accept=".xlsx,.xls"><button class="btn" onclick="pilotoCarregarMapa()">Carregar serviços dos guias do piloto</button></div></div>'
+      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">2. Valores da PGG (depois que o financeiro lançar a comissão)</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilPgg" accept=".xlsx,.xls"><button class="btn" onclick="pilotoValores()">Atualizar valores</button><span id="pilLib"></span></div></div>'
+      +'<div id="pilStatus"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
+  }
+  function trocarQuinzenaPiloto(){ PIL.qid=document.getElementById("pilIni").value+"_"+document.getElementById("pilFim").value; PIL.nomes=document.getElementById("pilNomes").value; atualizarPiloto(); }
+  async function atualizarPiloto(){
+    const j=await chamarPiloto("status",{}); const box=document.getElementById("pilStatus"); if(!box) return;
+    if(!j.ok){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro)+'</div>'; return; }
+    PIL.dados=j;
+    const lib=!!(j.quinzena&&j.quinzena.liberado);
+    document.getElementById("pilLib").innerHTML='<button class="btn '+(lib?"sec":"")+'" onclick="pilotoLiberar('+(!lib)+')">'+(lib?"Valores liberados ✓ (desfazer)":"Liberar valores para os guias")+'</button>';
+    if(!j.guias.length){ box.innerHTML='<div class="em-breve"><div class="ic">🧪</div><h3>Nenhum guia carregado</h3><p>Suba o mapa do PAAR no passo 1.</p></div>'; return; }
+    const ST={aguardando:["Aguardando conferência","#eef1f0","#3c524d"],conferido:["Conferiu os serviços","#e3f2ee","#0b4f44"],contestado:["Contestou","#fff1e0","#8a4a0c"],nota_ok:["Nota conferida ✓","#e3f2ee","#0b4f44"],nota_com_problema:["Nota com problema","#fde4df","#9f2a15"]};
+    box.innerHTML=j.guias.map(g=>{
+      const st=ST[g.status]||ST.aguardando; const v=g.valores;
+      const dif=v&&g.totalMapa!=null&&Math.abs((v.serv||0)-g.totalMapa)>=0.01;
+      const abertas=(g.contestacoes||[]).filter(c=>c.status==="aberta");
+      return '<div class="card" style="padding:14px 18px">'
+        +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1rem">'+esc(g.nome)+'</b><span style="font-size:.72rem;font-weight:800;background:'+st[1]+';color:'+st[2]+';border-radius:999px;padding:3px 10px">'+st[0]+'</span>'
+        +'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
+        +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;margin-top:8px;color:var(--muted)"><span>'+(g.linhas||[]).length+' serviços no mapa · '+brlP(g.totalMapa)+'</span>'
+        +(v?'<span>PGG: serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
+        +(dif?'<div style="font-size:.8rem;color:var(--alerta);margin-top:6px">⚠️ Serviços na PGG ('+brlP(v.serv)+') diferentes do mapa ('+brlP(g.totalMapa)+'): a descrição que o guia copia lista o mapa. Suba o mapa atualizado.</div>':'')
+        +(g.contestacoes||[]).map(c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
+          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita":"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>')+'</div>').join("")
+        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com a PGG":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button></div>':'')
+        +'</div>';
+    }).join("");
+  }
+  async function pilotoCarregarMapa(){
+    const f=document.getElementById("pilMapa").files[0]; if(!f){ alert("Selecione o mapa do PAAR."); return; }
+    await libsPagamentos(); const m=await lerMapaPAAR(f);
+    const nomes=document.getElementById("pilNomes").value.split(",").map(s=>s.trim()).filter(Boolean);
+    const escolhidos=nomes.map(n=>m.guias.find(g=>normP(g.nome)===normP(n))||m.guias.find(g=>nomeBate(n,g.nome))).filter(Boolean);
+    const faltam=nomes.filter(n=>!escolhidos.some(g=>normP(g.nome)===normP(n)||nomeBate(n,g.nome)));
+    if(m.periodo) PIL.qid=m.periodo[0]+"_"+m.periodo[1];
+    const j=await chamarPiloto("carregar",{guias:escolhidos.map(g=>({nome:g.nome,doc:g.doc,linhas:g.linhas}))});
+    if(!j.ok){ alert(j.erro); return; }
+    if(faltam.length) alert("Não achei no mapa: "+faltam.join(", "));
+    renderPagamentos(document.getElementById("mainConteudo"));
+  }
+  async function pilotoValores(){
+    const f=document.getElementById("pilPgg").files[0]; if(!f){ alert("Selecione a PGG."); return; }
+    await libsPagamentos(); const pgg=await lerPGG(f); const valores={}; const faltam=[];
+    for(const g of (PIL.dados?PIL.dados.guias:[])){
+      let c=pgg.rows.filter(r=>normP(r.nome)===normP(g.nome)); if(!c.length) c=pgg.rows.filter(r=>nomeBate(r.nome,g.nome)||nomeBate(g.nome,r.nome));
+      const comValor=c.filter(r=>(r.liq||0)>0); if(comValor.length) c=comValor;
+      if(c.length!==1){ faltam.push(g.nome); continue; }
+      const r=c[0]; valores[g.gid]={serv:r.serv||0,com:r.com||0,reemb:r.reemb||0,maq:r.maq||0,liq:r.liq||0,nomePgg:r.nome};
+    }
+    const j=await chamarPiloto("valores",{valores}); if(!j.ok){ alert(j.erro); return; }
+    if(faltam.length) alert("Não achei na PGG (ou achei mais de um): "+faltam.join(", "));
+    atualizarPiloto();
+  }
+  async function pilotoLiberar(v){
+    if(v&&!confirm("Liberar os valores? Os guias do piloto vão ver o valor da nota e a descrição pronta.")) return;
+    const j=await chamarPiloto("liberar",{liberado:v}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+  }
+  async function pilotoLink(gid){
+    const j=await chamarPiloto("link",{gid}); if(!j.ok){ alert(j.erro); return; }
+    const url=location.href.replace(/[^\/]*([?#].*)?$/,"")+"pagamento.html?t="+j.token;
+    try{ await navigator.clipboard.writeText(url); alert("Link copiado:\n"+url+"\n\nMande só para esse guia (é pessoal)."); }catch(e){ prompt("Link do guia (copie):",url); }
+  }
+  async function pilotoResponder(gid,cid,status){
+    const resposta=prompt(status==="aceita"?"Aceitar a contestação. Mensagem para o guia (opcional):":"Negar a contestação. Explique o motivo para o guia:","");
+    if(resposta===null) return;
+    const j=await chamarPiloto("responder",{gid,cid,status,resposta}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+  }
+  async function pilotoPdf(gid){
+    const j=await chamarPiloto("pdf",{gid}); if(!j.ok){ alert(j.erro); return; }
+    const bin=atob(j.base64), arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+    baixarArquivo(j.nome||"nota.pdf",new Blob([arr],{type:"application/pdf"}));
   }
 
   // ---- Usuários (admin) ----
