@@ -1650,7 +1650,12 @@
       +'<label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Fim<input type="date" id="pilFim" value="'+fim+'"></label>'
       +'<label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;flex:1;min-width:240px">Guias do piloto<input type="text" id="pilNomes" value="'+esc(PIL.nomes)+'" style="padding:8px 10px;border:1px solid var(--linha);border-radius:8px"></label>'
       +'<button class="btn sec" onclick="trocarQuinzenaPiloto()">Abrir quinzena</button></div></div>'
-      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">1. Mapa do PAAR</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilMapa" accept=".xlsx,.xls"><button class="btn" onclick="pilotoCarregarMapa()">Carregar serviços dos guias do piloto</button></div></div>'
+      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:6px">1. Mapa pelo Phoenix (sem o Utopia)</h3>'
+      +'<p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Lê as escalas dos guias do piloto no Phoenix e aplica o tarifário e as regras (idioma pelo relatório, motoguia, apoio). Se o Phoenix for corrigido, é só gerar de novo.</p>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span style="font-size:.8rem;font-weight:700">Tarifário (.xlsx, só quando mudar):</span><input type="file" id="pilTarif" accept=".xlsx"><button class="btn sec mini" onclick="salvarTarifario()">Salvar tarifário</button></div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" onclick="pilotoGerarPhoenix()">Gerar mapa pelo Phoenix</button><span id="pilPhxInfo" style="font-size:.8rem;color:var(--muted)"></span></div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha)"><span style="font-size:.8rem;font-weight:700">Conferir com o PAAR (teste em paralelo):</span><input type="file" id="pilCmp" accept=".xlsx"><button class="btn sec mini" onclick="pilotoCompararPaar()">Comparar</button></div><div id="pilCmpRes"></div></div>'
+      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Ou: mapa do PAAR</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilMapa" accept=".xlsx,.xls"><button class="btn" onclick="pilotoCarregarMapa()">Carregar serviços dos guias do piloto</button></div></div>'
       +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">2. Valores da PGG (depois que o financeiro lançar a comissão)</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilPgg" accept=".xlsx,.xls"><button class="btn" onclick="pilotoValores()">Atualizar valores</button><span id="pilLib"></span></div></div>'
       +'<div id="pilStatus"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
   }
@@ -1722,6 +1727,110 @@
     const j=await chamarPiloto("pdf",{gid}); if(!j.ok){ alert(j.erro); return; }
     const bin=atob(j.base64), arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
     baixarArquivo(j.nome||"nota.pdf",new Blob([arr],{type:"application/pdf"}));
+  }
+
+
+  // ======================= MAPA PELO PHOENIX (sem o Utopia) =======================
+  // Lê as escalas do Phoenix no período, aplica o tarifário dos guias e as regras combinadas:
+  // idioma quando o guia informou a REC de idioma no relatório; motoguia 262 (idioma 300) uma vez
+  // por dia; apoio de manhã paga 1 (2 com Maragogi + outro passeio); apoio da tarde (VOLTA) paga 1;
+  // passeio privativo tem o mesmo valor do regular.
+  const MOTOGUIA=262, MOTOGUIA_IDIOMA=300, APOIO=40;
+  async function salvarTarifario(){
+    const f=document.getElementById("pilTarif").files[0]; if(!f){ alert("Selecione a planilha do tarifário."); return; }
+    await libsPagamentos(); const wb=XLSX.read(await f.arrayBuffer());
+    const aba=wb.SheetNames.find(n=>/^tarif[aá]rio guias$/i.test(n.trim())); if(!aba){ alert('Não achei a aba "Tarifário Guias".'); return; }
+    const servicos={};
+    for(const r of XLSX.utils.sheet_to_json(wb.Sheets[aba],{header:1,raw:true}).slice(1)){
+      const nome=normP(r[0]); if(!nome) continue;
+      const v=typeof r[1]==="number"?r[1]:null, vi=typeof r[2]==="number"?r[2]:v;
+      if(v!=null) servicos[nome]={v,vi};
+    }
+    const j=await chamarPiloto("tarifario",{dados:{servicos,qtd:Object.keys(servicos).length,arquivo:f.name}});
+    if(!j.ok){ alert(j.erro); return; }
+    PIL.tarifario={servicos}; alert("Tarifário salvo: "+Object.keys(servicos).length+" serviços.");
+  }
+  function tarifaDe(servico,idioma){
+    const t=(PIL.tarifario||{}).servicos||{}; const n=normP(servico);
+    const x=t[n]||t[n.replace(/ - NOVOTEL MARINA$/,"")];
+    return x?(idioma?x.vi:x.v):null;
+  }
+  function montarMapaPhoenix(linhas,nomes,relatorios){
+    const porGuiaDia={};
+    for(const r of relatorios){ const k=normP(r.guia)+"|"+r.data; (porGuiaDia[k]=porGuiaDia[k]||[]).push(...r.itens.map(i=>({...i}))); }
+    const nomesRel=[...new Set(relatorios.map(r=>normP(r.guia)))];
+    return nomes.map(nome=>{
+      const N=normP(nome);
+      const chaveRel=nomesRel.includes(N)?N:(nomesRel.find(x=>nomeBate(nome,x)||nomeBate(x,nome))||N);
+      const minhas=linhas.filter(l=>normP(l.guia)===N||(normP(l.guia)&&nomeBate(nome,l.guia)&&nomeBate(l.guia,nome)));
+      const out=[];
+      for(const d of [...new Set(minhas.map(l=>l.data))].sort()){
+        const L=minhas.filter(l=>l.data===d).sort((a,b)=>String(a.apresentacao||a.inicio).localeCompare(String(b.apresentacao||b.inicio)));
+        const itens=porGuiaDia[chaveRel+"|"+d]||[];
+        const usaIdioma=(cat)=>{ const i=itens.find(x=>!x._usado&&x.recIdioma&&String(catRel(x.servico)).startsWith(cat)); if(i){ i._usado=true; return i.recIdioma; } return ""; };
+        const ehMoto=(l)=>normP(l.motorista)&&(normP(l.motorista)===N||nomeBate(nome,l.motorista));
+        const motoIdioma=L.some(ehMoto)&&itens.some(i=>i.recIdioma);
+        let motoPago=false; const idas=[], voltas=[];
+        for(const l of L){
+          const ap=l.auxiliar||/APOIO/i.test(l.servico);
+          const cat=ap?(/VOLTA/i.test(l.servico)?"apoio-volta":"apoio-ida"):catMapa(l.servico);
+          const linha={data:d,hora:String(l.apresentacao||l.inicio||"").slice(0,5),ro:l.escala,servico:l.auxiliar?("APOIO · "+l.servico):l.servico,veiculo:l.veiculo,motorista:l.motorista,valor:0,obs:""};
+          if(ehMoto(l)){ linha.valor=motoPago?0:(motoIdioma?MOTOGUIA_IDIOMA:MOTOGUIA); linha.obs=motoPago?"motoguia (já pago no dia)":"motoguia"+(motoIdioma?" com idioma":""); motoPago=true; }
+          else if(ap){ linha.valor=APOIO; (cat==="apoio-volta"?voltas:idas).push({linha,passeio:String(l.servico).toUpperCase()}); }
+          else {
+            const rec=cat==="passeio"?usaIdioma("passeio"):usaIdioma(cat==="chegada"?"chegada":cat==="saida"?"saida":"trf");
+            const v=tarifaDe(l.servico,!!rec);
+            if(v==null){ linha.valor=0; linha.obs="sem tarifa no tarifário: conferir"; } else { linha.valor=v; if(rec) linha.obs="idioma · REC "+rec; }
+          }
+          out.push(linha);
+        }
+        const mar=idas.some(a=>/MARAGOGI/.test(a.passeio)), outros=idas.some(a=>!/MARAGOGI/.test(a.passeio));
+        const pagos=idas.length?((mar&&outros)?2:1):0;
+        idas.slice(pagos).forEach(a=>{ a.linha.valor=0; a.linha.obs="apoio além do permitido no dia"; });
+        voltas.slice(1).forEach(a=>{ a.linha.valor=0; a.linha.obs="apoio de volta já pago no dia"; });
+      }
+      return {nome,linhas:out,total:out.reduce((s,l)=>s+l.valor,0)};
+    });
+  }
+  async function pilotoGerarPhoenix(){
+    const nomes=document.getElementById("pilNomes").value.split(",").map(s=>s.trim()).filter(Boolean);
+    const [ini,fim]=PIL.qid.split("_"); const info=document.getElementById("pilPhxInfo");
+    try{
+      if(!PIL.tarifario){ const t=await chamarPiloto("tarifario",{}); if(t.ok&&t.tarifario) PIL.tarifario=t.tarifario; }
+      if(!PIL.tarifario){ alert("Salve o tarifário primeiro."); return; }
+      const chamarC=async(acao)=>{ const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,inicio:ini,fim})}); const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro); return j; };
+      info.textContent="Lendo as escalas do Phoenix de "+dataBR(ini)+" a "+dataBR(fim)+" (pode levar até 2 minutos na primeira vez)...";
+      const linhas=(await chamarC("linhas")).linhas;
+      let rel=[]; try{ info.textContent="Lendo os relatórios dos guias (para o idioma)..."; rel=(await chamarC("relatorios")).relatorios; }catch(e){ console.log("sem relatórios:",e.message); }
+      const mapas=montarMapaPhoenix(linhas,nomes,rel);
+      const vazios=mapas.filter(m=>!m.linhas.length).map(m=>m.nome);
+      const j=await chamarPiloto("carregar",{guias:mapas.filter(m=>m.linhas.length).map(m=>({nome:m.nome,linhas:m.linhas}))});
+      if(!j.ok) throw new Error(j.erro);
+      PIL.mapasPhoenix=mapas;
+      info.textContent="Mapa gerado pelo Phoenix: "+mapas.map(m=>m.nome+" "+m.linhas.length+" serviços · "+brlP(m.total)).join(" | ")+(rel.length?"":" · (sem relatórios: idioma não aplicado)");
+      if(vazios.length) alert("Nenhum serviço no Phoenix para: "+vazios.join(", ")+". Confira se o nome está igual ao do Phoenix.");
+      atualizarPiloto();
+    }catch(e){ console.error(e); alert("Erro: "+e.message); info.textContent=""; }
+  }
+  // compara o mapa gerado pelo Phoenix com o export do Utopia/PAAR, escala por escala
+  async function pilotoCompararPaar(){
+    const f=document.getElementById("pilCmp").files[0]; if(!f){ alert("Selecione o mapa do PAAR."); return; }
+    if(!PIL.dados||!PIL.dados.guias.length){ alert("Gere o mapa pelo Phoenix primeiro."); return; }
+    await libsPagamentos(); const m=await lerMapaPAAR(f);
+    let h='<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Comparação com o PAAR</h3>';
+    for(const g of PIL.dados.guias){
+      const p=m.guias.find(x=>normP(x.nome)===normP(g.nome))||m.guias.find(x=>nomeBate(g.nome,x.nome));
+      if(!p){ h+='<p style="font-size:.84rem"><b>'+esc(g.nome)+'</b>: não está no arquivo do PAAR.</p>'; continue; }
+      const nos={}; (g.linhas||[]).forEach(l=>nos[l.ro]=(nos[l.ro]||0)+l.valor);
+      const deles={}; p.linhas.forEach(l=>deles[l.ro]=(deles[l.ro]||0)+l.valor);
+      const ros=[...new Set([...Object.keys(nos),...Object.keys(deles)])];
+      const dif=ros.filter(r=>Math.abs((nos[r]||0)-(deles[r]||0))>=0.01);
+      const tn=Object.values(nos).reduce((a,b)=>a+b,0), td=Object.values(deles).reduce((a,b)=>a+b,0);
+      h+='<div style="border-top:1px solid var(--linha);padding:10px 0;font-size:.84rem"><b>'+esc(g.nome)+'</b> · Phoenix '+brlP(tn)+' · PAAR '+brlP(td)+' · '+(dif.length?'<span style="color:var(--alerta);font-weight:700">'+dif.length+' diferença(s)</span>':'<span style="color:var(--ok);font-weight:700">igual</span>');
+      if(dif.length) h+='<div style="margin-top:6px">'+dif.map(r=>{ const a=(g.linhas||[]).find(l=>l.ro===r)||p.linhas.find(l=>l.ro===r)||{}; return '<div style="display:grid;grid-template-columns:120px 60px minmax(0,1fr) 90px 90px minmax(0,1fr);gap:10px;padding:5px 0;border-bottom:1px solid var(--linha)"><span style="color:#1e3a8a;font-weight:700">'+esc(r)+'</span><span>'+esc(a.data?dataBR(a.data).slice(0,5):"")+'</span><span>'+esc(a.servico||"")+'</span><span>Phoenix '+brlP(nos[r]||0)+'</span><span>PAAR '+brlP(deles[r]||0)+'</span><span style="color:var(--muted)">'+esc(((g.linhas||[]).find(l=>l.ro===r)||{}).obs||(nos[r]==null?"não veio do Phoenix":deles[r]==null?"não está no PAAR":""))+'</span></div>'; }).join("")+'</div>';
+      h+='</div>';
+    }
+    document.getElementById("pilCmpRes").innerHTML=h+'</div>';
   }
 
   // ---- Usuários (admin) ----
