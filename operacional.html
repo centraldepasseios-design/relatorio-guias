@@ -1670,16 +1670,19 @@
     const ST={aguardando:["Aguardando conferência","#eef1f0","#3c524d"],conferido:["Conferiu os serviços","#e3f2ee","#0b4f44"],contestado:["Contestou","#fff1e0","#8a4a0c"],nota_ok:["Nota conferida ✓","#e3f2ee","#0b4f44"],nota_com_problema:["Nota com problema","#fde4df","#9f2a15"]};
     box.innerHTML=j.guias.map(g=>{
       const st=ST[g.status]||ST.aguardando; const v=g.valores;
-      const dif=v&&g.totalMapa!=null&&Math.abs((v.serv||0)-g.totalMapa)>=0.01;
+      const dif=v&&v.servPgg!=null&&Math.abs(v.servPgg-v.serv)>=0.01;
       const abertas=(g.contestacoes||[]).filter(c=>c.status==="aberta");
       return '<div class="card" style="padding:14px 18px">'
         +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1rem">'+esc(g.nome)+'</b><span style="font-size:.72rem;font-weight:800;background:'+st[1]+';color:'+st[2]+';border-radius:999px;padding:3px 10px">'+st[0]+'</span>'
         +'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
         +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;margin-top:8px;color:var(--muted)"><span>'+(g.linhas||[]).length+' serviços no mapa · '+brlP(g.totalMapa)+'</span>'
-        +(v?'<span>PGG: serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
-        +(dif?'<div style="font-size:.8rem;color:var(--alerta);margin-top:6px">⚠️ Serviços na PGG ('+brlP(v.serv)+') diferentes do mapa ('+brlP(g.totalMapa)+'): a descrição que o guia copia lista o mapa. Suba o mapa atualizado.</div>':'')
+        +(v?'<span>Serviços '+brlP(v.serv)+' · comissão (PGG) '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
+        +(dif?'<div style="font-size:.8rem;color:#b45309;margin-top:6px">ℹ️ A PGG tem '+brlP(v.servPgg)+' de serviços; o sistema calculou '+brlP(v.serv)+' pelo Phoenix. O valor da nota usa o do sistema.</div>':'')
         +(g.contestacoes||[]).map(c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
           +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita":"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>')+'</div>').join("")
+        +(g.linhas||[]).filter(l=>/sem tarifa/i.test(l.obs||"")).map(l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>').join("")
+        +(g.lancamentos||[]).map(x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
+          +(x.status==="aberto"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'aceito\','+(x.sugerido||0)+')">Aceitar</button><button class="btn mini danger" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'negado\',0)">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(x.status==="aceito"?"var(--ok)":"var(--alerta)")+'">'+(x.status==="aceito"?"Aceito · "+brlP(x.valor):"Negado")+'</span>')+'</div>').join("")
         +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com a PGG":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button></div>':'')
         +'</div>';
     }).join("");
@@ -1701,7 +1704,7 @@
     await libsPagamentos(); const pgg=await lerPGG(f); const valores={}; const faltam=[];
     for(const g of (PIL.dados?PIL.dados.guias:[])){
       let c=pgg.rows.filter(r=>normP(r.nome)===normP(g.nome)); if(!c.length) c=pgg.rows.filter(r=>nomeBate(r.nome,g.nome)||nomeBate(g.nome,r.nome));
-      const comValor=c.filter(r=>(r.liq||0)>0); if(comValor.length) c=comValor;
+      const comValor=c.filter(r=>(r.com||0)>0||(r.serv||0)>0||(r.liq||0)>0); if(comValor.length) c=comValor;
       if(c.length!==1){ faltam.push(g.nome); continue; }
       const r=c[0]; valores[g.gid]={serv:r.serv||0,com:r.com||0,reemb:r.reemb||0,maq:r.maq||0,liq:r.liq||0,nomePgg:r.nome};
     }
@@ -1722,6 +1725,17 @@
     const resposta=prompt(status==="aceita"?"Aceitar a contestação. Mensagem para o guia (opcional):":"Negar a contestação. Explique o motivo para o guia:","");
     if(resposta===null) return;
     const j=await chamarPiloto("responder",{gid,cid,status,resposta}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+  }
+  async function pilotoAjustar(gid,ro){
+    const v=prompt("Valor deste serviço para o guia (R$):",""); if(v===null) return;
+    const valor=parseFloat(String(v).replace(/\./g,"").replace(",",".")); if(!(valor>=0)){ alert("Valor inválido."); return; }
+    const j=await chamarPiloto("ajustar",{gid,ro,valor,obs:"valor definido pela Central"}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+  }
+  async function pilotoLanc(gid,id,status,sugerido){
+    let valor=0, resposta="";
+    if(status==="aceito"){ const v=prompt("Valor a pagar (R$):",sugerido?String(sugerido).replace(".",","):""); if(v===null) return; valor=parseFloat(String(v).replace(/\./g,"").replace(",",".")); if(!(valor>0)){ alert("Informe o valor."); return; } }
+    else { resposta=prompt("Motivo (o guia vai ver):",""); if(resposta===null) return; }
+    const j=await chamarPiloto("lancamento",{gid,id,status,valor,resposta}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
   }
   async function pilotoPdf(gid){
     const j=await chamarPiloto("pdf",{gid}); if(!j.ok){ alert(j.erro); return; }
