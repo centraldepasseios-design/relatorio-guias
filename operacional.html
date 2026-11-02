@@ -365,6 +365,7 @@
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
     if(id==="cen-contatos"){ renderContatos(m); return; }
     if(id==="cen-pagamentos"){ renderPagamentos(m); return; }
+    if(id==="cen-disp"){ renderDisponibilidade(m); return; }
     if(id==="porto-escala"||id==="cen-escala"){ renderEscala(m,"guias"); return; }
     if(id==="porto-passeios"||id==="cen-passeios"){ renderPlano(m, id==="cen-passeios"?"central":"porto"); return; }
     // demais abas: em breve (preencheremos uma a uma)
@@ -1846,6 +1847,89 @@
     }
     document.getElementById("pilCmpRes").innerHTML=h+'</div>';
   }
+
+
+  // ======================= DISPONIBILIDADE (lida do app dos guias) =======================
+  const DSP={ data:null, dados:null, internos:[], filtro:"todos", busca:"", form:null };
+  const DSP_COR={d:["#dff1ea","#0b4f44","Disponível"],r:["#fff1e0","#8a4a0c","Restrição"],i:["#fde4df","#9f2a15","Indisponível"],b:["#e6ecfb","#1e3a8a","Bloqueado"],p:["#e3f2ee","#0b4f44","Em passeio"],n:["#2b3a37","#ffffff","Não convidar"]};
+  const somaDias=(iso,n)=>{ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+  async function chamarDisp(acao,dados){ const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,...dados})}); const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro); return j; }
+  function renderDisponibilidade(m){
+    if(!DSP.data) DSP.data=somaDias(hojeISO(),1);
+    cab(dataLonga(DSP.data),'<button class="btn sec" aria-label="Dia anterior" onclick="DSP.data=somaDias(DSP.data,-1);renderDisponibilidade(document.getElementById(\'mainConteudo\'))">‹</button><input type="date" value="'+DSP.data+'" onchange="DSP.data=this.value;renderDisponibilidade(document.getElementById(\'mainConteudo\'))"><button class="btn sec" aria-label="Próximo dia" onclick="DSP.data=somaDias(DSP.data,1);renderDisponibilidade(document.getElementById(\'mainConteudo\'))">›</button>'
+      +'<button class="btn sec" onclick="DSP.form=\'servico\';desenharDisp()">Bloquear para serviço</button><button class="btn sec" onclick="DSP.form=\'naoConvidar\';desenharDisp()">Não convidar</button>');
+    m.innerHTML='<div id="dspForm"></div><div id="dspConteudo"><div class="card" style="color:var(--muted)">Carregando a disponibilidade do app dos guias...</div></div><datalist id="dspGuias"></datalist>';
+    carregarDisp();
+  }
+  async function carregarDisp(){
+    try{
+      const [d,i]=await Promise.all([chamarDisp("disponibilidade",{inicio:DSP.data,fim:somaDias(DSP.data,6)}),chamarDisp("internos",{})]);
+      DSP.dados=d; DSP.internos=i.itens||[];
+      const dl=document.getElementById("dspGuias"); if(dl) dl.innerHTML=d.guias.map(g=>'<option value="'+esc(g)+'">').join("");
+      desenharDisp();
+    }catch(e){ const box=document.getElementById("dspConteudo"); if(box) box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+(/chave/i.test(e.message)?'<br><span style="color:var(--muted)">A Disponibilidade lê o app dos guias: precisa do arquivo relatorio-guias-chave.json na pasta functions.</span>':'')+'</div>'; }
+  }
+  // situação de um guia num dia: registros internos > bloqueios do painel > o que o guia marcou no app
+  function situacaoDisp(guia,dia){
+    const G=normP(guia), cobre=(x)=>x.inicio<=dia&&dia<=x.fim&&normP(x.guia)===G;
+    const nc=DSP.internos.find(x=>x.tipo==="naoConvidar"&&cobre(x)); if(nc) return {s:"n",det:"Não convidar até "+dataBR(nc.fim).slice(0,5)+(nc.motivo?" · "+nc.motivo:""),x:nc};
+    const sv=DSP.internos.find(x=>x.tipo==="servico"&&cobre(x)); if(sv) return {s:"b",det:(sv.descricao||"Serviço")+(sv.rec?" · REC-"+sv.rec:"")+(sv.horario?" · "+sv.horario:""),x:sv};
+    const bl=(DSP.dados.bloqueios||[]).find(cobre); if(bl) return bl.tipo==="passeio"?{s:"p",det:"Escalado em passeio"+(bl.motivo?": "+bl.motivo:"")}:{s:"b",det:"Bloqueio do painel"+(bl.motivo?": "+bl.motivo:"")};
+    const ds=(DSP.dados.disp||[]).find(x=>x.data===dia&&normP(x.guia)===G);
+    if(ds&&ds.status==="nao") return {s:"i",det:ds.obs||"Indisponível",em:ds.em};
+    if(ds&&(ds.status==="restricao"||ds.status==="passeio")) return {s:"r",det:ds.obs||(ds.status==="passeio"?"Só passeio":"Com restrição"),em:ds.em};
+    return {s:"d",det:"Disponível o dia todo"};
+  }
+  // avisou depois das 13h do dia anterior (regra do app)
+  function avisoTarde(sit,dia){ if(!sit.em) return false; const lim=new Date(somaDias(dia,-1)+"T13:00:00-03:00").getTime(); return sit.em>lim; }
+  function desenharDisp(){
+    const f=document.getElementById("dspForm"); if(f) f.innerHTML=DSP.form?htmlFormDisp():"";
+    const box=document.getElementById("dspConteudo"); if(!box||!DSP.dados) return;
+    const dias=[0,1,2,3,4,5,6].map(k=>somaDias(DSP.data,k)), dia=DSP.data;
+    const nomes=[...new Set([...DSP.dados.guias,...DSP.dados.disp.map(x=>x.guia)].map(x=>String(x).trim()).filter(Boolean))].sort();
+    const linhas=nomes.map(n=>({nome:n,sit:situacaoDisp(n,dia),sem:dias.map(d=>situacaoDisp(n,d).s)}));
+    const cont={}; linhas.forEach(l=>cont[l.sit.s]=(cont[l.sit.s]||0)+1);
+    const tarde=linhas.filter(l=>(l.sit.s==="r"||l.sit.s==="i")&&avisoTarde(l.sit,dia));
+    let vis=linhas.filter(l=>DSP.filtro==="todos"||l.sit.s===DSP.filtro); const b=normP(DSP.busca); if(b) vis=vis.filter(l=>normP(l.nome).includes(b));
+    const ord={i:0,r:1,b:2,n:3,p:4,d:5}; vis.sort((a,c)=>ord[a.sit.s]-ord[c.sit.s]||a.nome.localeCompare(c.nome));
+    const kpi=(k,t)=>'<div class="resumo"><div class="num" style="color:'+(k==="d"?"var(--ok)":k==="i"?"#9f2a15":k==="r"?"#b45309":k==="b"?"#1e3a8a":"var(--tinta)")+'">'+(cont[k]||0)+'</div><div class="lbl">'+t+'</div></div>';
+    let h='<div class="cards-resumo">'+kpi("d","Disponíveis")+kpi("r","Com restrição")+kpi("i","Indisponíveis")+kpi("b","Bloqueados")+kpi("n","Não convidar")+'</div>';
+    if(tarde.length) h+='<div class="card" style="background:#fff5f0;border-color:#f3c6b5;padding:14px 18px"><b style="color:#8a2f17">'+tarde.length+' restrição(ões) chegaram depois das 13h do dia anterior</b> <span style="font-size:.86rem;color:#5a2b1d">'+tarde.map(l=>esc(titulo(l.nome))).join(", ")+'</span></div>';
+    h+='<div class="filtros">'+campoBusca("dspBusca","Buscar guia",DSP.busca,"DSP.busca=this.value;desenharDisp();setTimeout(()=>{const e=document.getElementById(\'dspBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")
+      +segmento([["todos","Todos"],["d","Disponíveis"],["r","Restrição"],["i","Indisponíveis"],["b","Bloqueados"],["n","Não convidar"]],DSP.filtro,"DSP.filtro='$v';desenharDisp()")+'</div>';
+    const sq=(s,d)=>{ const c=DSP_COR[s]; return '<span title="'+dataBR(d).slice(0,5)+': '+c[2]+'" style="width:28px;height:28px;border-radius:8px;background:'+c[0]+';color:'+c[1]+';font-size:.7rem;font-weight:800;display:flex;align-items:center;justify-content:center">'+d.slice(8)+'</span>'; };
+    h+='<div style="display:flex;flex-direction:column;gap:8px">'+vis.map(l=>{ const c=DSP_COR[l.sit.s], t=avisoTarde(l.sit,dia)&&(l.sit.s==="r"||l.sit.s==="i");
+      return '<div class="card" style="margin:0;padding:12px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:14px;'+(t?'border-color:#f3b9ab':'')+'">'
+        +'<span style="width:38px;height:38px;border-radius:19px;background:var(--verde-claro);color:var(--verde-esc);font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center">'+esc(l.nome.split(" ").slice(0,2).map(p=>p[0]).join(""))+'</span>'
+        +'<div style="width:170px;display:flex;flex-direction:column"><b style="color:var(--tinta)">'+esc(titulo(l.nome))+'</b>'+(l.sit.em?'<span style="font-size:.74rem;'+(t?'color:#9f2a15;font-weight:800':'color:var(--muted)')+'">'+new Date(l.sit.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(t?' · depois das 13h':'')+'</span>':'')+'</div>'
+        +'<span class="pill" style="background:'+c[0]+';color:'+c[1]+';min-width:96px;text-align:center">'+c[2]+'</span>'
+        +'<span style="flex:1 1 200px;font-size:.88rem;font-weight:600">'+esc(l.sit.det)+'</span>'
+        +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k])).join("")+'</div></div>'; }).join("")+'</div>';
+    const servs=DSP.internos.filter(x=>x.fim>=hojeISO()).sort((a,c)=>a.inicio.localeCompare(c.inicio));
+    if(servs.length) h+='<h3 style="font-size:1.1rem;font-weight:800;margin:22px 0 10px">Bloqueios e "não convidar" registrados</h3><div style="display:flex;flex-direction:column;gap:8px">'+servs.map(x=>'<div class="card" style="margin:0;padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><b>'+esc(titulo(x.guia))+'</b><span class="pill" style="background:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][0]+';color:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][1]+'">'+(x.tipo==="naoConvidar"?"Não convidar":"Bloqueado")+'</span><span style="font-size:.86rem">'+dataBR(x.inicio).slice(0,5)+(x.fim!==x.inicio?' a '+dataBR(x.fim).slice(0,5):'')+(x.horario?' · '+esc(x.horario):'')+'</span>'
+      +(x.tipo==="servico"?'<span style="font-size:.86rem">'+esc(x.descricao||"")+(x.rec?' · <b style="color:#1e3a8a">REC-'+esc(x.rec)+'</b>':'')+(x.quemPediu?' · pedido por '+esc(x.quemPediu):'')+'</span>':'<span style="font-size:.86rem;color:var(--muted)">'+esc(x.motivo||"")+'</span>')
+      +'<button class="btn mini danger" style="margin-left:auto" onclick="removerInternoDisp(\''+x.id+'\')">Remover</button></div>').join("")+'</div>';
+    box.innerHTML=h;
+  }
+  function htmlFormDisp(){
+    const sv=DSP.form==="servico", lb='display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)', inp='style="height:44px;border:1px solid #cfdcd8;border-radius:12px;padding:0 12px;font-family:inherit;font-size:.92rem"';
+    return '<div class="card" style="border:2px solid var(--verde)"><h3 style="margin-bottom:4px">'+(sv?"Bloquear guia para um serviço":"Não convidar")+'</h3><p style="font-size:.84rem;color:var(--muted);margin-bottom:14px">'+(sv?"Ele aparece como bloqueado nesses dias. Registro interno da Central.":"Registro interno: o guia não vê. Ao fim do período ele volta a ser convidado.")+'</p>'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">'
+      +'<label style="'+lb+'">Guia<input id="dfGuia" list="dspGuias" '+inp+'></label>'
+      +'<label style="'+lb+'">'+(sv?'Dia':'De')+'<input type="date" id="dfIni" value="'+DSP.data+'" '+inp+'></label>'
+      +'<label style="'+lb+'">'+(sv?'Até (se for mais de um dia)':'Até')+'<input type="date" id="dfFim" value="'+(sv?DSP.data:somaDias(DSP.data,14))+'" '+inp+'></label>'
+      +(sv?'<label style="'+lb+'">Horário<input id="dfHor" placeholder="ex.: 10h às 15h" '+inp+'></label><label style="'+lb+'">REC<input id="dfRec" placeholder="ex.: 981234" inputmode="numeric" '+inp+'></label><label style="'+lb+'">Descrição<input id="dfDesc" placeholder="ex.: Evento corporativo" '+inp+'></label><label style="'+lb+'">Quem pediu<input id="dfQuem" placeholder="ex.: Comercial, por e-mail" '+inp+'></label>'
+         :'<label style="'+lb+';grid-column:1/-1">Motivo (só a coordenação vê)<input id="dfMot" '+inp+'></label>')
+      +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="DSP.form=null;desenharDisp()">Cancelar</button><button class="btn" onclick="salvarInternoDisp()">Salvar</button></div></div>';
+  }
+  async function salvarInternoDisp(){
+    const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():""; };
+    const dados={tipo:DSP.form,guia:v("dfGuia"),inicio:v("dfIni"),fim:v("dfFim")||v("dfIni"),horario:v("dfHor"),rec:v("dfRec").replace(/^REC-?/i,""),descricao:v("dfDesc"),quemPediu:v("dfQuem"),motivo:v("dfMot")};
+    if(!dados.guia){ alert("Informe o guia."); return; }
+    if(dados.fim<dados.inicio){ alert("A data final é antes da inicial."); return; }
+    try{ await chamarDisp("salvarInterno",dados); DSP.form=null; await carregarDisp(); }catch(e){ alert(e.message); }
+  }
+  async function removerInternoDisp(id){ if(!confirm("Remover este registro?")) return; try{ await chamarDisp("removerInterno",{id}); await carregarDisp(); }catch(e){ alert(e.message); } }
 
   // ---- Usuários (admin) ----
   async function renderUsuarios(m){
