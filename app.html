@@ -48,8 +48,8 @@
   input[type=text],input[type=password],input[type=search],select,textarea{width:100%;border:1.5px solid var(--borda);border-radius:12px;padding:12px 14px;background:#fff;color:var(--tinta)}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--verde)}
   label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:800;color:#3c524d}
-  nav.abas{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:520px;margin:0 auto;height:64px;background:var(--escuro);border-radius:22px;display:grid;grid-template-columns:repeat(5,1fr);align-items:center;box-shadow:0 10px 24px rgba(13,59,48,.25);z-index:20}
-  nav.abas button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;color:#a9c7bb;font-size:10px;font-weight:800;cursor:pointer}
+  nav.abas{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:520px;margin:0 auto;height:64px;background:var(--escuro);border-radius:22px;display:grid;grid-template-columns:repeat(6,1fr);align-items:center;box-shadow:0 10px 24px rgba(13,59,48,.25);z-index:20}
+  nav.abas button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;color:#a9c7bb;font-size:9.5px;padding:0;font-weight:800;cursor:pointer}
   nav.abas button.on{color:#86e6b8}
   .vazio{text-align:center;padding:26px 10px;color:var(--muted);font-size:14px}
   .esqueleto{height:84px;border-radius:18px;background:linear-gradient(90deg,#e6efea 25%,#f4f8f6 50%,#e6efea 75%);background-size:200% 100%;animation:brilho 1.2s infinite;margin-bottom:12px}
@@ -94,7 +94,7 @@ function tipoDe(l){ const S_=String(l.servico||"").toUpperCase();
   if(l.auxiliar||/APOIO/.test(S_)) return ["APOIO","var(--apoio)",true];
   if(l.tipo==="IN") return ["CHEGADA","var(--chegada)",true]; if(l.tipo==="OUT") return ["SAÍDA","var(--saida)",true];
   if(l.tipo==="TOUR") return ["PASSEIO","var(--passeio)",false]; return ["TRANSFER","var(--trf)",true]; }
-const ico={escala:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',disp:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',rel:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',hist:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',pag:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>'};
+const ico={escala:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',disp:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',rel:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',hist:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',pag:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',com:'<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>'};
 const svg=(k)=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+ico[k]+'</svg>';
 
 // ================= LOGIN =================
@@ -123,11 +123,11 @@ function montar(){
   if(!S.dia) S.dia=hoje(); if(!S.relDia) S.relDia=hoje();
   document.getElementById("raiz").innerHTML='<header class="topo"><div class="linha"><div><div class="ola">'+saudacao()+'</div><div class="nome">'+esc(tit(S.nome))+'</div></div><span style="display:flex;gap:8px"><button class="sair" aria-label="Como usar o app" onclick="tutorial(0)">?</button><button class="sair" onclick="if(confirm(\'Sair do app?\'))sair()">Sair</button></span></div><div id="topoExtra" style="max-width:520px;margin:14px auto 0"></div></header>'
     +'<main class="folha" id="conteudo"></main>'
-    +'<nav class="abas">'+[["escala","Escala"],["disp","Disponível"],["rel","Relatório"],["hist","Histórico"],["pag","Pagamento"]].map(([k,t])=>'<button id="ab-'+k+'" onclick="ir(\''+k+'\')">'+svg(k)+t+'</button>').join("")+'</nav>';
+    +'<nav class="abas">'+[["escala","Escala"],["disp","Disponível"],["rel","Relatório"],["hist","Histórico"],["pag","Pagamento"],["com","Comissão"]].map(([k,t])=>'<button id="ab-'+k+'" onclick="ir(\''+k+'\')">'+svg(k)+t+'</button>').join("")+'</nav>';
   ir(S.aba);
 }
 function ir(aba){ S.aba=aba; document.querySelectorAll("nav.abas button").forEach(b=>b.classList.toggle("on",b.id==="ab-"+aba)); document.getElementById("topoExtra").innerHTML=""; window.scrollTo(0,0);
-  ({escala:telaEscala,disp:telaDisp,rel:telaRel,hist:telaHist,pag:telaPag})[aba](); }
+  ({escala:telaEscala,disp:telaDisp,rel:telaRel,hist:telaHist,pag:telaPag,com:telaCom})[aba](); }
 function pilulas(sel,ini,qtd,acao){ let h='<div class="pilulas">'; for(let k=0;k<qtd;k++){ const d=soma(ini,k); const dt=new Date(d+"T12:00:00"); h+='<button class="pilula'+(d===sel?" on":"")+'" onclick="'+acao+'(\''+d+'\')"><span>'+(d===hoje()?"HOJE":SEM[dt.getDay()])+'</span><b>'+d.slice(8)+'</b></button>'; } return h+'</div>'; }
 async function escalaDo(dia,forcar){ const c=S.cache[dia]; if(c&&!forcar&&Date.now()-c.em<5*60e3) return c.servicos;
   const j=await api("escala",{data:dia,forcar:!!forcar}); if(!j.ok) throw new Error(j.erro); S.cache[dia]={em:Date.now(),servicos:j.servicos}; return j.servicos; }
@@ -238,7 +238,7 @@ function desenharRel(){
   }
   // vendas do dia (Phoenix)
   const v=S.relVendas||{};
-  h+='<h3 class="tit" style="margin:16px 2px 8px">Suas vendas do dia</h3><div class="card">'+(v.pendente?'<span class="peq muted">Em breve: aqui vão aparecer as vendas que você lançou no Phoenix neste dia.</span>':(v.vendas&&v.vendas.length?v.vendas.map(x=>'<div class="peq" style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--linha)"><span>'+esc(x.descricao)+'</span><b>'+brl(x.valor)+'</b></div>').join(""):'<span class="peq muted">Nenhuma venda lançada neste dia.</span>'))+'</div>';
+  h+='<h3 class="tit" style="margin:16px 2px 8px">Suas vendas do dia</h3><div class="card">'+(v.pendente?'<span class="peq muted">Em breve: aqui vão aparecer as vendas que você lançou no Phoenix neste dia.</span>':(v.vendas&&v.vendas.length?'<div class="peq" style="display:flex;justify-content:space-between;padding:0 0 6px"><b>'+v.vendas.length+' venda(s)</b><b>'+brl(v.vendas.reduce((s,x)=>s+(x.valor||0),0))+'</b></div>':'')+(v.vendas&&v.vendas.length?v.vendas.map(x=>'<div class="peq" style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--linha)"><span>'+esc(x.descricao)+'</span><b>'+brl(x.valor)+'</b></div>').join(""):'<span class="peq muted">Nenhuma venda lançada neste dia (pagas, atualizado a cada 2 horas).</span>'))+'</div>';
   if(servs.length) h+='<button class="btn" id="btnRel" onclick="enviarRel()">'+(S.relSalvo?'Enviar correção':'Enviar relatório')+'</button>';
   box.innerHTML=h;
 }
@@ -297,7 +297,11 @@ async function telaPag(){
 }
 function desenharParcial(){
   const j=S.parcial, box=document.getElementById("pagParcial"); if(!box) return;
-  let h='<div class="card" style="background:var(--escuro);color:#fff"><div class="tag" style="color:#a6dcc2">QUINZENA ATUAL · '+dd(j.periodo[0])+' A '+dd(j.periodo[1])+'</div><div style="font-size:32px;font-weight:900;letter-spacing:-.5px;margin:4px 0">'+brl(j.total)+'</div><div class="peq" style="color:#d2e6dc">'+j.linhas.length+' serviço(s) até '+dd(j.ate)+' · prévia sem comissão; pode mudar se a escala for corrigida</div></div>';
+  const com=j.comissao&&j.comissao.comissao||0;
+  let h='<div class="card" style="background:var(--escuro);color:#fff"><div class="tag" style="color:#a6dcc2">QUINZENA ATUAL · '+dd(j.periodo[0])+' A '+dd(j.periodo[1])+'</div><div style="font-size:32px;font-weight:900;letter-spacing:-.5px;margin:4px 0">'+brl(j.total+com)+'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px;color:#d2e6dc;margin:6px 0"><span>Serviços ('+j.linhas.length+' até '+dd(j.ate)+')</span><b style="color:#fff">'+brl(j.total)+'</b><span>Comissão até agora'+(j.comissao&&j.comissao.qtd?' ('+j.comissao.qtd+' venda'+(j.comissao.qtd>1?'s':'')+')':'')+'</span><b style="color:#86e6b8">'+brl(com)+'</b></div>'
+    +'<div class="peq" style="color:#a9c7bb">Prévia: a comissão conta as vendas já pagas e conciliadas no Phoenix (atualiza a cada 2 horas). O valor final da nota sai no fechamento.</div>'
+    +'<button class="mini" style="margin-top:10px;background:rgba(255,255,255,.12);color:#86e6b8;border:none" onclick="ir(\'com\')">Ver a comissão venda por venda →</button></div>';
   if(j.semTarifario) h+='<div class="card obs">Os valores ainda não aparecem porque o tarifário está sendo atualizado pela Central.</div>';
   const dias=[...new Set(j.linhas.map(l=>l.data))].sort().reverse();
   if(!dias.length) h+='<div class="vazio">Nenhum serviço na quinzena até ontem.</div>';
@@ -327,7 +331,7 @@ const TUT=[
   ["disp","Avise sua disponibilidade","Na aba <b>Disponível</b>, marque para cada dia se está <b>Livre</b>, com <b>Restrição</b> (ex.: só depois das 10h) ou <b>Indisponível</b>.","Restrição para amanhã: avise até as <b>13h de hoje</b>. Se não marcar nada, você fica como livre."],
   ["rel","Relatório do dia","Transfers e apoios: sempre faça o relatório. Os serviços já vêm da sua escala, é só marcar <b>Fiz</b> ou <b>Não realizado</b>.","Teve passageiro em outro idioma? Coloque a <b>REC de idioma</b>: é ela que garante o valor de idioma no pagamento. Passeio só precisa de relatório se houve alguma intercorrência."],
   ["hist","Seu histórico","Na aba <b>Histórico</b> ficam todos os serviços que você fez, passeios e transfers, e se o relatório foi enviado.","Use para conferir se não ficou nenhum relatório para trás."],
-  ["pag","Seu pagamento","Na aba <b>Pagamento</b> você acompanha a <b>prévia da quinzena</b> todo dia, com o valor de cada serviço. Viu algo errado? Toque em <b>Tem erro</b>.","No fim da quinzena você recebe um aviso no WhatsApp. Quando a comissão for lançada, o valor da nota e a descrição pronta aparecem aqui, e você envia a nota pelo próprio app."]
+  ["pag","Seu pagamento","Na aba <b>Pagamento</b> você acompanha a <b>prévia da quinzena</b> todo dia, com o valor de cada serviço. Viu algo errado? Toque em <b>Tem erro</b>.","No fim da quinzena você recebe um aviso no WhatsApp. Na aba <b>Comissão</b> você acompanha, venda por venda, a comissão das vendas já pagas e conciliadas, e se alguma teve reembolso."]
 ];
 function tutorial(i){
   let el=document.getElementById("tut");
@@ -343,6 +347,34 @@ function tutorial(i){
     +'<button class="btn" onclick="tutorial('+(i+1)+')">Próximo</button>';
 }
 function fecharTutorial(){ const el=document.getElementById("tut"); if(el) el.remove(); localStorage.setItem("ag_tut_v1","1"); }
+
+// ================= COMISSÃO (venda por venda, pelo Phoenix) =================
+async function telaCom(){
+  S.comQual=S.comQual||"atual";
+  const box=document.getElementById("conteudo");
+  box.innerHTML='<div class="seg" style="margin-bottom:12px">'+[["atual","Quinzena atual"],["anterior","Quinzena anterior"]].map(([k,t])=>'<button class="'+(S.comQual===k?"on":"")+'" onclick="S.comQual=\''+k+'\';telaCom()">'+t+'</button>').join("")+'</div><div class="esqueleto" style="height:130px"></div><div class="esqueleto"></div>';
+  try{ const j=await api("comissao",{qual:S.comQual}); if(!j.ok) throw new Error(j.erro); if(S.aba!=="com") return; desenharCom(j); }
+  catch(e){ box.innerHTML+='<div class="card erro">'+esc(e.message)+'</div>'; }
+}
+function desenharCom(j){
+  const box=document.getElementById("conteudo"), x=j.comissao;
+  let h='<div class="seg" style="margin-bottom:12px">'+[["atual","Quinzena atual"],["anterior","Quinzena anterior"]].map(([k,t])=>'<button class="'+(S.comQual===k?"on":"")+'" onclick="S.comQual=\''+k+'\';telaCom()">'+t+'</button>').join("")+'</div>';
+  h+='<div class="card" style="background:var(--escuro);color:#fff"><div class="tag" style="color:#a6dcc2">COMISSÃO · '+dd(j.periodo[0])+' A '+dd(j.periodo[1])+'</div><div style="font-size:32px;font-weight:900;letter-spacing:-.5px;margin:4px 0;color:#86e6b8">'+brl(x?x.comissao:0)+'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px;color:#d2e6dc"><span>Vendas pagas ('+(x?x.qtd:0)+')</span><b style="color:#fff">'+brl(x?x.vendas:0)+'</b>'+(x&&x.reembolsos?'<span>Reembolsos / cancelamentos ('+x.reembolsos+')</span><b style="color:#ffb4a8">− '+brl(x.valorReembolso)+'</b>':'')+'</div>'
+    +'<div class="peq" style="color:#a9c7bb;margin-top:8px">'+(x&&x.em?'Atualizado '+new Date(x.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+' · ':'')+'Aparecem as vendas já conciliadas no Phoenix. Venda feita e ainda não conciliada aparece quando o financeiro conciliar.</div></div>';
+  const itens=(x&&x.itens)||[];
+  if(!itens.length){ box.innerHTML=h+'<div class="vazio">Nenhuma venda conciliada nessa quinzena ainda.</div>'; return; }
+  // agrupa por REC (a reserva pode ter vários passeios)
+  const porRec={}; itens.forEach(i=>{ const k=String(i.rec||"").replace(/\.\d+$/,"")||"—"; (porRec[k]=porRec[k]||[]).push(i); });
+  const recs=Object.entries(porRec).sort((a,b)=>String(b[1][0].dataVenda.split("/").reverse().join("")).localeCompare(a[1][0].dataVenda.split("/").reverse().join("")));
+  for(const [rec,ls] of recs){
+    const tot=ls.filter(i=>i.conta).reduce((s,i)=>s+i.comissao,0), reemb=ls.some(i=>i.reembolso);
+    h+='<div class="card" style="padding:6px 16px'+(reemb?';border-left:5px solid var(--alerta)':'')+'"><div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 4px"><div><b>'+esc(rec)+'</b><div class="peq muted">vendida em '+esc(ls[0].dataVenda.slice(0,5))+'</div></div><b style="color:var(--verde)">'+brl(tot)+'</b></div>'
+      +ls.map(i=>'<div style="border-top:1px solid var(--linha);padding:9px 0;display:flex;gap:10px;align-items:flex-start"><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px">'+esc(tit(i.servico||""))+'</div><div class="peq muted">'+(i.dataExec?'serviço '+esc(i.dataExec.slice(0,5))+' · ':'')+'venda '+brl(i.valor)+(i.dataConc?' · conciliada '+esc(i.dataConc.slice(0,5)):'')+'</div></div>'
+        +'<div style="text-align:right"><b style="'+(i.conta?'':'text-decoration:line-through;color:var(--muted)')+'">'+brl(i.comissao)+'</b><div><span class="chip" style="background:'+(i.reembolso?'#fde2dc':i.conta?'#d4f0ec':'#fff0dd')+';color:'+(i.reembolso?'#a3271a':i.conta?'#0b6e5f':'#a3501a')+'">'+esc(i.reembolso?(i.status||"Reembolso"):i.conta?"Paga":(i.status||"Pendente"))+'</span></div></div></div>').join("")+'</div>';
+  }
+  box.innerHTML=h;
+}
 
 // início
 if(S.t&&S.nome){ montar(); if(!localStorage.getItem("ag_tut_v1")) tutorial(0); } else telaLogin();

@@ -1431,10 +1431,11 @@
     return {ok,prob,info,dif};
   }
   function renderPagamentos(m){
-    const aba=["quinzena","tarifario","notas"].includes(PAG.aba)?PAG.aba:"quinzena";
-    const abas=segmento([["quinzena","Quinzena dos guias"],["tarifario","Tarifário"],["notas","Notas recebidas por fora"]],aba,"PAG.aba='$v';renderPagamentos(document.getElementById('mainConteudo'))");
+    const aba=["quinzena","comissao","tarifario","notas"].includes(PAG.aba)?PAG.aba:"quinzena";
+    const abas=segmento([["quinzena","Quinzena dos guias"],["comissao","Comissão"],["tarifario","Tarifário"],["notas","Notas recebidas por fora"]],aba,"PAG.aba='$v';renderPagamentos(document.getElementById('mainConteudo'))");
     cab("Mapa pelo Phoenix, comissão da PGG e notas fiscais","");
     if(aba==="quinzena"){ m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div>'+htmlQuinzena(); carregarQuinzenas(); atualizarPiloto(); return; }
+    if(aba==="comissao"){ m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div><div class="card" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center"><label style="display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)">Quinzena<select id="qSel" onchange="PIL.qid=this.value;renderPagamentos(document.getElementById(\'mainConteudo\'))" style="height:44px;padding:0 12px;font-weight:700"><option value="'+PIL.qid+'">'+nomeQ(PIL.qid)+'</option></select></label><span id="comInfo" style="flex:1;font-size:.82rem;color:var(--muted)"></span><button class="btn sec" onclick="comissaoAgora().then(carregarComissaoCentral)">Buscar no Phoenix agora</button></div><div id="comBox"><div class="card" style="color:var(--muted)">Carregando...</div></div>'; carregarQuinzenas(); carregarComissaoCentral(); return; }
     if(aba==="tarifario"){ m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div><div id="tarBox"><div class="card" style="color:var(--muted)">Carregando o tarifário...</div></div>'; carregarTarifario(); return; }
     m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div>'+`
       <div class="card">
@@ -1651,9 +1652,36 @@
       +'<label style="display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)">Quinzena<select id="qSel" onchange="PIL.qid=this.value;renderPagamentos(document.getElementById(\'mainConteudo\'))" style="height:44px;padding:0 12px;font-weight:700"><option value="'+PIL.qid+'">'+nomeQ(PIL.qid)+'</option></select></label>'
       +'<div style="flex:1;min-width:240px;font-size:.84rem;color:var(--muted)">'+(aberta?'Quinzena em andamento: os guias veem a prévia no app. O mapa final é montado sozinho no dia '+(fim.slice(8)==="15"?"16":"1")+', às 8h, e eles recebem o aviso no WhatsApp.':'O mapa é montado sozinho pelo Phoenix no fechamento. Se corrigirem algo no Phoenix, atualize aqui.')+'</div>'
       +'<button class="btn sec" onclick="pilotoFecharTodos()">Atualizar mapa pelo Phoenix</button></div>'
-      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Comissão da PGG</h3><p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Quando o financeiro lançar a comissão, suba a PGG e libere. Cada guia recebe o aviso no WhatsApp para emitir e enviar a nota pelo app.</p>'
+      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Comissão</h3><p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">A comissão de cada guia vem do Phoenix (vendas pagas e conciliadas na quinzena), atualizada a cada 2 horas, e os guias já acompanham no app. Para fechar: use a do Phoenix ou suba a PGG do financeiro (que também traz reembolso e maquineta), e libere. Cada guia recebe o aviso no WhatsApp.</p>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span id="comInfo" style="font-size:.82rem;color:var(--muted)"></span><button class="btn sec" onclick="comissaoAgora()">Buscar comissão no Phoenix</button><button class="btn sec" onclick="usarComissaoPhoenix()">Usar a comissão do Phoenix</button></div>'
       +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilPgg" accept=".xlsx,.xls"><button class="btn" onclick="pilotoValores()">Atualizar valores</button><span id="pilLib"></span><span id="pilPhxInfo" style="font-size:.8rem;color:var(--muted)"></span></div></div>'
       +'<div id="pilStatus"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
+  }
+  async function comissaoAgora(){ const i=document.getElementById("comInfo"); if(i) i.textContent="Buscando no Phoenix...";
+    const j=await chamarPiloto("comissaoAgora",{}); if(!j.ok){ alert(j.erro); if(i) i.textContent=""; return; } atualizarPiloto(); }
+  async function usarComissaoPhoenix(){ if(!confirm("Preencher a comissão de todos os guias com a do Phoenix? (Reembolso e maquineta da PGG, se já subida, continuam.)")) return;
+    const j=await chamarPiloto("usarComissaoPhoenix",{}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto(); }
+  // ---------- aba Comissão (Central): todos os guias, venda por venda ----------
+  async function carregarComissaoCentral(){
+    const box=document.getElementById("comBox"); if(!box) return;
+    try{ const j=await chamarPiloto("comissaoDetalhe",{}); if(!j.ok) throw new Error(j.erro); PIL.com=j; desenharComissaoCentral(); }
+    catch(e){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; }
+  }
+  function desenharComissaoCentral(){
+    const box=document.getElementById("comBox"), j=PIL.com; if(!box||!j) return;
+    const ci=document.getElementById("comInfo"); if(ci) ci.innerHTML=j.existe?'Lida do Phoenix até <b>'+dataBR(j.ate).slice(0,5)+'</b> · '+new Date(j.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+' · vendas dos guias conciliadas na quinzena':'Ainda não lida nesta quinzena.';
+    if(!j.existe){ box.innerHTML='<div class="em-breve"><div class="ic">💰</div><h3>Sem dados ainda</h3><p>Clique em "Buscar no Phoenix agora".</p></div>'; return; }
+    const gs=Object.entries(j.porGuia).map(([n,x])=>({nome:n,...x})).sort((a,b)=>b.comissao-a.comissao);
+    const tot=gs.reduce((s,g)=>s+g.comissao,0), vend=gs.reduce((s,g)=>s+g.vendas,0), re=gs.reduce((s,g)=>s+(g.reembolsos||0),0);
+    const bq=normP(PIL.comBusca||""); const vis=gs.filter(g=>!bq||normP(g.nome).includes(bq)||(g.itens||[]).some(i=>normP(i.rec).includes(bq)));
+    PIL.comAbertos=PIL.comAbertos||{};
+    let h='<div class="cards-resumo"><div class="resumo ok"><div class="num">'+brlP(tot)+'</div><div class="lbl">Comissão dos guias</div></div><div class="resumo"><div class="num">'+brlP(vend)+'</div><div class="lbl">Vendas pagas</div></div><div class="resumo"><div class="num">'+gs.length+'</div><div class="lbl">Guias com comissão</div></div><div class="resumo'+(re?' alerta':'')+'"><div class="num">'+re+'</div><div class="lbl">Reembolsos / cancelamentos</div></div></div>';
+    h+='<div class="filtros">'+campoBusca("comBusca","Buscar guia ou REC",PIL.comBusca,"PIL.comBusca=this.value;desenharComissaoCentral();setTimeout(()=>{const e=document.getElementById(\'comBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")+'</div>';
+    h+=vis.map(g=>{ const ab=!!PIL.comAbertos[g.nome]||(!!bq&&g.itens.some(i=>normP(i.rec).includes(bq)));
+      return '<div class="card" style="padding:12px 18px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer" onclick="PIL.comAbertos[\''+g.nome+'\']=!PIL.comAbertos[\''+g.nome+'\'];desenharComissaoCentral()"><span>'+(ab?"▾":"▸")+'</span><b style="min-width:180px">'+esc(titulo(g.nome))+'</b><span style="font-size:.84rem;color:var(--muted)">'+g.qtd+' venda(s) · '+brlP(g.vendas)+'</span>'+(g.reembolsos?'<span class="pill" style="background:#fde4df;color:#9f2a15">'+g.reembolsos+' reembolso(s) · '+brlP(g.valorReembolso)+'</span>':'')+'<b style="margin-left:auto;color:var(--ok);font-size:1.05rem">'+brlP(g.comissao)+'</b></div>'
+        +(ab?'<div style="overflow-x:auto;margin-top:8px"><table class="tabela" style="min-width:760px"><thead><tr><th>REC</th><th>SERVIÇO</th><th>VENDA</th><th>EXECUÇÃO</th><th>CONCILIAÇÃO</th><th style="text-align:right">VALOR</th><th style="text-align:right">COMISSÃO</th><th>SITUAÇÃO</th></tr></thead><tbody>'
+          +g.itens.map(i=>'<tr><td style="font-weight:700;color:#1e3a8a">'+esc(i.rec)+'</td><td>'+esc(i.servico)+'</td><td>'+esc(i.dataVenda)+'</td><td>'+esc(i.dataExec||"")+'</td><td>'+esc(i.dataConc||"")+'</td><td style="text-align:right">'+brlP(i.valor)+'</td><td style="text-align:right;'+(i.conta?'font-weight:700':'text-decoration:line-through;color:var(--muted)')+'">'+brlP(i.comissao)+'</td><td><span class="pill" style="background:'+(i.reembolso?'#fde4df':i.conta?'#e3f2ee':'#fff1e0')+';color:'+(i.reembolso?'#9f2a15':i.conta?'#0b4f44':'#8a4a0c')+'">'+esc(i.reembolso?(i.status||"Reembolso"):i.conta?"Paga":(i.status||"Pendente"))+'</span></td></tr>').join("")+'</tbody></table></div>':'')+'</div>'; }).join("");
+    box.innerHTML=h;
   }
   async function carregarQuinzenas(){
     try{ const j=await chamarPiloto("quinzenas",{}); const sel=document.getElementById("qSel"); if(!sel||!j.ok) return;
@@ -1699,6 +1727,7 @@
     if(!j.ok){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro)+'</div>'; return; }
     PIL.dados=JSON.parse(JSON.stringify(PIL.bruto));
     const lib=!!(j.quinzena&&j.quinzena.liberado);
+    const ci=document.getElementById("comInfo"); if(ci) ci.innerHTML=j.comissaoEm?'Comissão do Phoenix lida até <b>'+dataBR(j.comissaoAte).slice(0,5)+'</b> · '+new Date(j.comissaoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):'Comissão do Phoenix ainda não lida nesta quinzena.';
     document.getElementById("pilLib").innerHTML='<button class="btn '+(lib?"sec":"")+'" onclick="pilotoLiberar('+(!lib)+')">'+(lib?"Valores liberados ✓ (desfazer)":"Liberar valores para os guias")+'</button>';
     if(!j.guias.length){ box.innerHTML='<div class="em-breve"><div class="ic">🗓️</div><h3>Mapa ainda não montado</h3><p>Ele é montado sozinho no fechamento da quinzena. Para montar agora, use "Atualizar mapa pelo Phoenix".</p></div>'; return; }
     const pend=(g)=>(g.contestacoes||[]).some(c=>c.status==="aberta")||(g.lancamentos||[]).some(x=>x.status==="aberto")||(g.linhas||[]).some(l=>/sem tarifa/i.test(l.obs||""));
@@ -1719,7 +1748,8 @@
         +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1rem">'+esc(g.nome)+'</b><span style="font-size:.72rem;font-weight:800;background:'+st[1]+';color:'+st[2]+';border-radius:999px;padding:3px 10px">'+st[0]+'</span>'
         +'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
         +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;margin-top:8px;color:var(--muted)"><span>'+(g.linhas||[]).length+' serviços no mapa · '+brlP(g.totalMapa)+'</span>'
-        +(v?'<span>Serviços '+brlP(v.serv)+' · comissão (PGG) '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
+        +(g.comissaoPhoenix!=null?'<span>Comissão no Phoenix: <b style="color:var(--tinta)">'+brlP(g.comissaoPhoenix)+'</b>'+(v&&Math.abs((v.com||0)-g.comissaoPhoenix)>=0.01?' <span style="color:#b45309">(fechamento: '+brlP(v.com)+')</span>':'')+'</span>':'')
+        +(v?'<span>Serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
         +(dif?'<div style="font-size:.8rem;color:#b45309;margin-top:6px">ℹ️ A PGG tem '+brlP(v.servPgg)+' de serviços; o sistema calculou '+brlP(v.serv)+' pelo Phoenix. O valor da nota usa o do sistema.</div>':'')
         +(g.contestacoes||[]).map(c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
           +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita":"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>')+'</div>').join("")
@@ -2055,10 +2085,34 @@
     box.innerHTML='<div class="card" style="background:linear-gradient(150deg,#0a5444,#0e7c6b 60%,#3fb984);color:#fff;border:none;margin-bottom:16px"><div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">'
       +'<div style="flex:1;min-width:240px"><div style="font-size:.8rem;font-weight:700;color:#cfeee2">META DE VENDAS DOS GUIAS · '+nomeMes(j.mes).toUpperCase()+'</div><div style="font-size:2rem;font-weight:800;letter-spacing:-.5px">'+brlP(feito)+' <span style="font-size:1rem;font-weight:600;color:#cfeee2">de '+brlP(meta)+'</span></div>'
       +'<div style="height:12px;background:rgba(255,255,255,.25);border-radius:6px;overflow:hidden;margin:10px 0 6px"><div style="width:'+pct.toFixed(1)+'%;height:12px;background:#fff;border-radius:6px"></div></div>'
-      +'<div style="font-size:.84rem;color:#e2f5ec">'+(meta?pct.toFixed(0)+'% da meta'+(falta?' · faltam '+brlP(falta)+(diasRest?' ('+brlP(porDia)+' por dia em '+diasRest+' dia(s))':''):' · meta batida! 🎉'):'Defina a meta do mês')+(j.realizadoEm?' · atualizado em '+new Date(j.realizadoEm).toLocaleDateString("pt-BR"):'')+'</div></div>'
-      +(j.podeEditar?'<div style="display:flex;gap:8px"><button class="btn sec" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)" onclick="editarMeta()">Meta</button><button class="btn sec" style="background:#fff;color:#0b4f44;border:none" onclick="editarRealizado()">Atualizar vendas</button></div>':'')+'</div></div>';
+      +'<div style="font-size:.84rem;color:#e2f5ec">'+(meta?pct.toFixed(0)+'% da meta'+(falta?' · faltam '+brlP(falta)+(diasRest?' ('+brlP(porDia)+' por dia em '+diasRest+' dia(s))':''):' · meta batida! 🎉'):'Defina a meta do mês')+(j.realizadoEm?' · '+(j.realizadoFonte==="phoenix"?'do Phoenix (só pagas), ':j.realizadoFonte==="utopia"?'do Utopia'+(j.utopiaAte?' até '+dataBR(j.utopiaAte).slice(0,5):'')+', ':'')+'atualizado '+new Date(j.realizadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):'')+(j.podeEditar?' · <a href="#" style="color:#fff" onclick="event.preventDefault();editarRealizado()">corrigir à mão</a>':'')+'</div>'
+      +((j.porVendedor||[]).length?'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">'+j.porVendedor.slice(0,6).map((v,k)=>'<span style="font-size:.76rem;font-weight:700;background:rgba(255,255,255,.18);border-radius:999px;padding:4px 10px">'+(k+1)+'º '+esc(titulo(v.nome.replace(/\s*-\s*GUIA\s*$/i,"")))+' · '+brlP(v.vendas)+'</span>').join("")+'</div>':'')+'</div>'
+      +(j.podeEditar?'<div style="display:flex;gap:8px"><button class="btn sec" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)" onclick="editarMeta()">Meta</button><label class="btn sec" style="background:#fff;color:#0b4f44;border:none;display:flex;align-items:center;cursor:pointer">Importar do Utopia<input type="file" accept=".xlsx" style="display:none" onchange="importarUtopia(this)"></label>'+(j.fonteMeta==="utopia"?'':'<button class="btn sec" id="btnVendas" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)" onclick="vendasAgora()">Phoenix</button>')+'</div>':'')+'</div></div>';
   }
   function editarMeta(){ const v=prompt("Meta de vendas dos guias em "+nomeMes(INI.meta.mes)+" (R$):",INI.meta.meta?String(INI.meta.meta).replace(".",","):""); if(v===null) return; carregarMeta("salvar",{mes:INI.meta.mes,meta:parseFloat(v.replace(/\./g,"").replace(",","."))||0}); }
+  async function vendasAgora(){
+    const b=document.getElementById("btnVendas"); if(b){ b.disabled=true; b.textContent="Buscando no Phoenix..."; }
+    try{ const j=await chamarInicio("vendasAgora",{mes:INI.meta&&INI.meta.mes}); if(!j.ok) throw new Error(j.erro);
+      if(!j.linhasLidas) alert("Não encontrei vendas na tela de Comissão do Phoenix para esse mês. Se tiver vendas lá, me avise que eu confiro a leitura.");
+      await carregarMeta();
+    }catch(e){ alert("Não consegui buscar as vendas: "+e.message); if(b){ b.disabled=false; b.textContent="Atualizar vendas"; } }
+  }
+  // importa o Excel do Utopia (Vendas Gerais, setor Guia): total e vendas por vendedor
+  async function importarUtopia(inp){
+    const f=inp.files[0]; if(!f) return;
+    try{ await libsPagamentos(); const wb=XLSX.read(await f.arrayBuffer());
+      const linhas=(n)=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true}):[];
+      const resumo=linhas("Resumo (cards)"), filt=linhas("Filtros aplicados");
+      const tot=(resumo.find(r=>/valor total vendido/i.test(String(r[0])))||[])[1];
+      if(tot==null) throw new Error('não achei "Valor Total Vendido" (aba Resumo). É o Excel do Utopia → Vendas Gerais?');
+      const ini=String((filt.find(r=>/data in/i.test(String(r[0])))||[])[1]||""), fim=String((filt.find(r=>/data fim/i.test(String(r[0])))||[])[1]||"");
+      const setor=String((filt.find(r=>/setor/i.test(String(r[0])))||[])[1]||"");
+      if(ini&&ini.slice(0,7)!==INI.meta.mes&&!confirm("O arquivo é de "+ini+" a "+fim+", e a meta é de "+nomeMes(INI.meta.mes)+". Importar mesmo assim?")) return;
+      if(setor&&!/guia/i.test(setor)&&!confirm("O arquivo está com o setor \""+setor+"\". A meta é só dos guias. Importar mesmo assim?")) return;
+      const porVendedor=linhas("Vendas por Vendedor").slice(1).filter(r=>r[0]).map(r=>({nome:String(r[0]),vendas:Number(r[1])||0})).sort((a,b)=>b.vendas-a.vendas);
+      await carregarMeta("salvar",{mes:INI.meta.mes,realizado:Math.round(Number(tot)*100)/100,fonte:"utopia",ate:fim,porVendedor});
+    }catch(e){ alert("Não consegui importar: "+e.message); } finally{ inp.value=""; }
+  }
   function editarRealizado(){ const v=prompt("Total já vendido pelos guias no mês (R$):",INI.meta.realizado?String(INI.meta.realizado).replace(".",","):""); if(v===null) return; carregarMeta("salvar",{mes:INI.meta.mes,realizado:parseFloat(v.replace(/\./g,"").replace(",","."))||0,fonte:"manual"}); }
   // ---- checklist de cada login ----
   async function carregarChecklist(op,dados){
