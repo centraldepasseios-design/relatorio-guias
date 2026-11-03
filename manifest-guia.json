@@ -1,0 +1,28 @@
+{
+ "name": "Luck · App do Guia",
+ "short_name": "Guia Luck",
+ "start_url": "app.html",
+ "scope": "./",
+ "display": "standalone",
+ "background_color": "#ffffff",
+ "theme_color": "#0a5444",
+ "lang": "pt-BR",
+ "icons": [
+  {
+   "src": "icone-guia-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icone-guia-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "icone-guia-mascara.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

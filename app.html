@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a5444">
+<link rel="manifest" href="manifest-guia.json">
+<link rel="icon" href="icone-guia-192.png">
+<link rel="apple-touch-icon" href="icone-guia-apple.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Guia Luck">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Luck · App do Guia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -53,6 +59,15 @@
   .login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:24px;max-width:440px;margin:0 auto}
   .login .logo{width:62px;height:62px;border-radius:18px;background:var(--verde);display:flex;align-items:center;justify-content:center;margin-bottom:14px}
   .erro{color:var(--alerta);font-size:13px;font-weight:700;margin-top:8px}
+  .tut{position:fixed;inset:0;z-index:60;background:linear-gradient(160deg,#0a5444 0%,#0e7c6b 55%,#3fb984 100%);color:#fff;display:flex;flex-direction:column;padding:calc(20px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px))}
+  .tut .pular{align-self:flex-end;background:rgba(255,255,255,.18);border:none;color:#fff;font-weight:800;border-radius:12px;padding:9px 14px;cursor:pointer}
+  .tut .meio{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:440px;margin:0 auto;width:100%}
+  .tut .ic{width:84px;height:84px;border-radius:24px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;margin-bottom:22px}
+  .tut h2{font-size:28px;font-weight:900;margin:0 0 12px;letter-spacing:-.4px} .tut p{font-size:16px;line-height:1.5;color:#e2f5ec;margin:0 0 10px}
+  .tut .dica{background:rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;font-size:14px;color:#fff;margin-top:8px}
+  .tut .pontos{display:flex;gap:6px;justify-content:center;margin:18px 0}
+  .tut .pontos span{width:8px;height:8px;border-radius:4px;background:rgba(255,255,255,.35)} .tut .pontos span.on{width:22px;background:#fff}
+  .tut .btn{background:#fff;color:#0d3b30;max-width:440px;margin:0 auto}
   .fundo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:50}
   .folha-baixo{background:#fff;width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
 </style>
@@ -84,7 +99,7 @@ const svg=(k)=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stro
 
 // ================= LOGIN =================
 async function telaLogin(){
-  document.getElementById("raiz").innerHTML='<div class="login"><div class="logo"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M3 17c3 0 3-2 6-2s3 2 6 2 3-2 6-2"/><path d="M3 12c3 0 3-2 6-2s3 2 6 2 3-2 6-2"/></svg></div>'
+  document.getElementById("raiz").innerHTML='<div class="login"><img src="logo-luck.png" alt="Luck Receptivo" style="width:70px;height:70px;object-fit:contain;margin-bottom:14px">'
     +'<h1 style="margin:0 0 4px;font-size:28px;font-weight:900">App do Guia</h1><p class="muted" style="margin:0 0 22px">Luck Receptivo · escala, relatório e pagamento</p>'
     +'<div class="card"><label>Seu nome<input type="search" id="lgNome" list="lgLista" placeholder="Digite e escolha seu nome" autocomplete="off"></label><datalist id="lgLista"></datalist>'
     +'<label style="margin-top:12px">Senha<input type="password" id="lgSenha" placeholder="A mesma senha do app antigo" onkeydown="if(event.key===\'Enter\')entrar()"></label>'
@@ -98,6 +113,7 @@ async function entrar(){
   try{ const j=await api("entrar",{nome,senha}); if(!j.ok) throw new Error(j.erro);
     S.t=j.appToken; S.nome=nome.toUpperCase(); S.pag=j.token||"";
     localStorage.setItem("ag_t",S.t); localStorage.setItem("ag_nome",S.nome); localStorage.setItem("ag_pag",S.pag); montar();
+    if(!localStorage.getItem("ag_tut_v1")) tutorial(0);
   }catch(e){ er.textContent=e.message||"Não foi possível entrar."; b.disabled=false; }
 }
 
@@ -105,7 +121,7 @@ async function entrar(){
 function saudacao(){ const h=new Date().getHours(); return h<12?"Bom dia,":h<18?"Boa tarde,":"Boa noite,"; }
 function montar(){
   if(!S.dia) S.dia=hoje(); if(!S.relDia) S.relDia=hoje();
-  document.getElementById("raiz").innerHTML='<header class="topo"><div class="linha"><div><div class="ola">'+saudacao()+'</div><div class="nome">'+esc(tit(S.nome))+'</div></div><button class="sair" onclick="if(confirm(\'Sair do app?\'))sair()">Sair</button></div><div id="topoExtra" style="max-width:520px;margin:14px auto 0"></div></header>'
+  document.getElementById("raiz").innerHTML='<header class="topo"><div class="linha"><div><div class="ola">'+saudacao()+'</div><div class="nome">'+esc(tit(S.nome))+'</div></div><span style="display:flex;gap:8px"><button class="sair" aria-label="Como usar o app" onclick="tutorial(0)">?</button><button class="sair" onclick="if(confirm(\'Sair do app?\'))sair()">Sair</button></span></div><div id="topoExtra" style="max-width:520px;margin:14px auto 0"></div></header>'
     +'<main class="folha" id="conteudo"></main>'
     +'<nav class="abas">'+[["escala","Escala"],["disp","Disponível"],["rel","Relatório"],["hist","Histórico"],["pag","Pagamento"]].map(([k,t])=>'<button id="ab-'+k+'" onclick="ir(\''+k+'\')">'+svg(k)+t+'</button>').join("")+'</nav>';
   ir(S.aba);
@@ -291,8 +307,45 @@ function desenharParcial(){
   box.innerHTML=h;
 }
 
+// ================= APP NO CELULAR (instalar na tela inicial) =================
+let _instalar=null;
+window.addEventListener("beforeinstallprompt",(e)=>{ e.preventDefault(); _instalar=e; });
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw-guia.js").catch(()=>{});
+const jaInstalado=()=>window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+const ehIphone=()=>/iphone|ipad|ipod/i.test(navigator.userAgent);
+async function instalarAgora(){ if(!_instalar) return; _instalar.prompt(); const r=await _instalar.userChoice; _instalar=null; if(r&&r.outcome==="accepted") tutorial(TUT.length); }
+function passoInstalar(){
+  if(jaInstalado()) return '<p>Prontinho: você já está usando o app instalado. 🎉</p>';
+  if(ehIphone()) return '<p>Deixe o app com ícone na tela do seu iPhone:</p><div class="dica">1. Abra este endereço no <b>Safari</b>.<br>2. Toque no botão <b>Compartilhar</b> (o quadrado com a seta para cima).<br>3. Escolha <b>Adicionar à Tela de Início</b> e toque em <b>Adicionar</b>.</div>';
+  return '<p>Deixe o app com ícone na tela do seu celular, como um aplicativo:</p>'
+    +(_instalar?'<button class="btn" style="margin:6px 0 10px" onclick="instalarAgora()">📲 Instalar agora</button>':'')
+    +'<div class="dica">'+(_instalar?'Ou, se preferir: ':'')+'no <b>Chrome</b>, toque nos <b>três pontinhos ⋮</b> no canto de cima e escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</div>';
+}
+// ================= TUTORIAL (primeiro acesso; o "?" no topo abre de novo) =================
+const TUT=[
+  ["escala","Sua escala, direto do Phoenix","Na aba <b>Escala</b> você vê seus serviços do dia: horário de apresentação, voo, pax, motorista, veículo e hotel.","Toque nos dias no topo para ver amanhã ou outro dia. O botão <b>Abrir</b> traz a sua escala em PDF."],
+  ["disp","Avise sua disponibilidade","Na aba <b>Disponível</b>, marque para cada dia se está <b>Livre</b>, com <b>Restrição</b> (ex.: só depois das 10h) ou <b>Indisponível</b>.","Restrição para amanhã: avise até as <b>13h de hoje</b>. Se não marcar nada, você fica como livre."],
+  ["rel","Relatório do dia","Transfers e apoios: sempre faça o relatório. Os serviços já vêm da sua escala, é só marcar <b>Fiz</b> ou <b>Não realizado</b>.","Teve passageiro em outro idioma? Coloque a <b>REC de idioma</b>: é ela que garante o valor de idioma no pagamento. Passeio só precisa de relatório se houve alguma intercorrência."],
+  ["hist","Seu histórico","Na aba <b>Histórico</b> ficam todos os serviços que você fez, passeios e transfers, e se o relatório foi enviado.","Use para conferir se não ficou nenhum relatório para trás."],
+  ["pag","Seu pagamento","Na aba <b>Pagamento</b> você acompanha a <b>prévia da quinzena</b> todo dia, com o valor de cada serviço. Viu algo errado? Toque em <b>Tem erro</b>.","No fim da quinzena você recebe um aviso no WhatsApp. Quando a comissão for lançada, o valor da nota e a descrição pronta aparecem aqui, e você envia a nota pelo próprio app."]
+];
+function tutorial(i){
+  let el=document.getElementById("tut");
+  if(i===TUT.length){ // último passo: instalar no celular
+    if(!el){ el=document.createElement("div"); el.id="tut"; el.className="tut"; document.body.appendChild(el); }
+    el.innerHTML='<button class="pular" onclick="fecharTutorial()">Fechar</button><div class="meio"><div class="ic"><span style="font-size:40px">📲</span></div><h2>Deixe como aplicativo</h2>'+passoInstalar()+'<p class="peq" style="margin-top:14px;color:#cfeee2">Depois é só abrir pelo ícone <b>Guia Luck</b>, sem precisar do navegador.</p></div>'
+      +'<div class="pontos">'+[...TUT,0].map((x,k)=>'<span class="'+(k===i?"on":"")+'"></span>').join("")+'</div><button class="btn" onclick="fecharTutorial()">Começar a usar</button>';
+    return;
+  }
+  const t=TUT[i]; if(!t){ fecharTutorial(); return; } if(!el){ el=document.createElement("div"); el.id="tut"; el.className="tut"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Como usar o app"); document.body.appendChild(el); }
+  el.innerHTML='<button class="pular" onclick="fecharTutorial()">Pular</button><div class="meio"><div class="ic">'+svg(t[0]).replace('width="22" height="22"','width="40" height="40"')+'</div><h2>'+t[1]+'</h2><p>'+t[2]+'</p><div class="dica">💡 '+t[3]+'</div></div>'
+    +'<div class="pontos">'+[...TUT,0].map((x,k)=>'<span class="'+(k===i?"on":"")+'"></span>').join("")+'</div>'
+    +'<button class="btn" onclick="tutorial('+(i+1)+')">Próximo</button>';
+}
+function fecharTutorial(){ const el=document.getElementById("tut"); if(el) el.remove(); localStorage.setItem("ag_tut_v1","1"); }
+
 // início
-if(S.t&&S.nome) montar(); else telaLogin();
+if(S.t&&S.nome){ montar(); if(!localStorage.getItem("ag_tut_v1")) tutorial(0); } else telaLogin();
 </script>
 </body>
 </html>
