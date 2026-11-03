@@ -372,6 +372,7 @@
     if(id==="cen-pagamentos"){ renderPagamentos(m); return; }
     if(id==="cen-disp"){ renderDisponibilidade(m); return; }
     if(id==="inicio"){ renderInicio(m); return; }
+    if(id==="cen-reclam"){ renderReclamacoes(m); return; }
     if(id==="porto-escala"||id==="cen-escala"){ renderEscala(m,"guias"); return; }
     if(id==="porto-passeios"||id==="cen-passeios"){ renderPlano(m, id==="cen-passeios"?"central":"porto"); return; }
     // demais abas: em breve (preencheremos uma a uma)
@@ -2014,10 +2015,10 @@
     const h=new Date().getHours(), primeiro=String(USUARIO.nome||"").split(" ")[0];
     document.getElementById("tituloPg").textContent=(h<12?"Bom dia":h<18?"Boa tarde":"Boa noite")+(primeiro?", "+primeiro:"");
     cab(dataLonga(hojeISO()),'');
-    m.innerHTML='<div id="iniResumo"><div class="cards-resumo">'+'<div class="resumo"><div class="num">…</div><div class="lbl">Carregando o resumo do dia</div></div>'.repeat(4)+'</div></div>'
+    m.innerHTML='<div id="iniMeta"></div><div id="iniResumo"><div class="cards-resumo">'+'<div class="resumo"><div class="num">…</div><div class="lbl">Carregando o resumo do dia</div></div>'.repeat(4)+'</div></div>'
       +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start">'
       +'<div id="iniCheck"></div><div><div id="iniMural"></div><div id="iniEventos"></div></div></div>';
-    carregarResumo(); carregarChecklist(); carregarMural();
+    carregarResumo(); carregarChecklist(); carregarMural(); carregarMeta();
   }
   async function carregarResumo(){
     const box=document.getElementById("iniResumo");
@@ -2041,6 +2042,24 @@
     const ev=document.getElementById("iniEventos");
     if(ev) ev.innerHTML='<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Próximos 7 dias</h3>'+((j.eventos||[]).length?j.eventos.map(x=>'<div style="display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--linha);font-size:.86rem"><b style="width:52px">'+dataBR(x.inicio).slice(0,5)+'</b><div style="flex:1"><b>'+esc(titulo(x.guia))+'</b> · '+esc(x.descricao||"Serviço")+(x.horario?' · '+esc(x.horario):'')+(x.rec?' · <span style="color:#1e3a8a;font-weight:700">REC-'+esc(x.rec)+'</span>':'')+'</div></div>').join(""):'<p style="font-size:.86rem;color:var(--muted)">Nenhum evento ou bloqueio de guia registrado. Eles entram pela Disponibilidade → Bloquear para serviço.</p>')+'</div>';
   }
+  // ---- meta de vendas do mês ----
+  async function carregarMeta(op,dados){
+    try{ const j=await chamarInicio("meta",{op,...(dados||{})}); if(!j.ok){ if(op) alert(j.erro); return; } INI.meta=j; desenharMeta(); }catch(e){}
+  }
+  function desenharMeta(){
+    const box=document.getElementById("iniMeta"), j=INI.meta; if(!box||!j) return;
+    const meta=j.meta||0, feito=j.realizado||0, pct=meta?Math.min(100,feito/meta*100):0;
+    const hoje=hojeISO(), [a,mm]=j.mes.split("-").map(Number), ult=new Date(a,mm,0).getDate(), diasRest=Math.max(0,ult-(+hoje.slice(8))+ (j.mes===hoje.slice(0,7)?1:0));
+    const falta=Math.max(0,meta-feito), porDia=diasRest?falta/diasRest:0;
+    if(!meta&&!j.podeEditar){ box.innerHTML=""; return; }
+    box.innerHTML='<div class="card" style="background:linear-gradient(150deg,#0a5444,#0e7c6b 60%,#3fb984);color:#fff;border:none;margin-bottom:16px"><div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">'
+      +'<div style="flex:1;min-width:240px"><div style="font-size:.8rem;font-weight:700;color:#cfeee2">META DE VENDAS DOS GUIAS · '+nomeMes(j.mes).toUpperCase()+'</div><div style="font-size:2rem;font-weight:800;letter-spacing:-.5px">'+brlP(feito)+' <span style="font-size:1rem;font-weight:600;color:#cfeee2">de '+brlP(meta)+'</span></div>'
+      +'<div style="height:12px;background:rgba(255,255,255,.25);border-radius:6px;overflow:hidden;margin:10px 0 6px"><div style="width:'+pct.toFixed(1)+'%;height:12px;background:#fff;border-radius:6px"></div></div>'
+      +'<div style="font-size:.84rem;color:#e2f5ec">'+(meta?pct.toFixed(0)+'% da meta'+(falta?' · faltam '+brlP(falta)+(diasRest?' ('+brlP(porDia)+' por dia em '+diasRest+' dia(s))':''):' · meta batida! 🎉'):'Defina a meta do mês')+(j.realizadoEm?' · atualizado em '+new Date(j.realizadoEm).toLocaleDateString("pt-BR"):'')+'</div></div>'
+      +(j.podeEditar?'<div style="display:flex;gap:8px"><button class="btn sec" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)" onclick="editarMeta()">Meta</button><button class="btn sec" style="background:#fff;color:#0b4f44;border:none" onclick="editarRealizado()">Atualizar vendas</button></div>':'')+'</div></div>';
+  }
+  function editarMeta(){ const v=prompt("Meta de vendas dos guias em "+nomeMes(INI.meta.mes)+" (R$):",INI.meta.meta?String(INI.meta.meta).replace(".",","):""); if(v===null) return; carregarMeta("salvar",{mes:INI.meta.mes,meta:parseFloat(v.replace(/\./g,"").replace(",","."))||0}); }
+  function editarRealizado(){ const v=prompt("Total já vendido pelos guias no mês (R$):",INI.meta.realizado?String(INI.meta.realizado).replace(".",","):""); if(v===null) return; carregarMeta("salvar",{mes:INI.meta.mes,realizado:parseFloat(v.replace(/\./g,"").replace(",","."))||0,fonte:"manual"}); }
   // ---- checklist de cada login ----
   async function carregarChecklist(op,dados){
     try{ const j=await chamarInicio("checklist",{op,...(dados||{})}); if(j.ok) INI.check=j.itens; }catch(e){}
@@ -2077,6 +2096,79 @@
   }
   function publicarMural(){ const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():""; };
     carregarMural("add",{tipo:INI.tipo||"reuniao",titulo:v("muTit"),quando:v("muQuando"),link:v("muLink"),texto:v("muTexto")}).then(()=>{ INI.form=false; desenharMural(); }); }
+
+
+  // ======================= RECLAMAÇÕES (registro interno) =======================
+  const API_RECLAM="https://us-central1-operacional-luck.cloudfunctions.net/reclamacoes";
+  const REC={mes:null,itens:[],cats:[],edit:null,filtro:"todas",busca:""};
+  async function chamarReclam(acao,dados){ const r=await fetch(API_RECLAM,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,...dados})}); const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro); return j; }
+  const MESES_N=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  const nomeMes=(m)=>MESES_N[+m.slice(5)-1]+" de "+m.slice(0,4);
+  function renderReclamacoes(m){
+    if(!REC.mes) REC.mes=hojeISO().slice(0,7);
+    const mesAnt=(()=>{ const [a,mm]=REC.mes.split("-").map(Number); return mm===1?(a-1)+"-12":a+"-"+String(mm-1).padStart(2,"0"); })();
+    const mesProx=(()=>{ const [a,mm]=REC.mes.split("-").map(Number); return mm===12?(a+1)+"-01":a+"-"+String(mm+1).padStart(2,"0"); })();
+    cab("Registro interno da Central · o guia não vê",'<button class="btn sec" aria-label="Mês anterior" onclick="REC.mes=\''+mesAnt+'\';renderReclamacoes(document.getElementById(\'mainConteudo\'))">‹</button><span class="btn sec" style="cursor:default">'+nomeMes(REC.mes)+'</span><button class="btn sec" aria-label="Próximo mês" onclick="REC.mes=\''+mesProx+'\';renderReclamacoes(document.getElementById(\'mainConteudo\'))">›</button><button class="btn sec" onclick="relatorioReclam()">Relatório do mês</button><button class="btn" onclick="REC.edit={data:hojeISO(),status:\'aberta\'};desenharReclam()">＋ Nova reclamação</button>');
+    m.innerHTML='<div id="recForm"></div><div id="recConteudo"><div class="card" style="color:var(--muted)">Carregando...</div></div><datalist id="recGuias"></datalist>';
+    carregarReclam();
+    chamarEnvios("contatos",{}).then(j=>{ const d=document.getElementById("recGuias"); if(d&&j&&j.contatos) d.innerHTML=j.contatos.map(c=>'<option value="'+esc(c.nome)+'">').join(""); REC.contatos=(j&&j.contatos)||[]; }).catch(()=>{});
+  }
+  async function carregarReclam(){ try{ const j=await chamarReclam("listar",{mes:REC.mes}); REC.itens=j.itens; REC.cats=j.categorias; desenharReclam(); }catch(e){ const b=document.getElementById("recConteudo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; } }
+  const ST_REC={aberta:["Aberta","#fde4df","#9f2a15"],andamento:["Em andamento","#fff1e0","#8a4a0c"],resolvida:["Resolvida","#e3f2ee","#0b4f44"]};
+  function rankingReclam(){ const r={}; REC.itens.forEach(x=>{ r[x.guia]=(r[x.guia]||0)+1; }); return Object.entries(r).sort((a,b)=>b[1]-a[1]); }
+  function desenharReclam(){
+    const f=document.getElementById("recForm"); if(f) f.innerHTML=REC.edit?htmlFormReclam():"";
+    const box=document.getElementById("recConteudo"); if(!box) return;
+    const I=REC.itens, reemb=I.filter(x=>x.reembolso).reduce((s,x)=>s+(x.valorReembolso||0),0);
+    let h='<div class="cards-resumo"><div class="resumo"><div class="num">'+I.length+'</div><div class="lbl">Reclamações no mês</div></div><div class="resumo'+(I.filter(x=>x.status!=="resolvida").length?' alerta':'')+'"><div class="num">'+I.filter(x=>x.status!=="resolvida").length+'</div><div class="lbl">Em aberto</div></div><div class="resumo ok"><div class="num">'+I.filter(x=>x.status==="resolvida").length+'</div><div class="lbl">Resolvidas</div></div><div class="resumo"><div class="num">'+brlP(reemb)+'</div><div class="lbl">Reembolsado</div></div><div class="resumo"><div class="num">'+I.filter(x=>x.mimo).length+'</div><div class="lbl">Mimos enviados</div></div></div>';
+    const rk=rankingReclam();
+    if(rk.length) h+='<div class="card"><h3 style="font-size:1rem;margin-bottom:10px">Guias com mais reclamações em '+nomeMes(REC.mes)+'</h3><div style="display:flex;flex-wrap:wrap;gap:8px">'+rk.slice(0,10).map(([g,n],k)=>'<span class="pill" style="font-size:.8rem;padding:6px 12px;background:'+(k<3&&n>1?'#fde4df':'#eef1f0')+';color:'+(k<3&&n>1?'#9f2a15':'#3c524d')+'">'+(k+1)+'º '+esc(titulo(g))+' · '+n+'</span>').join("")+'</div></div>';
+    h+='<div class="filtros">'+campoBusca("recBusca","Buscar guia, REC ou cliente",REC.busca,"REC.busca=this.value;desenharReclam();setTimeout(()=>{const e=document.getElementById(\'recBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")
+      +segmento([["todas","Todas"],["aberta","Abertas"],["andamento","Em andamento"],["resolvida","Resolvidas"]],REC.filtro,"REC.filtro='$v';desenharReclam()")+'</div>';
+    const b=normP(REC.busca); let vis=I.filter(x=>REC.filtro==="todas"||x.status===REC.filtro); if(b) vis=vis.filter(x=>normP(x.guia+" "+x.rec+" "+x.cliente).includes(b));
+    h+=vis.length?vis.map(x=>{ const s=ST_REC[x.status]||ST_REC.aberta;
+      return '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="REC.edit=JSON.parse(JSON.stringify(REC.itens.find(y=>y.id===\''+x.id+'\')));desenharReclam();window.scrollTo(0,0)"><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><b style="font-size:1rem">'+esc(titulo(x.guia))+'</b><span class="pill" style="background:'+s[1]+';color:'+s[2]+'">'+s[0]+'</span><span style="font-size:.82rem;color:var(--muted)">'+dataBR(x.data)+' · '+esc(x.categoria)+(x.origem?' · '+esc(x.origem):'')+'</span>'+(x.rec?'<span style="font-size:.82rem;font-weight:700;color:#1e3a8a">REC-'+esc(x.rec)+'</span>':'')
+        +'<span style="margin-left:auto;display:flex;gap:6px">'+(x.reembolso?'<span class="pill" style="background:#e6ecfb;color:#1e3a8a">Reembolso '+brlP(x.valorReembolso)+'</span>':'')+(x.mimo?'<span class="pill" style="background:#efe7fb;color:#5b21b6">Mimo</span>':'')+'</span></div>'
+        +'<div style="font-size:.86rem;margin-top:6px;color:var(--tinta)">'+esc((x.cliente?x.cliente+': ':'')+String(x.descricao||"").slice(0,180))+(String(x.descricao||"").length>180?'…':'')+'</div>'+(x.resolucao?'<div style="font-size:.82rem;margin-top:4px;color:var(--muted)">Resolução: '+esc(String(x.resolucao).slice(0,160))+'</div>':'')+'</div>'; }).join(""):'<div class="em-breve"><div class="ic">✅</div><h3>Nenhuma reclamação</h3><p>Nada registrado nesse filtro em '+nomeMes(REC.mes)+'.</p></div>';
+    box.innerHTML=h;
+  }
+  function htmlFormReclam(){
+    const x=REC.edit, lb='display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)', inp='style="height:44px;border:1px solid #cfdcd8;border-radius:12px;padding:0 12px;font-family:inherit;font-size:.92rem"';
+    const v=(k)=>esc(x[k]==null?"":x[k]);
+    return '<div class="card" style="border:2px solid var(--verde)"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><h3 style="margin:0;flex:1">'+(x.id?'Editar reclamação':'Nova reclamação')+'</h3>'+(x.id&&USUARIO.admin?'<button class="btn mini danger" onclick="removerReclam(\''+x.id+'\')">Remover</button>':'')+'</div>'
+      +(x.id?'':'<label style="'+lb+';margin-bottom:12px">Colar o e-mail (opcional: o sistema tenta achar a REC e o guia)<textarea id="rcEmail" rows="3" style="border:1px solid #cfdcd8;border-radius:12px;padding:10px 12px;font-family:inherit" oninput="lerEmailReclam(this.value)"></textarea></label>')
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">'
+      +'<label style="'+lb+'">Data<input type="date" id="rcData" value="'+v("data")+'" '+inp+'></label>'
+      +'<label style="'+lb+'">Guia<input id="rcGuia" list="recGuias" value="'+v("guia")+'" '+inp+'></label>'
+      +'<label style="'+lb+'">REC<input id="rcRec" value="'+v("rec")+'" inputmode="numeric" '+inp+'></label>'
+      +'<label style="'+lb+'">Cliente<input id="rcCliente" value="'+v("cliente")+'" '+inp+'></label>'
+      +'<label style="'+lb+'">Origem<select id="rcOrigem" '+inp+'>'+["E-mail","WhatsApp","Telefone","Avaliação online","Pessoalmente"].map(o=>'<option'+(x.origem===o?' selected':'')+'>'+o+'</option>').join("")+'</select></label>'
+      +'<label style="'+lb+'">Categoria<select id="rcCat" '+inp+'>'+(REC.cats.length?REC.cats:["Outro"]).map(o=>'<option'+(x.categoria===o?' selected':'')+'>'+o+'</option>').join("")+'</select></label>'
+      +'<label style="'+lb+';grid-column:1/-1">O que aconteceu<textarea id="rcDesc" rows="3" style="border:1px solid #cfdcd8;border-radius:12px;padding:10px 12px;font-family:inherit">'+v("descricao")+'</textarea></label>'
+      +'<label style="'+lb+'">Situação<select id="rcStatus" '+inp+'>'+[["aberta","Aberta"],["andamento","Em andamento"],["resolvida","Resolvida"]].map(([k,t])=>'<option value="'+k+'"'+(x.status===k?' selected':'')+'>'+t+'</option>').join("")+'</select></label>'
+      +'<label style="'+lb+'">Reembolso<span style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rcReemb" '+(x.reembolso?'checked':'')+' style="width:20px;height:20px"><input id="rcValor" placeholder="R$ valor" value="'+(x.valorReembolso?String(x.valorReembolso).replace(".",","):"")+'" '+inp.replace('style="','style="flex:1;')+'></span></label>'
+      +'<label style="'+lb+'">Mimo para o pax<span style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rcMimo" '+(x.mimo?'checked':'')+' style="width:20px;height:20px"><input id="rcQualMimo" placeholder="Qual? (ex.: passeio cortesia)" value="'+v("qualMimo")+'" '+inp.replace('style="','style="flex:1;')+'></span></label>'
+      +'<label style="'+lb+';grid-column:1/-1">Como foi resolvido<textarea id="rcResol" rows="2" style="border:1px solid #cfdcd8;border-radius:12px;padding:10px 12px;font-family:inherit">'+v("resolucao")+'</textarea></label>'
+      +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="REC.edit=null;desenharReclam()">Cancelar</button><button class="btn" onclick="salvarReclam()">Salvar</button></div></div>';
+  }
+  function lerEmailReclam(t){
+    const rec=(t.match(/REC[-\s]?(\d{5,7})/i)||t.match(/\b(\d{6})(?:\.\d)?\b/)||[])[1]; if(rec&&!document.getElementById("rcRec").value) document.getElementById("rcRec").value=rec;
+    const T=normP(t); const c=(REC.contatos||[]).find(c=>[c.nome,...(c.apelidos||[])].some(n=>n&&n.length>3&&new RegExp("\\b"+normP(n)+"\\b").test(T)));
+    if(c&&!document.getElementById("rcGuia").value) document.getElementById("rcGuia").value=c.nome;
+    if(!document.getElementById("rcDesc").value) document.getElementById("rcDesc").value=t.trim().slice(0,3000);
+  }
+  async function salvarReclam(){
+    const g=(id)=>document.getElementById(id), num=(s)=>parseFloat(String(s||"").replace(/[R$\s.]/g,"").replace(",","."))||0;
+    const dados={id:REC.edit.id,data:g("rcData").value,guia:g("rcGuia").value,rec:g("rcRec").value,cliente:g("rcCliente").value,origem:g("rcOrigem").value,categoria:g("rcCat").value,descricao:g("rcDesc").value,status:g("rcStatus").value,reembolso:g("rcReemb").checked,valorReembolso:num(g("rcValor").value),mimo:g("rcMimo").checked,qualMimo:g("rcQualMimo").value,resolucao:g("rcResol").value};
+    try{ await chamarReclam("salvar",{dados}); REC.edit=null; if(dados.data.slice(0,7)!==REC.mes) REC.mes=dados.data.slice(0,7); await carregarReclam(); }catch(e){ alert(e.message); }
+  }
+  async function removerReclam(id){ if(!confirm("Remover esta reclamação?")) return; try{ await chamarReclam("remover",{id}); REC.edit=null; carregarReclam(); }catch(e){ alert(e.message); } }
+  function relatorioReclam(){
+    const rk=rankingReclam(); const linhas=[["Ranking de reclamações · "+nomeMes(REC.mes)],[],["Posição","Guia","Reclamações"],...rk.map(([g,n],k)=>[k+1,g,n]),[],["Data","Guia","REC","Cliente","Origem","Categoria","Situação","Reembolso","Valor reembolso","Mimo","Qual mimo","O que aconteceu","Resolução"],
+      ...REC.itens.map(x=>[dataBR(x.data),x.guia,x.rec,x.cliente,x.origem,x.categoria,(ST_REC[x.status]||[x.status])[0],x.reembolso?"Sim":"Não",x.valorReembolso||"",x.mimo?"Sim":"Não",x.qualMimo||"",x.descricao||"",x.resolucao||""])];
+    const csv="\ufeff"+linhas.map(l=>l.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\n");
+    const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download="reclamacoes_"+REC.mes+".csv"; a.click();
+  }
 
   // ---- Usuários (admin) ----
   async function renderUsuarios(m){
