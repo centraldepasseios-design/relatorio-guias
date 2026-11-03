@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Meu pagamento · Luck</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{--acc:#0e7c6b;--acc-esc:#0b4f44;--claro:#e3f2ee;--bg:#f5f7f6;--tinta:#17302b;--muted:#5c706b;--linha:#e3ebe8;--alerta:#9f2a15;--alerta-bg:#fde4df;--aviso:#8a4a0c;--aviso-bg:#fff1e0}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--tinta);font-family:'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--tinta);font-family:'Nunito',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
   .wrap{max-width:480px;margin:0 auto;padding:20px 16px 48px;padding-top:calc(20px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:14px}
   h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.4px} .sub{font-size:13px;color:var(--muted);font-weight:600}
   .card{background:#fff;border:1px solid var(--linha);border-radius:18px;padding:16px}
@@ -29,8 +29,17 @@
   .ok{background:var(--claro);border-radius:18px;padding:16px;color:var(--acc-esc)} .prob{background:var(--alerta-bg);border-radius:18px;padding:16px;color:var(--alerta)}
   textarea,select,input[type=text]{width:100%;border:1px solid #cfdcd8;border-radius:12px;padding:10px 12px;font-family:inherit;font-size:15px;background:#fff;color:var(--tinta)}
   label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#3c524d}
+  .no-app body{background:transparent} .no-app .wrap{padding-top:4px}
   .fundo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
   .folha{background:#fff;width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+
+  /* visual "A · Mar verde" */
+  :root{--acc:#0e7c6b;--acc-esc:#0d3b30;--claro:#e3f2ee;--bg:#f1f6f3;--tinta:#0d3b30;--muted:#64817a;--linha:#e1ece6}
+  body{font-family:'Nunito',system-ui,sans-serif}
+  .card{border:none;box-shadow:0 6px 18px rgba(13,59,48,.08);border-radius:20px}
+  .valor{background:#0d3b30} .btn{border-radius:16px;font-weight:900}
+  .btn.sec{border:2px solid var(--acc);color:var(--acc)}
+  .passo.atual{background:#0e7c6b} textarea,select,input[type=text]{font-family:'Nunito',system-ui,sans-serif}
 </style>
 </head>
 <body>
@@ -39,6 +48,8 @@
 <script>
   const API="https://us-central1-operacional-luck.cloudfunctions.net/piloto";
   const T=new URLSearchParams(location.search).get("t")||"";
+  const NO_APP=new URLSearchParams(location.search).get("app")==="1"; // aberto dentro do app dos guias
+  if(NO_APP) document.documentElement.classList.add("no-app");
   let D=null;
   const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const brl=(v)=>"R$ "+Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -120,7 +131,8 @@ function lerNota(texto) {
     const mes=MESES[parseInt(fim.slice(5,7),10)-1];
     const fmt=(x)=>Number(x||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
     return "ref "+ini.slice(8)+" a "+fim.slice(8)+" "+mes+" "
-      +D.linhas.map(l=>"#"+dBR(l.data)+" "+curto(l.servico)+" $"+fmt(l.valor).replace(/,00$/,"")).join(" ")
+      +[...D.linhas.map(l=>({data:l.data,txt:curto(l.servico),valor:l.valor})),...(D.lancamentos||[]).filter(x=>x.status==="aceito").map(x=>({data:x.data,txt:x.nome,valor:x.valor}))]
+        .sort((a,b)=>a.data.localeCompare(b.data)).map(l=>"#"+dBR(l.data)+" "+l.txt+" $"+fmt(l.valor).replace(/,00$/,"")).join(" ")
       +", SERV: R$"+fmt(v.serv)+" COMISS: R$"+fmt(v.com)+(v.reemb?" - REEMB R$"+fmt(v.reemb):"")+(v.maq?" - MAQ R$"+fmt(v.maq):"")+" TOTAL: R$"+fmt(v.liq);
   }
   async function carregar(){
@@ -133,7 +145,7 @@ function lerNota(texto) {
     const [ini,fim]=D.periodo; const conferido=["conferido","nota_ok","nota_com_problema"].includes(D.status)||!!D.nota;
     const passo=D.nota&&D.nota.ok?3:(D.liberado&&conferido?(D.nota?2:1):0);
     const cls=(i)=>i<passo?"passo feito":(i===passo?"passo atual":"passo");
-    let h='<div style="display:flex;flex-direction:column;gap:2px"><span class="sub">'+dBR(ini)+' a '+dBR(fim)+'</span><h1>Olá, '+esc(D.nome.split(" ")[0].charAt(0)+D.nome.split(" ")[0].slice(1).toLowerCase())+'</h1></div>';
+    let h=NO_APP?'<span class="sub">Quinzena de '+dBR(ini)+' a '+dBR(fim)+'</span>':'<div style="display:flex;flex-direction:column;gap:2px"><span class="sub">'+dBR(ini)+' a '+dBR(fim)+'</span><h1>Olá, '+esc(D.nome.split(" ")[0].charAt(0)+D.nome.split(" ")[0].slice(1).toLowerCase())+'</h1></div>';
     h+='<div class="passos"><div class="'+cls(0)+'">1. Conferir</div><div class="'+cls(1)+'">2. Emitir nota</div><div class="'+cls(2)+'">3. Enviar</div></div>';
     if(D.liberado){ const v=D.valores;
       h+='<section class="valor"><div><div class="lbl">VALOR DA SUA NOTA</div><div class="num">'+brl(v.liq)+'</div></div><div class="grade"><span>Serviços</span><b>'+brl(v.serv)+'</b><span>Comissão</span><b>'+brl(v.com)+'</b>'+(v.reemb?'<span>Reembolso</span><b>− '+brl(v.reemb)+'</b>':'')+(v.maq?'<span>Maquineta</span><b>− '+brl(v.maq)+'</b>':'')+'</div></section>';
@@ -159,6 +171,12 @@ function lerNota(texto) {
       }).join("")+'</div>';
     }
     h+='<button class="btn sec" onclick="abrirContestar(-1)">＋ Faltou um serviço</button>';
+    // apoio ao box, navio e by night: não vêm do Phoenix; o guia lança e a Central aceita
+    const LST={aberto:["Em análise","var(--aviso-bg)","var(--aviso)"],aceito:["Aceito","var(--claro)","var(--acc-esc)"],negado:["Negado","var(--alerta-bg)","var(--alerta)"]};
+    const lancs=D.lancamentos||[];
+    h+='<div class="card"><b style="font-size:15px">Apoio ao box, navio e by night</b><p class="sub" style="margin:4px 0 8px;font-weight:500">Esses serviços não aparecem no Phoenix. Adicione aqui e a Central confere.</p>'
+      +lancs.map(x=>{ const s=LST[x.status]||LST.aberto; return '<div style="border-top:1px solid #edf2f0;padding:10px 0;font-size:13px;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;gap:8px"><b>'+dBR(x.data)+'</b><span style="flex:1;font-weight:700">'+esc(x.nome)+(x.idioma?' · idioma':'')+'</span>'+(x.status==="aceito"?'<b>'+brl(x.valor).replace(",00","")+'</b>':'')+'</div><div style="display:flex;align-items:center;gap:8px"><span class="tag" style="background:'+s[1]+';color:'+s[2]+'">'+s[0]+'</span>'+(x.obs?'<span style="color:var(--muted)">'+esc(x.obs)+'</span>':'')+(x.status==="aberto"?'<button class="mini" style="margin-left:auto" onclick="desfazerLanc(\''+x.id+'\')">Desfazer</button>':'')+'</div>'+(x.resposta?'<div>Central: '+esc(x.resposta)+'</div>':'')+'</div>'; }).join("")
+      +'<button class="btn sec" style="margin-top:8px" onclick="abrirLancar()">＋ Adicionar</button></div>';
     if(D.contestacoes.length){
       const ST={aberta:["Em análise","var(--aviso-bg)","var(--aviso)"],aceita:["Aceita","var(--claro)","var(--acc-esc)"],negada:["Negada","var(--alerta-bg)","var(--alerta)"]};
       h+='<div class="card"><b style="font-size:14px">Suas contestações</b>'+D.contestacoes.map(c=>{const s=ST[c.status]||ST.aberta;return '<div style="padding:10px 0;border-top:1px solid #edf2f0;margin-top:8px;font-size:13px"><span class="tag" style="background:'+s[1]+';color:'+s[2]+'">'+s[0]+'</span> <b>'+esc(c.tipo)+'</b> · '+esc(c.data?dBR(c.data):"")+' '+esc(c.servico)+(c.obs?'<div style="color:var(--muted);margin-top:4px">'+esc(c.obs)+'</div>':'')+(c.resposta?'<div style="margin-top:4px">Central: '+esc(c.resposta)+'</div>':'')+(c.status==="aberta"?'<div style="margin-top:6px"><button class="mini" onclick="desfazerContestacao(\''+c.id+'\')">Desfazer esta contestação</button></div>':'')+'</div>';}).join("")+'</div>';
@@ -172,6 +190,23 @@ function lerNota(texto) {
     h+='<p class="sub" style="text-align:center">Dúvidas? Fale com a Central de Guias.</p>';
     document.getElementById("app").innerHTML=h;
   }
+  function abrirLancar(){
+    const f=document.createElement("div"); f.className="fundo"; f.id="fundo";
+    f.innerHTML='<div class="folha"><b style="font-size:18px">Adicionar serviço</b>'
+      +'<label>Tipo<select id="lTipo"><option value="box-full">Apoio ao Box FULL</option><option value="box-half">Apoio ao Box HALF</option><option value="navio">Navio</option><option value="bynight">By Night</option></select></label>'
+      +'<label>Data<input type="text" id="lData" placeholder="ex.: 21/10" inputmode="numeric"></label>'
+      +'<label style="flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="lIdioma" style="width:22px;height:22px"> Foi em idioma</label>'
+      +'<label>Observação (opcional)<textarea id="lObs" rows="2" placeholder="Ex.: navio MSC, turno da noite..."></textarea></label>'
+      +'<button class="btn" id="lBtn">Enviar para a Central</button><button class="btn sec" onclick="document.getElementById(\'fundo\').remove()">Cancelar</button></div>';
+    document.body.appendChild(f);
+    document.getElementById("lBtn").onclick=async()=>{
+      const m=document.getElementById("lData").value.match(/(\d{1,2})\/(\d{1,2})/); if(!m){ alert("Informe a data (ex.: 21/10)."); return; }
+      const data=D.periodo[0].slice(0,5)+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+      const j=await api("lancar",{tipo:document.getElementById("lTipo").value,data,idioma:document.getElementById("lIdioma").checked,obs:document.getElementById("lObs").value});
+      if(!j.ok){ alert(j.erro); return; } f.remove(); carregar();
+    };
+  }
+  async function desfazerLanc(id){ if(!confirm("Desfazer este lançamento?")) return; const j=await api("desfazerLanc",{id}); if(!j.ok){alert(j.erro);return;} carregar(); }
   async function desfazerContestacao(id){ if(!confirm("Desfazer esta contestação?")) return; const j=await api("desfazer",{id}); if(!j.ok){alert(j.erro);return;} carregar(); }
   // nomes do Phoenix em "Título" (IN (PORTO DE GALINHAS) -> IN Porto de Galinhas)
   const MINUSC=["de","da","do","das","dos","e","a","o","em","no","na"];

@@ -1654,11 +1654,12 @@
       +'<div class="card"><h3 style="font-size:1rem;margin-bottom:6px">1. Mapa pelo Phoenix (sem o Utopia)</h3>'
       +'<p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Lê as escalas dos guias do piloto no Phoenix e aplica o tarifário e as regras (idioma pelo relatório, motoguia, apoio). Se o Phoenix for corrigido, é só gerar de novo.</p>'
       +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span style="font-size:.8rem;font-weight:700">Tarifário (.xlsx, só quando mudar):</span><input type="file" id="pilTarif" accept=".xlsx"><button class="btn sec mini" onclick="salvarTarifario()">Salvar tarifário</button></div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" onclick="pilotoGerarPhoenix()">Gerar mapa pelo Phoenix</button><span id="pilPhxInfo" style="font-size:.8rem;color:var(--muted)"></span></div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" onclick="pilotoGerarPhoenix()">Gerar mapa pelo Phoenix</button><button class="btn sec" onclick="pilotoFecharTodos()" title="O automático faz isso no dia 1 e no dia 16, às 8h">Fechar para todos os guias agora</button><span id="pilPhxInfo" style="font-size:.8rem;color:var(--muted)"></span></div>'
       +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha)"><span style="font-size:.8rem;font-weight:700">Conferir com o PAAR (teste em paralelo):</span><input type="file" id="pilCmp" accept=".xlsx"><button class="btn sec mini" onclick="pilotoCompararPaar()">Comparar</button></div><div id="pilCmpRes"></div></div>'
       +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Ou: mapa do PAAR</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilMapa" accept=".xlsx,.xls"><button class="btn" onclick="pilotoCarregarMapa()">Carregar serviços dos guias do piloto</button></div></div>'
       +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">2. Valores da PGG (depois que o financeiro lançar a comissão)</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilPgg" accept=".xlsx,.xls"><button class="btn" onclick="pilotoValores()">Atualizar valores</button><span id="pilLib"></span></div></div>'
-      +'<div id="pilStatus"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
+      +'<div id="pilStatus"><div class="card" style="color:var(--muted)">Carregando...</div></div>'
+      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:6px">Conferir os campos que o Phoenix manda (app novo)</h3><p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Mostra os nomes dos campos de um serviço da Ordem dos Motoristas. Serve para acertar voo, hotel e observação na escala do app novo.</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="date" id="amoData" value="'+hojeISO()+'"><button class="btn sec mini" onclick="amostraPhoenix()">Ver campos</button></div><pre id="amoRes" style="white-space:pre-wrap;font-size:.74rem;margin-top:10px;max-height:320px;overflow:auto"></pre></div>';
   }
   function trocarQuinzenaPiloto(){ PIL.qid=document.getElementById("pilIni").value+"_"+document.getElementById("pilFim").value; PIL.nomes=document.getElementById("pilNomes").value; atualizarPiloto(); }
   async function atualizarPiloto(){
@@ -1713,9 +1714,17 @@
     if(faltam.length) alert("Não achei na PGG (ou achei mais de um): "+faltam.join(", "));
     atualizarPiloto();
   }
+  async function pilotoFecharTodos(){
+    if(!confirm("Montar o mapa desta quinzena pelo Phoenix para TODOS os guias e mandar o aviso no WhatsApp para eles conferirem no app?\n\n(O sistema faz isso sozinho no dia 1 e no dia 16, às 8h.)")) return;
+    const info=document.getElementById("pilPhxInfo"); info.textContent="Montando o mapa de todos os guias... pode levar alguns minutos.";
+    const j=await chamarPiloto("fecharAgora",{}); if(!j.ok){ alert(j.erro); info.textContent=""; return; }
+    info.textContent="Quinzena fechada: "+j.guias+" guias com mapa."; atualizarPiloto();
+  }
   async function pilotoLiberar(v){
-    if(v&&!confirm("Liberar os valores? Os guias do piloto vão ver o valor da nota e a descrição pronta.")) return;
-    const j=await chamarPiloto("liberar",{liberado:v}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+    if(v&&!confirm("Liberar os valores? Os guias vão ver o valor da nota e a descrição pronta, e recebem um aviso no WhatsApp.")) return;
+    const j=await chamarPiloto("liberar",{liberado:v}); if(!j.ok){ alert(j.erro); return; }
+    if(v) alert("Valores liberados."+(j.avisados?" "+j.avisados+" guia(s) avisados no WhatsApp.":""));
+    atualizarPiloto();
   }
   async function pilotoLink(gid){
     const j=await chamarPiloto("link",{gid}); if(!j.ok){ alert(j.erro); return; }
@@ -1737,6 +1746,10 @@
     if(status==="aceito"){ const v=prompt("Valor a pagar (R$):",sugerido?String(sugerido).replace(".",","):""); if(v===null) return; valor=parseFloat(String(v).replace(/\./g,"").replace(",",".")); if(!(valor>0)){ alert("Informe o valor."); return; } }
     else { resposta=prompt("Motivo (o guia vai ver):",""); if(resposta===null) return; }
     const j=await chamarPiloto("lancamento",{gid,id,status,valor,resposta}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+  }
+  async function amostraPhoenix(){
+    const pre=document.getElementById("amoRes"); pre.textContent="Lendo...";
+    try{ const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"amostraPhoenix",token:USUARIO.token,data:document.getElementById("amoData").value})}); const j=await r.json(); pre.textContent=j.ok?JSON.stringify(j.amostra,null,2):j.erro; }catch(e){ pre.textContent=e.message; }
   }
   async function pilotoPdf(gid){
     const j=await chamarPiloto("pdf",{gid}); if(!j.ok){ alert(j.erro); return; }
@@ -1851,6 +1864,8 @@
 
   // ======================= DISPONIBILIDADE (lida do app dos guias) =======================
   const DSP={ data:null, dados:null, internos:[], filtro:"todos", busca:"", form:null };
+  // grupos iguais aos do painel antigo
+  const DSP_GRUPOS=[["Guias Porto",["JUNIOR", "POLLY", "NATALIA", "GEORGE", "KATARINA", "EDMILTON", "EVILAZIO", "LUCIENE", "VITOR", "ERLON", "HENRIQUE JUNIOR", "FELIPE", "EDSON", "TATIANA", "TOM", "ADRIANE", "GUILHERME", "FABIO", "DANIEL", "NEIDE", "JUAN", "EUGENIO", "VALTER", "GONÇALVES", "ANTONIO", "GERARDO", "HUGO", "JOEL", "HENRIQUE FARIAS", "CHICO DINIZ", "MARI", "WIRON", "IANNE", "ADIANES", "MADSON", "CAMILLA", "ANDRE", "ANA FLAVIA", "RENATINHA", "GESSYCA", "TAVARES", "MATHEUS", "ALICE", "LIDIANE", "CARLA", "ALBERTO", "XIMENES", "SIDNEI", "DRIELLY", "RAISSA", "ISADORA", "SANTIAGO", "ARTHUR", "GIL", "HUMBERTO", "FABIO COZZI", "BRENO", "LUIZ CARLOS", "RODRIGO", "JOELMA", "OLIVEIRA", "BRUNO MICHELOTI", "CRIS", "TALES", "FRANCINALDO", "AMAURY", "ARLENE", "JACIANE", "FRANCA", "FREITAS", "LUIZ FELIPE", "RAFAEL", "ELANE"]],["Estagiários",["JULIANA", "DEYVISON", "ALEX", "RUTH", "CAMILA DOS PRAZERES"]],["Guias Recife",["GLORINHA", "ELISIO", "REBECA", "ENEZIANE", "BRUNO", "ALVARO", "ZENA", "CARLOS", "CHICO LIMA", "SERGIO", "LUCIA VERONICA", "MARCOS", "MADALENA", "ARLINDO"]]];
   const DSP_COR={d:["#dff1ea","#0b4f44","Disponível"],r:["#fff1e0","#8a4a0c","Restrição"],i:["#fde4df","#9f2a15","Indisponível"],b:["#e6ecfb","#1e3a8a","Bloqueado"],p:["#e3f2ee","#0b4f44","Em passeio"],n:["#2b3a37","#ffffff","Não convidar"]};
   const somaDias=(iso,n)=>{ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
   async function chamarDisp(acao,dados){ const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,...dados})}); const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro); return j; }
@@ -1886,7 +1901,7 @@
     const f=document.getElementById("dspForm"); if(f) f.innerHTML=DSP.form?htmlFormDisp():"";
     const box=document.getElementById("dspConteudo"); if(!box||!DSP.dados) return;
     const dias=[0,1,2,3,4,5,6].map(k=>somaDias(DSP.data,k)), dia=DSP.data;
-    const nomes=[...new Set([...DSP.dados.guias,...DSP.dados.disp.map(x=>x.guia)].map(x=>String(x).trim()).filter(Boolean))].sort();
+    const nomes=[...new Set([...DSP.dados.guias,...DSP.dados.disp.map(x=>x.guia),...DSP_GRUPOS.flatMap(g=>g[1])].map(x=>String(x).trim().toUpperCase()).filter(Boolean))].sort();
     const linhas=nomes.map(n=>({nome:n,sit:situacaoDisp(n,dia),sem:dias.map(d=>situacaoDisp(n,d).s)}));
     const cont={}; linhas.forEach(l=>cont[l.sit.s]=(cont[l.sit.s]||0)+1);
     const tarde=linhas.filter(l=>(l.sit.s==="r"||l.sit.s==="i")&&avisoTarde(l.sit,dia));
@@ -1898,13 +1913,18 @@
     h+='<div class="filtros">'+campoBusca("dspBusca","Buscar guia",DSP.busca,"DSP.busca=this.value;desenharDisp();setTimeout(()=>{const e=document.getElementById(\'dspBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")
       +segmento([["todos","Todos"],["d","Disponíveis"],["r","Restrição"],["i","Indisponíveis"],["b","Bloqueados"],["n","Não convidar"]],DSP.filtro,"DSP.filtro='$v';desenharDisp()")+'</div>';
     const sq=(s,d)=>{ const c=DSP_COR[s]; return '<span title="'+dataBR(d).slice(0,5)+': '+c[2]+'" style="width:28px;height:28px;border-radius:8px;background:'+c[0]+';color:'+c[1]+';font-size:.7rem;font-weight:800;display:flex;align-items:center;justify-content:center">'+d.slice(8)+'</span>'; };
-    h+='<div style="display:flex;flex-direction:column;gap:8px">'+vis.map(l=>{ const c=DSP_COR[l.sit.s], t=avisoTarde(l.sit,dia)&&(l.sit.s==="r"||l.sit.s==="i");
+    const linhaDisp=(l)=>{ const c=DSP_COR[l.sit.s], t=avisoTarde(l.sit,dia)&&(l.sit.s==="r"||l.sit.s==="i");
       return '<div class="card" style="margin:0;padding:12px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:14px;'+(t?'border-color:#f3b9ab':'')+'">'
         +'<span style="width:38px;height:38px;border-radius:19px;background:var(--verde-claro);color:var(--verde-esc);font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center">'+esc(l.nome.split(" ").slice(0,2).map(p=>p[0]).join(""))+'</span>'
         +'<div style="width:170px;display:flex;flex-direction:column"><b style="color:var(--tinta)">'+esc(titulo(l.nome))+'</b>'+(l.sit.em?'<span style="font-size:.74rem;'+(t?'color:#9f2a15;font-weight:800':'color:var(--muted)')+'">'+new Date(l.sit.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(t?' · depois das 13h':'')+'</span>':'')+'</div>'
         +'<span class="pill" style="background:'+c[0]+';color:'+c[1]+';min-width:96px;text-align:center">'+c[2]+'</span>'
         +'<span style="flex:1 1 200px;font-size:.88rem;font-weight:600">'+esc(l.sit.det)+'</span>'
-        +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k])).join("")+'</div></div>'; }).join("")+'</div>';
+        +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k])).join("")+'</div></div>'; };
+    // seções um embaixo da outra: Porto, Estagiários, Recife (e quem não está em nenhuma lista)
+    const usados=new Set();
+    const secoes=DSP_GRUPOS.map(([t,lista])=>{ const set=new Set(lista.map(normP)); const ls=vis.filter(l=>set.has(normP(l.nome))); ls.forEach(l=>usados.add(l.nome)); return [t,ls]; });
+    secoes.push(["Outros",vis.filter(l=>!usados.has(l.nome))]);
+    h+=secoes.filter(([,ls])=>ls.length).map(([t,ls])=>'<h3 style="font-size:1.05rem;font-weight:800;margin:18px 0 10px;color:var(--tinta)">'+t+' <span style="font-size:.82rem;font-weight:600;color:var(--muted)">('+ls.length+' guias)</span></h3><div style="display:flex;flex-direction:column;gap:8px">'+ls.map(linhaDisp).join("")+'</div>').join("");
     const servs=DSP.internos.filter(x=>x.fim>=hojeISO()).sort((a,c)=>a.inicio.localeCompare(c.inicio));
     if(servs.length) h+='<h3 style="font-size:1.1rem;font-weight:800;margin:22px 0 10px">Bloqueios e "não convidar" registrados</h3><div style="display:flex;flex-direction:column;gap:8px">'+servs.map(x=>'<div class="card" style="margin:0;padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><b>'+esc(titulo(x.guia))+'</b><span class="pill" style="background:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][0]+';color:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][1]+'">'+(x.tipo==="naoConvidar"?"Não convidar":"Bloqueado")+'</span><span style="font-size:.86rem">'+dataBR(x.inicio).slice(0,5)+(x.fim!==x.inicio?' a '+dataBR(x.fim).slice(0,5):'')+(x.horario?' · '+esc(x.horario):'')+'</span>'
       +(x.tipo==="servico"?'<span style="font-size:.86rem">'+esc(x.descricao||"")+(x.rec?' · <b style="color:#1e3a8a">REC-'+esc(x.rec)+'</b>':'')+(x.quemPediu?' · pedido por '+esc(x.quemPediu):'')+'</span>':'<span style="font-size:.86rem;color:var(--muted)">'+esc(x.motivo||"")+'</span>')
@@ -1913,7 +1933,7 @@
   }
   function htmlFormDisp(){
     const sv=DSP.form==="servico", lb='display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)', inp='style="height:44px;border:1px solid #cfdcd8;border-radius:12px;padding:0 12px;font-family:inherit;font-size:.92rem"';
-    return '<div class="card" style="border:2px solid var(--verde)"><h3 style="margin-bottom:4px">'+(sv?"Bloquear guia para um serviço":"Não convidar")+'</h3><p style="font-size:.84rem;color:var(--muted);margin-bottom:14px">'+(sv?"Ele aparece como bloqueado nesses dias. Registro interno da Central.":"Registro interno: o guia não vê. Ao fim do período ele volta a ser convidado.")+'</p>'
+    return '<div class="card" style="border:2px solid var(--verde)"><div style="margin-bottom:12px">'+segmento([["servico","Bloquear para serviço"],["naoConvidar","Não convidar"]],DSP.form,"DSP.form='$v';desenharDisp()")+'</div><h3 style="margin-bottom:4px">'+(sv?"Bloquear guia para um serviço":"Não convidar")+'</h3><p style="font-size:.84rem;color:var(--muted);margin-bottom:14px">'+(sv?"Ele aparece como bloqueado nesses dias. Registro interno da Central.":"Registro interno: o guia não vê. Ao fim do período ele volta a ser convidado.")+'</p>'
       +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">'
       +'<label style="'+lb+'">Guia<input id="dfGuia" list="dspGuias" '+inp+'></label>'
       +'<label style="'+lb+'">'+(sv?'Dia':'De')+'<input type="date" id="dfIni" value="'+DSP.data+'" '+inp+'></label>'
@@ -1926,6 +1946,7 @@
     const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():""; };
     const dados={tipo:DSP.form,guia:v("dfGuia"),inicio:v("dfIni"),fim:v("dfFim")||v("dfIni"),horario:v("dfHor"),rec:v("dfRec").replace(/^REC-?/i,""),descricao:v("dfDesc"),quemPediu:v("dfQuem"),motivo:v("dfMot")};
     if(!dados.guia){ alert("Informe o guia."); return; }
+    if(dados.tipo==="servico"&&!dados.descricao&&!dados.rec&&!dados.horario){ alert("Para bloquear para um serviço, informe a descrição, a REC ou o horário. Se a ideia é só não convidar, escolha \"Não convidar\" no topo do formulário."); return; }
     if(dados.fim<dados.inicio){ alert("A data final é antes da inicial."); return; }
     try{ await chamarDisp("salvarInterno",dados); DSP.form=null; await carregarDisp(); }catch(e){ alert(e.message); }
   }
