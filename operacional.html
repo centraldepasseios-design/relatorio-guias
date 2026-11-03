@@ -290,7 +290,7 @@
       {id:"porto-consulta", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/></svg>", nome:"Consulta de reservas"},
       {id:"porto-vagas", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 17h4V5H2v12h3\"/><path d=\"M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1\"/><circle cx=\"7.5\" cy=\"17.5\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"17.5\" r=\"2.5\"/></svg>", nome:"Vagas"},
       {id:"porto-escala", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 2v4M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/></svg>", nome:"Escala dos guias"},
-      {id:"porto-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12a10 10 0 1 0-20 0\"/><path d=\"M12 12 8 22M12 12l4 10M2 12h20\"/></svg>", nome:"Passeios (carros)"},
+      {id:"porto-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z\"/><path d=\"M9 4v14M15 6v14\"/></svg>", nome:"Passeios (carros)"},
       {id:"porto-fechar", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>", nome:"Fechar escalas"},
     ]},
     central: {nome:"Central de Guias", itens:[
@@ -301,7 +301,7 @@
       {id:"cen-pagamentos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M2 10h20M6 15h4\"/></svg>", nome:"Pagamentos"},
       {id:"cen-disp", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><path d=\"m9 11 3 3L22 4\"/></svg>", nome:"Disponibilidade"},
       {id:"cen-reclam", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>", nome:"Reclamações"},
-      {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12a10 10 0 1 0-20 0\"/><path d=\"M12 12 8 22M12 12l4 10M2 12h20\"/></svg>", nome:"Passeios"},
+      {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z\"/><path d=\"M9 4v14M15 6v14\"/></svg>", nome:"Passeios"},
       {id:"cen-relatorio", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 3v16a2 2 0 0 0 2 2h16\"/><path d=\"M18 17V9M13 17V5M8 17v-3\"/></svg>", nome:"Relatório"},
       {id:"central-fechar", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>", nome:"Fechar escalas"},
     ]},
@@ -609,8 +609,8 @@
   function tagServ(t){ const c=TAG_COR[t]||TAG_COR.TRF; return '<span style="font-size:.66rem;font-weight:800;color:'+c[1]+';background:'+c[0]+';border-radius:6px;padding:3px 7px;white-space:nowrap">'+esc(String(t).toUpperCase())+'</span>'; }
   function htmlGuias(L){
     L=L.filter(l=>l.guia);
-    if(ESC.tipo==="trf") L=L.filter(l=>l.tipo!=="TOUR");
-    if(ESC.tipo==="tour") L=L.filter(l=>l.tipo==="TOUR");
+    if(ESC.tipo==="trf") L=L.filter(l=>l.tipo!=="TOUR"||l.auxiliar);
+    if(ESC.tipo==="tour") L=L.filter(l=>l.tipo==="TOUR"&&!l.auxiliar);
     const b=ESC.busca.trim().toUpperCase(); if(b) L=L.filter(l=>l.guia.toUpperCase().includes(b));
     const por={}; for(const l of L){ const k=l.guia.toUpperCase(); (por[k]=por[k]||{nome:l.guia,itens:[]}).itens.push(l); }
     const guias=Object.values(por);
@@ -1919,7 +1919,7 @@
   async function carregarDisp(){
     try{
       const [d,i,ct]=await Promise.all([chamarDisp("disponibilidade",{inicio:DSP.data,fim:somaDias(DSP.data,6)}),chamarDisp("internos",{}),chamarEnvios("contatos",{}).catch(()=>null)]);
-      DSP.dados=d; DSP.internos=i.itens||[];
+      DSP.dados=d; DSP.internos=i.itens||[]; DSP.ultOficial=null;
       // apelidos do cadastro de contatos: "FABIO" (app antigo) = "FABIO GOMES" (Phoenix)
       DSP.oficial={}; ((ct&&ct.contatos)||[]).forEach(x=>{ DSP.oficial[normP(x.nome)]=x.nome.toUpperCase(); (x.apelidos||[]).forEach(a=>DSP.oficial[normP(a)]=x.nome.toUpperCase()); });
       const dl=document.getElementById("dspGuias"); if(dl) dl.innerHTML=d.guias.map(g=>'<option value="'+esc(g)+'">').join("");
@@ -1938,6 +1938,15 @@
     if(ds&&(ds.status==="restricao"||ds.status==="passeio")) return {s:"r",det:ds.obs||(ds.status==="passeio"?"Só passeio":"Com restrição"),em:ds.em};
     return {s:"d",det:"Disponível o dia todo"};
   }
+  // última escala (até hoje) e próxima, juntando os nomes/apelidos do mesmo guia
+  function ultimaDe(nome){
+    if(!DSP.ultOficial){ DSP.ultOficial={}; for(const [k,v] of Object.entries((DSP.dados&&DSP.dados.ultimas)||{})){ const o=normP(oficialDe(k)), x=DSP.ultOficial[o]=DSP.ultOficial[o]||{};
+      if(v.ultima&&(!x.ultima||v.ultima>x.ultima)) x.ultima=v.ultima; if(v.proxima&&(!x.proxima||v.proxima<x.proxima)) x.proxima=v.proxima; } }
+    return DSP.ultOficial[normP(oficialDe(nome))]||{};
+  }
+  function ultTxt(nome){ const u=ultimaDe(nome); if(!u.ultima&&!u.proxima) return '<span style="font-size:.72rem;color:var(--muted)">sem escala nos últimos 60 dias</span>';
+    const dias=u.ultima?Math.round((new Date(hojeISO()+"T12:00:00")-new Date(u.ultima+"T12:00:00"))/864e5):null;
+    return '<span style="font-size:.72rem;color:'+(dias!=null&&dias>=15?'#b45309':'var(--muted)')+'">'+(u.ultima?'última escala '+(dias===0?'hoje':dataBR(u.ultima).slice(0,5)+(dias>=7?' ('+dias+' dias)':'')):'')+(u.proxima?(u.ultima?' · ':'')+'próxima '+dataBR(u.proxima).slice(0,5):'')+'</span>'; }
   // avisou depois das 13h do dia anterior (regra do app)
   function avisoTarde(sit,dia){ if(!sit.em) return false; const lim=new Date(somaDias(dia,-1)+"T13:00:00-03:00").getTime(); return sit.em>lim; }
   function desenharDisp(){
@@ -1959,7 +1968,7 @@
     const linhaDisp=(l)=>{ const c=DSP_COR[l.sit.s], t=avisoTarde(l.sit,dia)&&(l.sit.s==="r"||l.sit.s==="i");
       return '<div class="card" style="margin:0;padding:12px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:14px;'+(t?'border-color:#f3b9ab':'')+'">'
         +'<span style="width:38px;height:38px;border-radius:19px;background:var(--verde-claro);color:var(--verde-esc);font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center">'+esc(l.nome.split(" ").slice(0,2).map(p=>p[0]).join(""))+'</span>'
-        +'<div style="width:170px;display:flex;flex-direction:column"><b style="color:var(--tinta)">'+esc(titulo(l.nome))+'</b>'+(l.sit.em?'<span style="font-size:.74rem;'+(t?'color:#9f2a15;font-weight:800':'color:var(--muted)')+'">'+new Date(l.sit.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(t?' · depois das 13h':'')+'</span>':'')+'</div>'
+        +'<div style="width:170px;display:flex;flex-direction:column"><b style="color:var(--tinta)">'+esc(titulo(l.nome))+'</b>'+(l.sit.em?'<span style="font-size:.74rem;'+(t?'color:#9f2a15;font-weight:800':'color:var(--muted)')+'">'+new Date(l.sit.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(t?' · depois das 13h':'')+'</span>':'')+ultTxt(l.nome)+'</div>'
         +'<span class="pill" style="background:'+c[0]+';color:'+c[1]+';min-width:96px;text-align:center">'+c[2]+'</span>'
         +'<span style="flex:1 1 200px;font-size:.88rem;font-weight:600">'+esc(l.sit.det)+'</span>'
         +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k])).join("")+'</div></div>'; };
@@ -1968,7 +1977,7 @@
     const secoes=DSP_GRUPOS.map(([t,lista])=>{ const set=new Set(lista.map(n=>normP(oficialDe(n)))); const ls=vis.filter(l=>set.has(normP(l.nome))); ls.forEach(l=>usados.add(l.nome)); return [t,ls]; });
     secoes.push(["Outros",vis.filter(l=>!usados.has(l.nome))]);
     h+=secoes.filter(([,ls])=>ls.length).map(([t,ls])=>'<h3 style="font-size:1.05rem;font-weight:800;margin:18px 0 10px;color:var(--tinta)">'+t+' <span style="font-size:.82rem;font-weight:600;color:var(--muted)">('+ls.length+' guias)</span></h3><div style="display:flex;flex-direction:column;gap:8px">'+ls.map(linhaDisp).join("")+'</div>').join("");
-    const servs=DSP.internos.filter(x=>x.fim>=hojeISO()).sort((a,c)=>a.inicio.localeCompare(c.inicio));
+    const servs=DSP.internos.filter(x=>(DSP.filtro==="b"?x.tipo==="servico":DSP.filtro==="n"?x.tipo==="naoConvidar":DSP.filtro==="todos")&&(!b||normP(x.guia).includes(b))).filter(x=>x.fim>=hojeISO()).sort((a,c)=>a.inicio.localeCompare(c.inicio));
     if(servs.length) h+='<h3 style="font-size:1.1rem;font-weight:800;margin:22px 0 10px">Bloqueios e "não convidar" registrados</h3><div style="display:flex;flex-direction:column;gap:8px">'+servs.map(x=>'<div class="card" style="margin:0;padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><b>'+esc(titulo(x.guia))+'</b><span class="pill" style="background:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][0]+';color:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][1]+'">'+(x.tipo==="naoConvidar"?"Não convidar":"Bloqueado")+'</span><span style="font-size:.86rem">'+dataBR(x.inicio).slice(0,5)+(x.fim!==x.inicio?' a '+dataBR(x.fim).slice(0,5):'')+(x.horario?' · '+esc(x.horario):'')+'</span>'
       +(x.tipo==="servico"?'<span style="font-size:.86rem">'+esc(x.descricao||"")+(x.rec?' · <b style="color:#1e3a8a">REC-'+esc(x.rec)+'</b>':'')+(x.quemPediu?' · pedido por '+esc(x.quemPediu):'')+'</span>':'<span style="font-size:.86rem;color:var(--muted)">'+esc(x.motivo||"")+'</span>')
       +'<button class="btn mini danger" style="margin-left:auto" onclick="removerInternoDisp(\''+x.id+'\')">Remover</button></div>').join("")+'</div>';
