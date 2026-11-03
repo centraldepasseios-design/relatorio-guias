@@ -1424,24 +1424,14 @@
     return {ok,prob,info,dif};
   }
   function renderPagamentos(m){
-    const aba=PAG.aba||"mapa";
-    const ab=(id,t)=>'<span class="chip '+(aba===id?"on":"")+'" style="font-size:.9rem;padding:8px 16px" onclick="PAG.aba=\''+id+'\';renderPagamentos(document.getElementById(\'mainConteudo\'))">'+t+'</span>';
-    if(aba==="piloto"){
-      m.innerHTML='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'+ab("mapa","1. Conferir mapa")+ab("notas","2. Conferir notas fiscais")+ab("piloto","3. Piloto app do guia")+'</div>'+htmlPiloto();
-      atualizarPiloto(); return;
-    }
-    if(aba==="mapa"){
-      m.innerHTML='<div style="display:flex;gap:8px;margin-bottom:14px">'+ab("mapa","1. Conferir mapa")+ab("notas","2. Conferir notas fiscais")+ab("piloto","3. Piloto app do guia")+'</div>'
-        +'<div class="card"><h3 style="margin-bottom:6px;">Conferir o mapa antes de enviar aos guias</h3>'
-        +'<p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;">Exporte do PAAR o mapa de todos os guias (.xlsx) e suba aqui. O sistema compara com os relatórios que os guias fizeram no app e aplica a regra do apoio.</p>'
-        +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><input type="file" id="mapaArq" accept=".xlsx,.xls"><button class="btn" id="mapaBtn" onclick="processarMapa()">Conferir mapa</button><span id="mapaInfo" style="font-size:.82rem;color:var(--muted)"></span></div></div>'
-        +'<div id="mapaResultado"></div>';
-      if(MAPA.resultado) desenharMapa();
-      return;
-    }
-    m.innerHTML='<div style="display:flex;gap:8px;margin-bottom:14px">'+ab("mapa","1. Conferir mapa")+ab("notas","2. Conferir notas fiscais")+ab("piloto","3. Piloto app do guia")+'</div>'+`
+    const aba=["quinzena","tarifario","notas"].includes(PAG.aba)?PAG.aba:"quinzena";
+    const abas=segmento([["quinzena","Quinzena dos guias"],["tarifario","Tarifário"],["notas","Notas recebidas por fora"]],aba,"PAG.aba='$v';renderPagamentos(document.getElementById('mainConteudo'))");
+    cab("Mapa pelo Phoenix, comissão da PGG e notas fiscais","");
+    if(aba==="quinzena"){ m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div>'+htmlQuinzena(); carregarQuinzenas(); atualizarPiloto(); return; }
+    if(aba==="tarifario"){ m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div><div id="tarBox"><div class="card" style="color:var(--muted)">Carregando o tarifário...</div></div>'; carregarTarifario(); return; }
+    m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div>'+`
       <div class="card">
-        <h3 style="margin-bottom:6px;">Conferir notas fiscais da quinzena</h3>
+        <h3 style="margin-bottom:6px;">Notas que chegaram por WhatsApp ou e-mail</h3>
         <p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;">Suba a PGG da quinzena, o mapa do PAAR (ajuda a reconhecer o guia pelo CNPJ) e as notas em PDF. O sistema lê cada nota e compara com o valor líquido a pagar da PGG. Nada sai do seu computador.</p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
           <label style="display:flex;flex-direction:column;gap:6px;font-size:.82rem;font-weight:600;">1. PGG (.xlsx)<input type="file" id="pagPgg" accept=".xlsx,.xls"></label>
@@ -1642,35 +1632,79 @@
   const PIL={ qid:"2026-10-16_2026-10-31", nomes:"LIDIANE, OLIVEIRA, ARTHUR, HENRIQUE FARIAS", dados:null };
   async function chamarPiloto(acao,dados){ const r=await fetch(API_PILOTO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,qid:PIL.qid,...dados})}); const j=await r.json(); sessaoExpirou(j); return j; }
   const idGuia=(s)=>normP(s).replace(/ /g,"_")||"SEM_NOME";
-  function htmlPiloto(){
-    const [ini,fim]=PIL.qid.split("_");
-    return '<div class="card"><h3 style="margin-bottom:6px">Piloto: pagamento pelo app do guia</h3>'
-      +'<p style="font-size:.84rem;color:var(--muted);margin-bottom:12px">Os guias do piloto recebem um link pessoal, conferem a quinzena, contestam o que estiver errado e enviam a nota pelo app. O relatório diário continua no app de sempre.</p>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
-      +'<label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Início<input type="date" id="pilIni" value="'+ini+'"></label>'
-      +'<label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Fim<input type="date" id="pilFim" value="'+fim+'"></label>'
-      +'<label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;flex:1;min-width:240px">Guias do piloto<input type="text" id="pilNomes" value="'+esc(PIL.nomes)+'" style="padding:8px 10px;border:1px solid var(--linha);border-radius:8px"></label>'
-      +'<button class="btn sec" onclick="trocarQuinzenaPiloto()">Abrir quinzena</button></div></div>'
-      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:6px">1. Mapa pelo Phoenix (sem o Utopia)</h3>'
-      +'<p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Lê as escalas dos guias do piloto no Phoenix e aplica o tarifário e as regras (idioma pelo relatório, motoguia, apoio). Se o Phoenix for corrigido, é só gerar de novo.</p>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span style="font-size:.8rem;font-weight:700">Tarifário (.xlsx, só quando mudar):</span><input type="file" id="pilTarif" accept=".xlsx"><button class="btn sec mini" onclick="salvarTarifario()">Salvar tarifário</button></div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" onclick="pilotoGerarPhoenix()">Gerar mapa pelo Phoenix</button><button class="btn sec" onclick="pilotoFecharTodos()" title="O automático faz isso no dia 1 e no dia 16, às 8h">Fechar para todos os guias agora</button><span id="pilPhxInfo" style="font-size:.8rem;color:var(--muted)"></span></div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha)"><span style="font-size:.8rem;font-weight:700">Conferir com o PAAR (teste em paralelo):</span><input type="file" id="pilCmp" accept=".xlsx"><button class="btn sec mini" onclick="pilotoCompararPaar()">Comparar</button></div><div id="pilCmpRes"></div></div>'
-      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Ou: mapa do PAAR</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilMapa" accept=".xlsx,.xls"><button class="btn" onclick="pilotoCarregarMapa()">Carregar serviços dos guias do piloto</button></div></div>'
-      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">2. Valores da PGG (depois que o financeiro lançar a comissão)</h3><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilPgg" accept=".xlsx,.xls"><button class="btn" onclick="pilotoValores()">Atualizar valores</button><span id="pilLib"></span></div></div>'
-      +'<div id="pilStatus"><div class="card" style="color:var(--muted)">Carregando...</div></div>'
-      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:6px">Conferir os campos que o Phoenix manda (app novo)</h3><p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Mostra os nomes dos campos de um serviço da Ordem dos Motoristas. Serve para acertar voo, hotel e observação na escala do app novo.</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="date" id="amoData" value="'+hojeISO()+'"><button class="btn sec mini" onclick="amostraPhoenix()">Ver campos</button></div><pre id="amoRes" style="white-space:pre-wrap;font-size:.74rem;margin-top:10px;max-height:320px;overflow:auto"></pre></div>';
+  // quinzena que contém a data: 1-15 ou 16-fim do mês
+  function qidDe(iso){ const [a,m,d]=iso.split("-").map(Number); const mm=String(m).padStart(2,"0");
+    if(d<=15) return a+"-"+mm+"-01_"+a+"-"+mm+"-15"; const ult=new Date(a,m,0).getDate(); return a+"-"+mm+"-16_"+a+"-"+mm+"-"+ult; }
+  if(!PIL.inicial){ PIL.inicial=true; PIL.qid=qidDe(somaDiasISO(qidDe(hojeISO()).slice(0,10),-1)); PIL.filtro="todos"; PIL.busca=""; }
+  function somaDiasISO(iso,n){ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+  const nomeQ=(q)=>{ const [i,f]=q.split("_"); return dataBR(i).slice(0,5)+" a "+dataBR(f).slice(0,5)+"/"+i.slice(2,4); };
+  function htmlQuinzena(){
+    const [ini,fim]=PIL.qid.split("_"); const aberta=fim>=hojeISO();
+    return '<div class="card" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">'
+      +'<label style="display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)">Quinzena<select id="qSel" onchange="PIL.qid=this.value;renderPagamentos(document.getElementById(\'mainConteudo\'))" style="height:44px;padding:0 12px;font-weight:700"><option value="'+PIL.qid+'">'+nomeQ(PIL.qid)+'</option></select></label>'
+      +'<div style="flex:1;min-width:240px;font-size:.84rem;color:var(--muted)">'+(aberta?'Quinzena em andamento: os guias veem a prévia no app. O mapa final é montado sozinho no dia '+(fim.slice(8)==="15"?"16":"1")+', às 8h, e eles recebem o aviso no WhatsApp.':'O mapa é montado sozinho pelo Phoenix no fechamento. Se corrigirem algo no Phoenix, atualize aqui.')+'</div>'
+      +'<button class="btn sec" onclick="pilotoFecharTodos()">Atualizar mapa pelo Phoenix</button></div>'
+      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Comissão da PGG</h3><p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Quando o financeiro lançar a comissão, suba a PGG e libere. Cada guia recebe o aviso no WhatsApp para emitir e enviar a nota pelo app.</p>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilPgg" accept=".xlsx,.xls"><button class="btn" onclick="pilotoValores()">Atualizar valores</button><span id="pilLib"></span><span id="pilPhxInfo" style="font-size:.8rem;color:var(--muted)"></span></div></div>'
+      +'<div id="pilStatus"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
+  }
+  async function carregarQuinzenas(){
+    try{ const j=await chamarPiloto("quinzenas",{}); const sel=document.getElementById("qSel"); if(!sel||!j.ok) return;
+      const ids=[...new Set([qidDe(hojeISO()),...j.ids,PIL.qid])].sort().reverse();
+      sel.innerHTML=ids.map(q=>'<option value="'+q+'"'+(q===PIL.qid?' selected':'')+'>'+nomeQ(q)+(q===qidDe(hojeISO())?' (em andamento)':'')+'</option>').join("");
+    }catch(e){}
+  }
+  // ---------- tarifário: salvo uma vez; dá pra mudar um valor sem subir a planilha ----------
+  async function carregarTarifario(){
+    const box=document.getElementById("tarBox");
+    try{ const j=await chamarPiloto("tarifario",{}); PIL.tarifario=j.tarifario||{servicos:{}}; desenharTarifario(); }
+    catch(e){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; }
+  }
+  function desenharTarifario(){
+    const box=document.getElementById("tarBox"); if(!box) return; const t=PIL.tarifario||{servicos:{}};
+    const nomes=Object.keys(t.servicos||{}).sort(); const b=normP(PIL.tarBusca||"");
+    const vis=nomes.filter(n=>!b||n.includes(b));
+    let h='<div class="card" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center"><div style="flex:1;min-width:260px"><h3 style="font-size:1rem;margin-bottom:4px">Tarifário dos guias</h3><p style="font-size:.84rem;color:var(--muted)">'+(nomes.length?'Salvo no sistema: <b>'+nomes.length+' serviços</b>'+(t.em?' · atualizado em '+new Date(t.em).toLocaleDateString("pt-BR")+(t.atualizadoPor?' por '+esc(t.atualizadoPor):''):'')+'. Não precisa subir de novo: só quando a tabela inteira mudar (ex.: reajuste do ano).':'Ainda não tem tarifário salvo. Suba a planilha uma vez.')+'</p></div>'
+      +'<input type="file" id="pilTarif" accept=".xlsx"><button class="btn sec" onclick="salvarTarifario().then(carregarTarifario)">'+(nomes.length?'Substituir pela planilha':'Salvar planilha')+'</button></div>';
+    h+='<div class="filtros">'+campoBusca("tarBusca","Buscar serviço",PIL.tarBusca,"PIL.tarBusca=this.value;desenharTarifario();setTimeout(()=>{const e=document.getElementById(\'tarBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")+'<button class="btn sec" onclick="novoServicoTarifa()">＋ Serviço</button></div>';
+    h+='<div class="card" style="padding:0;overflow-x:auto"><table class="tabela" style="min-width:560px"><thead><tr><th>SERVIÇO (como no Phoenix)</th><th style="text-align:right">VALOR</th><th style="text-align:right">COM IDIOMA</th><th></th></tr></thead><tbody>'
+      +vis.slice(0,300).map(n=>{ const x=t.servicos[n]; return '<tr><td style="font-weight:700">'+esc(n)+'</td><td style="text-align:right">'+brlP(x.v)+'</td><td style="text-align:right">'+brlP(x.vi)+'</td><td style="text-align:right;white-space:nowrap"><button class="btn mini sec" onclick="editarTarifa(\''+esc(n).replace(/'/g,"")+'\')">Editar</button></td></tr>'; }).join("")
+      +'</tbody></table></div>';
+    box.innerHTML=h;
+  }
+  async function editarTarifa(n){
+    const x=(PIL.tarifario.servicos||{})[n]||{};
+    const v=prompt("Valor de "+n+" (R$):",x.v!=null?String(x.v).replace(".",","):""); if(v===null) return;
+    const vi=prompt("Valor com idioma (R$). Deixe em branco se for igual:",x.vi!=null&&x.vi!==x.v?String(x.vi).replace(".",","):""); if(vi===null) return;
+    const num=(s)=>parseFloat(String(s).replace(/\./g,"").replace(",","."));
+    const j=await chamarPiloto("tarifarioItem",{servico:n,v:num(v),vi:vi?num(vi):num(v)}); if(!j.ok){ alert(j.erro); return; } carregarTarifario();
+  }
+  async function novoServicoTarifa(){
+    const n=prompt("Nome do serviço, igual ao Phoenix (ex.: CARNEIROS (PORTO DE GALINHAS)):",""); if(!n) return;
+    PIL.tarifario.servicos=PIL.tarifario.servicos||{}; editarTarifa(normP(n));
   }
   function trocarQuinzenaPiloto(){ PIL.qid=document.getElementById("pilIni").value+"_"+document.getElementById("pilFim").value; PIL.nomes=document.getElementById("pilNomes").value; atualizarPiloto(); }
-  async function atualizarPiloto(){
-    const j=await chamarPiloto("status",{}); const box=document.getElementById("pilStatus"); if(!box) return;
+  async function atualizarPiloto(local){
+    let j;
+    if(local&&PIL.bruto) j=JSON.parse(JSON.stringify(PIL.bruto));
+    else { j=await chamarPiloto("status",{}); if(j.ok) PIL.bruto=JSON.parse(JSON.stringify(j)); }
+    const box=document.getElementById("pilStatus"); if(!box) return;
     if(!j.ok){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro)+'</div>'; return; }
-    PIL.dados=j;
+    PIL.dados=JSON.parse(JSON.stringify(PIL.bruto));
     const lib=!!(j.quinzena&&j.quinzena.liberado);
     document.getElementById("pilLib").innerHTML='<button class="btn '+(lib?"sec":"")+'" onclick="pilotoLiberar('+(!lib)+')">'+(lib?"Valores liberados ✓ (desfazer)":"Liberar valores para os guias")+'</button>';
-    if(!j.guias.length){ box.innerHTML='<div class="em-breve"><div class="ic">🧪</div><h3>Nenhum guia carregado</h3><p>Suba o mapa do PAAR no passo 1.</p></div>'; return; }
+    if(!j.guias.length){ box.innerHTML='<div class="em-breve"><div class="ic">🗓️</div><h3>Mapa ainda não montado</h3><p>Ele é montado sozinho no fechamento da quinzena. Para montar agora, use "Atualizar mapa pelo Phoenix".</p></div>'; return; }
+    const pend=(g)=>(g.contestacoes||[]).some(c=>c.status==="aberta")||(g.lancamentos||[]).some(x=>x.status==="aberto")||(g.linhas||[]).some(l=>/sem tarifa/i.test(l.obs||""));
+    const cont={todos:j.guias.length,pend:j.guias.filter(pend).length,ok:j.guias.filter(g=>g.nota&&g.nota.ok).length,prob:j.guias.filter(g=>g.nota&&!g.nota.ok).length,sem:j.guias.filter(g=>!g.nota).length};
+    let vis=j.guias.filter(g=>PIL.filtro==="pend"?pend(g):PIL.filtro==="ok"?(g.nota&&g.nota.ok):PIL.filtro==="prob"?(g.nota&&!g.nota.ok):PIL.filtro==="sem"?!g.nota:true);
+    const bq=normP(PIL.busca||""); if(bq) vis=vis.filter(g=>normP(g.nome).includes(bq));
+    vis.sort((a,b)=>(pend(b)?1:0)-(pend(a)?1:0)||a.nome.localeCompare(b.nome));
+    const topo='<div class="cards-resumo"><div class="resumo"><div class="num">'+cont.todos+'</div><div class="lbl">Guias com serviço</div></div><div class="resumo'+(cont.pend?' alerta':'')+'"><div class="num">'+cont.pend+'</div><div class="lbl">Com pendência pra vocês</div></div><div class="resumo ok"><div class="num">'+cont.ok+'</div><div class="lbl">Notas conferidas</div></div><div class="resumo'+(cont.prob?' alerta':'')+'"><div class="num">'+cont.prob+'</div><div class="lbl">Notas com problema</div></div><div class="resumo"><div class="num">'+cont.sem+'</div><div class="lbl">Sem nota</div></div></div>'
+      +'<div class="filtros">'+campoBusca("qBusca","Buscar guia",PIL.busca,"PIL.busca=this.value;atualizarPiloto(true);setTimeout(()=>{const e=document.getElementById(\'qBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")
+      +segmento([["todos","Todos"],["pend","Pendências"],["sem","Sem nota"],["prob","Nota com problema"],["ok","Nota conferida"]],PIL.filtro,"PIL.filtro='$v';atualizarPiloto(true)")+'</div>';
+    j.guias=vis;
     const ST={aguardando:["Aguardando conferência","#eef1f0","#3c524d"],conferido:["Conferiu os serviços","#e3f2ee","#0b4f44"],contestado:["Contestou","#fff1e0","#8a4a0c"],nota_ok:["Nota conferida ✓","#e3f2ee","#0b4f44"],nota_com_problema:["Nota com problema","#fde4df","#9f2a15"]};
-    box.innerHTML=j.guias.map(g=>{
+    box.innerHTML=topo+(j.guias.length?'':'<div class="card" style="color:var(--muted)">Nenhum guia nesse filtro.</div>')+j.guias.map(g=>{
       const st=ST[g.status]||ST.aguardando; const v=g.valores;
       const dif=v&&v.servPgg!=null&&Math.abs(v.servPgg-v.serv)>=0.01;
       const abertas=(g.contestacoes||[]).filter(c=>c.status==="aberta");
@@ -1685,7 +1719,7 @@
         +(g.linhas||[]).filter(l=>/sem tarifa/i.test(l.obs||"")).map(l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>').join("")
         +(g.lancamentos||[]).map(x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
           +(x.status==="aberto"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'aceito\','+(x.sugerido||0)+')">Aceitar</button><button class="btn mini danger" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'negado\',0)">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(x.status==="aceito"?"var(--ok)":"var(--alerta)")+'">'+(x.status==="aceito"?"Aceito · "+brlP(x.valor):"Negado")+'</span>')+'</div>').join("")
-        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com a PGG":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button></div>':'')
+        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button></div>':'')
         +'</div>';
     }).join("");
   }
@@ -1878,19 +1912,22 @@
   }
   async function carregarDisp(){
     try{
-      const [d,i]=await Promise.all([chamarDisp("disponibilidade",{inicio:DSP.data,fim:somaDias(DSP.data,6)}),chamarDisp("internos",{})]);
+      const [d,i,ct]=await Promise.all([chamarDisp("disponibilidade",{inicio:DSP.data,fim:somaDias(DSP.data,6)}),chamarDisp("internos",{}),chamarEnvios("contatos",{}).catch(()=>null)]);
       DSP.dados=d; DSP.internos=i.itens||[];
+      // apelidos do cadastro de contatos: "FABIO" (app antigo) = "FABIO GOMES" (Phoenix)
+      DSP.oficial={}; ((ct&&ct.contatos)||[]).forEach(x=>{ DSP.oficial[normP(x.nome)]=x.nome.toUpperCase(); (x.apelidos||[]).forEach(a=>DSP.oficial[normP(a)]=x.nome.toUpperCase()); });
       const dl=document.getElementById("dspGuias"); if(dl) dl.innerHTML=d.guias.map(g=>'<option value="'+esc(g)+'">').join("");
       desenharDisp();
     }catch(e){ const box=document.getElementById("dspConteudo"); if(box) box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+(/chave/i.test(e.message)?'<br><span style="color:var(--muted)">A Disponibilidade lê o app dos guias: precisa do arquivo relatorio-guias-chave.json na pasta functions.</span>':'')+'</div>'; }
   }
   // situação de um guia num dia: registros internos > bloqueios do painel > o que o guia marcou no app
+  const oficialDe=(n)=>(DSP.oficial||{})[normP(n)]||String(n||"").trim().toUpperCase();
   function situacaoDisp(guia,dia){
-    const G=normP(guia), cobre=(x)=>x.inicio<=dia&&dia<=x.fim&&normP(x.guia)===G;
+    const G=normP(oficialDe(guia)), cobre=(x)=>x.inicio<=dia&&dia<=x.fim&&normP(oficialDe(x.guia))===G;
     const nc=DSP.internos.find(x=>x.tipo==="naoConvidar"&&cobre(x)); if(nc) return {s:"n",det:"Não convidar até "+dataBR(nc.fim).slice(0,5)+(nc.motivo?" · "+nc.motivo:""),x:nc};
     const sv=DSP.internos.find(x=>x.tipo==="servico"&&cobre(x)); if(sv) return {s:"b",det:(sv.descricao||"Serviço")+(sv.rec?" · REC-"+sv.rec:"")+(sv.horario?" · "+sv.horario:""),x:sv};
     const bl=(DSP.dados.bloqueios||[]).find(cobre); if(bl) return bl.tipo==="passeio"?{s:"p",det:"Escalado em passeio"+(bl.motivo?": "+bl.motivo:"")}:{s:"b",det:"Bloqueio do painel"+(bl.motivo?": "+bl.motivo:"")};
-    const ds=(DSP.dados.disp||[]).find(x=>x.data===dia&&normP(x.guia)===G);
+    const ds=(DSP.dados.disp||[]).find(x=>x.data===dia&&normP(oficialDe(x.guia))===G);
     if(ds&&ds.status==="nao") return {s:"i",det:ds.obs||"Indisponível",em:ds.em};
     if(ds&&(ds.status==="restricao"||ds.status==="passeio")) return {s:"r",det:ds.obs||(ds.status==="passeio"?"Só passeio":"Com restrição"),em:ds.em};
     return {s:"d",det:"Disponível o dia todo"};
@@ -1901,7 +1938,7 @@
     const f=document.getElementById("dspForm"); if(f) f.innerHTML=DSP.form?htmlFormDisp():"";
     const box=document.getElementById("dspConteudo"); if(!box||!DSP.dados) return;
     const dias=[0,1,2,3,4,5,6].map(k=>somaDias(DSP.data,k)), dia=DSP.data;
-    const nomes=[...new Set([...DSP.dados.guias,...DSP.dados.disp.map(x=>x.guia),...DSP_GRUPOS.flatMap(g=>g[1])].map(x=>String(x).trim().toUpperCase()).filter(Boolean))].sort();
+    const nomes=[...new Set([...DSP.dados.guias,...DSP.dados.disp.map(x=>x.guia),...DSP_GRUPOS.flatMap(g=>g[1])].map(x=>oficialDe(x)).filter(Boolean))].sort();
     const linhas=nomes.map(n=>({nome:n,sit:situacaoDisp(n,dia),sem:dias.map(d=>situacaoDisp(n,d).s)}));
     const cont={}; linhas.forEach(l=>cont[l.sit.s]=(cont[l.sit.s]||0)+1);
     const tarde=linhas.filter(l=>(l.sit.s==="r"||l.sit.s==="i")&&avisoTarde(l.sit,dia));
@@ -1922,7 +1959,7 @@
         +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k])).join("")+'</div></div>'; };
     // seções um embaixo da outra: Porto, Estagiários, Recife (e quem não está em nenhuma lista)
     const usados=new Set();
-    const secoes=DSP_GRUPOS.map(([t,lista])=>{ const set=new Set(lista.map(normP)); const ls=vis.filter(l=>set.has(normP(l.nome))); ls.forEach(l=>usados.add(l.nome)); return [t,ls]; });
+    const secoes=DSP_GRUPOS.map(([t,lista])=>{ const set=new Set(lista.map(n=>normP(oficialDe(n)))); const ls=vis.filter(l=>set.has(normP(l.nome))); ls.forEach(l=>usados.add(l.nome)); return [t,ls]; });
     secoes.push(["Outros",vis.filter(l=>!usados.has(l.nome))]);
     h+=secoes.filter(([,ls])=>ls.length).map(([t,ls])=>'<h3 style="font-size:1.05rem;font-weight:800;margin:18px 0 10px;color:var(--tinta)">'+t+' <span style="font-size:.82rem;font-weight:600;color:var(--muted)">('+ls.length+' guias)</span></h3><div style="display:flex;flex-direction:column;gap:8px">'+ls.map(linhaDisp).join("")+'</div>').join("");
     const servs=DSP.internos.filter(x=>x.fim>=hojeISO()).sort((a,c)=>a.inicio.localeCompare(c.inicio));
