@@ -374,6 +374,8 @@
     if(id==="inicio"){ renderInicio(m); return; }
     if(id==="cen-reclam"){ renderReclamacoes(m); return; }
     if(id==="cen-relatorio"){ renderRelatorio(m); return; }
+    if(id.endsWith("-consulta")){ renderConsulta(m); return; }
+    if(id.endsWith("-vagas")){ renderVagas(m, id.split("-")[0]); return; }
     if(id==="porto-escala"||id==="cen-escala"){ renderEscala(m,"guias"); return; }
     if(id==="porto-passeios"||id==="cen-passeios"){ renderPlano(m, id==="cen-passeios"?"central":"porto"); return; }
     // demais abas: em breve (preencheremos uma a uma)
@@ -1676,21 +1678,46 @@
         servico:l.auxiliar?("APOIO · "+l.servico):String(l.servico||""),veiculo:l.veiculo||"",motorista:String(l.motorista||"").trim(),valor:null,tipo:l.tipo||""});
     }
     const guias=Object.values(porG);
-    const resultado=conferirMapa(guias,rel,ros);
-    // o que a conferência do mapa não pega: relatório num dia em que o guia não tem escala no Phoenix,
-    // ou apoio no relatório sem apoio na escala
-    const acharG=(nome)=>guias.find(g=>normP(g.nome)===normP(nome))||guias.find(g=>nomeBate(nome,g.nome)&&nomeBate(g.nome,nome));
-    for(const r of rel){
+    // cada relatório é ligado a UM guia do Phoenix: nome igual; ou nome parecido (ex.: "Fabio" e
+    // "FABIO COZZI") só quando esse guia tem, no mesmo dia, serviço do mesmo tipo do relatório.
+    // Se não der para ter certeza, o relatório fica separado ("não achei na escala"), em vez de cair
+    // no guia errado.
+    const catsDoRel=(r)=>new Set((r.itens||[]).map(i=>catRel(i.servico)).filter(c=>c&&c!=="passeio").map(c=>String(c).startsWith("apoio")?"apoio":c));
+    const catsDoDia=(g,d)=>new Set(g.linhas.filter(l=>l.data===d).map(l=>{ const c=catMapa(l.servico); return String(c).startsWith("apoio")?"apoio":c; }).filter(c=>c!=="passeio"));
+    const dono=(r)=>{
+      const N=normP(r.guia); if(!N) return null;
+      const ex=guias.find(g=>normP(g.nome)===N); if(ex) return ex;
+      let c=guias.filter(g=>nomeBate(r.guia,g.nome)||nomeBate(g.nome,r.guia));
+      const cr=catsDoRel(r);
+      if(cr.size) c=c.filter(g=>[...catsDoDia(g,r.data)].some(x=>cr.has(x)));
+      else c=c.filter(g=>g.linhas.some(l=>l.data===r.data));
+      return c.length===1?c[0]:null;
+    };
+    const relDe={}, soltos=[];
+    for(const r of rel){ const g=dono(r); if(g) (relDe[g.nome]=relDe[g.nome]||[]).push({...r,guia:g.nome}); else soltos.push(r); }
+    // conferência guia a guia, só com os relatórios dele (assim o nome de um não cai no outro)
+    const resultado=guias.map(g=>conferirMapa([g],relDe[g.nome]||[],ros)[0]);
+    // relatórios ligados ao guia em dias sem escala dele, ou com apoio que a escala não tem
+    for(const g of guias){
+      const res=resultado.find(x=>x.nome===g.nome);
+      for(const r of relDe[g.nome]||[]){
+        const feitos=(r.itens||[]).filter(i=>!i.naoRealizado&&catRel(i.servico)&&catRel(i.servico)!=="passeio"); if(!feitos.length) continue;
+        const doDia=g.linhas.filter(l=>l.data===r.data);
+        const add=(i,det)=>res.alertas.push({tipo:"falta",data:r.data,ro:"",servico:relServico(i.servico),detalhe:det,valor:0});
+        if(!doDia.length) feitos.forEach(i=>add(i,"O relatório diz que fez, mas não há escala desse guia no Phoenix nesse dia"));
+        else if(!doDia.some(l=>/APOIO/i.test(l.servico))) feitos.filter(i=>String(catRel(i.servico)).startsWith("apoio")).forEach(i=>add(i,"O relatório tem apoio, mas a escala do Phoenix não tem apoio nesse dia"));
+      }
+    }
+    // relatórios que não casaram com nenhum guia da escala
+    for(const r of soltos){
       const feitos=(r.itens||[]).filter(i=>!i.naoRealizado&&catRel(i.servico)&&catRel(i.servico)!=="passeio"); if(!feitos.length) continue;
-      const g=acharG(r.guia); const doDia=g?g.linhas.filter(l=>l.data===r.data):[];
-      let res=g?resultado.find(x=>x.nome===g.nome):resultado.find(x=>normP(x.nome)===normP(r.guia));
-      if(!res){ res={nome:r.guia,total:0,qtd:0,alertas:[],semEscala:true}; resultado.push(res); }
-      const add=(i,det)=>res.alertas.push({tipo:"falta",data:r.data,ro:"",servico:relServico(i.servico),detalhe:det,valor:0});
-      if(!doDia.length) feitos.forEach(i=>add(i,"O relatório diz que fez, mas não há escala desse guia no Phoenix nesse dia"));
-      else if(!doDia.some(l=>/APOIO/i.test(l.servico))) feitos.filter(i=>String(catRel(i.servico)).startsWith("apoio")).forEach(i=>add(i,"O relatório tem apoio, mas a escala do Phoenix não tem apoio nesse dia"));
+      const nome=String(r.guia||"(sem nome)").trim();
+      let res=resultado.find(x=>x.solto&&normP(x.nome)===normP(nome));
+      if(!res){ res={nome,total:0,qtd:0,alertas:[],semEscala:true,solto:true}; resultado.push(res); }
+      feitos.forEach(i=>res.alertas.push({tipo:"falta",data:r.data,ro:"",servico:relServico(i.servico),detalhe:"Relatório com o nome \""+nome+"\" no app, mas não achei esse guia na escala do Phoenix nesse dia",valor:0}));
     }
     resultado.forEach(x=>x.alertas=x.alertas.filter(a=>a.tipo!=="zero"&&a.tipo!=="cnpj"&&!(ini===fim&&a.tipo==="nome")));
-    const d={ini,fim,rel,linhas,guias,resultado,em:Date.now()}; RELT.dados[k]=d; return d;
+    const d={ini,fim,rel,linhas,guias,resultado,relDe,soltos,em:Date.now()}; RELT.dados[k]=d; return d;
   }
 
   function renderRelatorio(m){
@@ -1756,14 +1783,13 @@
     }
     return '<div class="card" style="padding:10px 16px;margin-bottom:8px">'
       +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer" onclick="RELT.abertos[\''+chave+'\']=!RELT.abertos[\''+chave+'\'];relDesenhar()">'
-      +'<span>'+(ab?"▾":"▸")+'</span><div style="min-width:170px"><b>'+esc(g.nome)+'</b>'+(g.semEscala?'<div style="font-size:.72rem;color:var(--muted)">sem escala no Phoenix</div>':'')+'</div>'
+      +'<span>'+(ab?"▾":"▸")+'</span><div style="min-width:170px"><b>'+esc(g.nome)+'</b>'+(g.solto?'<div style="font-size:.72rem;color:var(--muted)">nome do app · não achei na escala do Phoenix</div>':'')+'</div>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+pills+'</div></div>'+det+'</div>';
   }
   // relatório do guia e escala do Phoenix lado a lado (visão do dia)
   function relLadoALado(g,d){
     const N=normP(g.nome);
-    const bate=(nome)=>normP(nome)===N||(nomeBate(nome,g.nome)&&nomeBate(g.nome,nome));
-    const rels=d.rel.filter(r=>bate(r.guia));
+    const rels=g.solto?d.soltos.filter(r=>normP(r.guia)===N):(d.relDe[g.nome]||[]);
     const esc2=(d.guias.find(x=>normP(x.nome)===N)||{linhas:[]}).linhas.slice().sort((a,b)=>a.hora.localeCompare(b.hora));
     const ITENS_CONHECIDOS=["servico","naoRealizado","motivo","motorista","recIdioma","_usado"];
     const itensRel=rels.flatMap(r=>r.itens||[]);
@@ -1786,6 +1812,110 @@
     d.resultado.forEach(g=>g.alertas.forEach(a=>linhas.push([g.nome,a.data?dataBR(a.data):"",a.ro,a.servico,ALERTA[a.tipo][0],a.detalhe,ALERTA[a.tipo][3]])));
     const csv="\ufeff"+linhas.map(l=>l.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(";")).join("\n");
     baixarArquivo("relatorios_x_phoenix_"+ini+(ini===fim?"":"_"+fim)+".csv",new Blob([csv],{type:"text/csv"}));
+  }
+
+
+  // ======================= CONSULTA DE RESERVAS e VAGAS (as mesmas consultas do bot) =======================
+  const API_CONSULTA = "https://us-central1-operacional-luck.cloudfunctions.net/consulta";
+  const CONS={ ultimas:[], vagasDia:null, vagas:{}, vagasReg:"todas" };
+  async function chamarConsulta(acao,dados){
+    const r=await fetch(API_CONSULTA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,...dados})});
+    const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
+  }
+  const consHoje=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Recife"}).format(new Date());
+
+  // ---- Consulta de reservas ----
+  function renderConsulta(m){
+    cab("Dados da reserva, guia e motorista de cada serviço","");
+    m.innerHTML='<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">'
+      +'<input id="consRec" placeholder="Número da reserva (ex: 965965)" inputmode="numeric" style="flex:1;min-width:220px;padding:10px 12px;border:1px solid var(--linha);border-radius:9px;font:inherit;font-size:1rem" onkeydown="if(event.key===\'Enter\')consBuscar()">'
+      +'<button class="btn" id="consBtn" onclick="consBuscar()">Consultar</button></div>'
+      +(CONS.ultimas.length?'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:-6px 0 14px"><span style="font-size:.75rem;color:var(--muted)">Últimas:</span>'+CONS.ultimas.map(n=>'<span class="chip" onclick="document.getElementById(\'consRec\').value=\''+n+'\';consBuscar()">REC-'+n+'</span>').join("")+'</div>':'')
+      +'<div id="consRes"></div>';
+    const i=document.getElementById("consRec"); if(i) i.focus();
+  }
+  async function consBuscar(){
+    const i=document.getElementById("consRec"), b=document.getElementById("consBtn"), box=document.getElementById("consRes");
+    const n=String(i.value||"").replace(/\D/g,""); if(n.length<4){ alert("Digite o número da reserva."); return; }
+    b.disabled=true; box.innerHTML='<div class="card" style="color:var(--muted)">Consultando a REC-'+n+' no Phoenix...</div>';
+    try{
+      const r=await chamarConsulta("reserva",{numero:n});
+      CONS.ultimas=[n,...CONS.ultimas.filter(x=>x!==n)].slice(0,6);
+      box.innerHTML=r.encontrada?consCartao(r):'<div class="card">Não encontrei a reserva <b>REC-'+esc(n)+'</b>. Confira o número.</div>';
+    }catch(e){ box.innerHTML='<div class="card" style="color:var(--alerta)">Não consegui consultar: '+esc(e.message)+'</div>'; }
+    finally{ b.disabled=false; }
+  }
+  function consCartao(r){
+    const linha=(rot,val)=>val?'<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--linha);font-size:.86rem"><span style="min-width:110px;color:var(--muted)">'+rot+'</span><b style="font-weight:600">'+val+'</b></div>':'';
+    const tel=r.telefone?esc(r.telefone)+' <a href="https://wa.me/'+String(r.telefone).replace(/\D/g,"")+'" target="_blank" style="color:var(--verde);font-weight:700;margin-left:6px">WhatsApp</a>':'';
+    let origem="";
+    if(r.origem&&r.origem.tipo==="pdv") origem="Venda PDV · lançada por "+esc(r.origem.quem);
+    else if(r.origem&&r.origem.tipo==="operadora") origem="Incluso · "+esc(r.origem.quem);
+    const alerta=r.status&&/rascunho|cancel|pendente/i.test(r.status)?'<div style="background:#fff1e0;color:#8a4a0c;border-radius:10px;padding:8px 12px;font-weight:700;font-size:.85rem;margin-bottom:10px">⚠️ '+esc(r.status)+'</div>':'';
+    const ic={IN:"✈️",OUT:"✈️",TOUR:"🏖️",TRANSFER:"🚐",PACOTE:"🎟️"};
+    const servs=(r.servicos||[]).map(s=>{
+      let esc2="";
+      if(s.situacao==="escalado") esc2='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:.82rem"><span>🚐 <b>'+esc(s.motorista||"-")+'</b>'+(s.veiculo?' · '+esc(s.veiculo):'')+'</span><span>🧭 Guia: <b>'+esc(s.guia||"(sem guia)")+'</b></span>'+(s.ro?'<span style="color:var(--muted)">'+esc(s.ro)+'</span>':'')+'</div>';
+      else if(s.situacao==="pacote") esc2='<div style="font-size:.8rem;color:var(--muted);margin-top:6px">Pacote: os passeios escolhidos aparecem separados.</div>';
+      else if(s.situacao==="sem-registro") esc2='<div style="font-size:.8rem;color:var(--muted);margin-top:6px">Sem escala registrada.</div>';
+      else if(s.situacao==="indisponivel") esc2='<div style="font-size:.8rem;color:var(--alerta);margin-top:6px">A escala não carregou'+(s.motivo?': '+esc(s.motivo):'')+'.</div>';
+      else esc2='<div style="font-size:.8rem;color:#8a4a0c;font-weight:700;margin-top:6px">Ainda não escalado.</div>';
+      const apr=s.tipo==="OUT"&&s.apresentacao?(()=>{ const [d,h]=s.apresentacao.split(" "); return '<div style="font-size:.82rem;margin-top:4px">🕐 Apresentação no hotel: <b>'+esc(h)+'</b>'+(d!==s.data?' ('+esc(d)+')':'')+'</div>'; })():'';
+      return '<div style="padding:12px 0;border-top:1px solid var(--linha)">'
+        +'<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span>'+(ic[s.tipo]||"•")+'</span><b>'+esc(s.nome||s.tipo)+'</b>'
+        +'<span style="font-size:.82rem;color:var(--muted)">'+esc(s.data)+(s.horario?' '+esc(s.horario):'')+(s.voo?' · voo '+esc(s.voo):'')+(s.modo?' · '+esc(s.modo):'')+'</span></div>'
+        +apr+(s.obs?'<div style="font-size:.82rem;margin-top:4px;color:var(--muted)">📝 '+esc(s.obs)+'</div>':'')+esc2+'</div>';
+    }).join("");
+    return '<div class="card">'+alerta
+      +'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px"><h3 style="font-size:1.25rem;font-weight:800">'+esc(r.codigo)+'</h3>'+(origem?'<span style="font-size:.8rem;color:var(--muted)">'+origem+'</span>':'')+'</div>'
+      +linha("Cliente",esc(r.cliente||"-"))+linha("Telefone",tel)+linha("Idioma",esc(r.idioma||""))
+      +'<div style="margin-top:12px;font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços</div>'+servs+'</div>';
+  }
+
+  // ---- Vagas nos passeios ----
+  function renderVagas(m, area){
+    if(!CONS.vagasDia) CONS.vagasDia=consHoje();
+    if(area==="porto"&&CONS.vagasReg==="todas") CONS.vagasReg="PORTO DE GALINHAS";
+    cab("Vagas livres nos passeios do dia (já descontada a vaga do guia; sem privativos)","");
+    m.innerHTML='<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">'
+      +'<button class="btn sec mini" onclick="consMudaDia(-1)">‹</button>'
+      +'<input type="date" id="vagDia" value="'+CONS.vagasDia+'" onchange="CONS.vagasDia=this.value;vagCarregar()" style="padding:8px 10px;border:1px solid var(--linha);border-radius:9px;font:inherit">'
+      +'<button class="btn sec mini" onclick="consMudaDia(1)">›</button>'
+      +'<button class="btn" onclick="vagCarregar(true)">Atualizar</button>'
+      +'<span id="vagInfo" style="font-size:.8rem;color:var(--muted)"></span></div>'
+      +'<div id="vagRes"></div>';
+    vagCarregar();
+  }
+  function consMudaDia(n){ const d=new Date(CONS.vagasDia+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); CONS.vagasDia=d.toISOString().slice(0,10); const i=document.getElementById("vagDia"); if(i) i.value=CONS.vagasDia; vagCarregar(); }
+  async function vagCarregar(forcar){
+    const dia=CONS.vagasDia, box=document.getElementById("vagRes"), info=document.getElementById("vagInfo"); if(!box) return;
+    const c=CONS.vagas[dia];
+    if(c&&!forcar&&Date.now()-c.em<5*60e3){ vagDesenhar(); return; }
+    box.innerHTML='<div class="card" style="color:var(--muted)">Lendo a escala dos passeios no Phoenix...</div>'; if(info) info.textContent="";
+    try{ const r=await chamarConsulta("vagas",{data:dia}); CONS.vagas[dia]={...r,em:Date.now()}; if(CONS.vagasDia===dia) vagDesenhar(); }
+    catch(e){ if(CONS.vagasDia===dia) box.innerHTML='<div class="card" style="color:var(--alerta)">Não consegui ler as vagas: '+esc(e.message)+'</div>'; }
+  }
+  function vagDesenhar(){
+    const r=CONS.vagas[CONS.vagasDia], box=document.getElementById("vagRes"), info=document.getElementById("vagInfo"); if(!r||!box) return;
+    if(info) info.textContent="atualizado às "+new Date(r.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    if(!r.regioes.length){ box.innerHTML='<div class="card" style="color:var(--muted)">Nenhum passeio escalado com guia em '+dataBR(r.data)+'.</div>'; return; }
+    const regs=r.regioes.map(x=>x.regiao);
+    let h='<div class="cards-resumo"><div class="resumo ok"><div class="num">'+r.totalVagas+'</div><div class="lbl">Vagas livres no dia</div></div>'
+      +r.regioes.map(x=>'<div class="resumo"><div class="num">'+x.passeios.reduce((s,p)=>s+p.vagas,0)+'</div><div class="lbl">'+esc(x.regiao)+'</div></div>').join("")+'</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><span class="chip '+(CONS.vagasReg==="todas"?"on":"")+'" onclick="CONS.vagasReg=\'todas\';vagDesenhar()">Todas as saídas</span>'
+      +regs.map(g=>'<span class="chip '+(CONS.vagasReg===g?"on":"")+'" onclick="CONS.vagasReg=\''+g+'\';vagDesenhar()">'+esc(g.charAt(0)+g.slice(1).toLowerCase())+'</span>').join("")+'</div>';
+    for(const x of r.regioes){
+      if(CONS.vagasReg!=="todas"&&CONS.vagasReg!==x.regiao) continue;
+      h+='<div style="font-size:.75rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px">📍 '+esc(x.regiao)+'</div>';
+      h+=x.passeios.map(p=>'<div class="card" style="padding:12px 16px;margin-bottom:8px">'
+        +'<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap"><b>🏖️ '+esc(p.nome)+'</b><span style="font-size:.8rem;font-weight:800;color:'+(p.vagas?"var(--ok)":"var(--alerta)")+'">'+(p.vagas?p.vagas+" vaga(s)":"lotado")+'</span></div>'
+        +p.carros.map(c=>'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--linha);margin-top:6px;font-size:.84rem">'
+          +'<span style="min-width:150px">🚐 '+esc(c.veiculo||"-")+'</span><span style="flex:1;min-width:140px">🧭 '+esc(c.guia||"-")+'</span>'
+          +'<span style="color:var(--muted);min-width:90px">'+(c.capacidade!=null?c.pax+"/"+c.capacidade+" pax":"")+'</span>'
+          +(c.vagas>0?'<span style="font-weight:800;color:var(--ok);min-width:80px;text-align:right">'+c.vagas+' vaga(s)</span>':'<span style="font-weight:800;color:var(--alerta);min-width:80px;text-align:right">🔴 lotado</span>')+'</div>').join("")
+        +'</div>').join("");
+    }
+    box.innerHTML=h;
   }
 
 
