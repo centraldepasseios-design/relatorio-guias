@@ -183,6 +183,18 @@
   .barra-anda>span{position:absolute;top:0;bottom:0;width:40%;background:var(--verde);border-radius:5px;animation:andando 1.6s ease-in-out infinite;}
   .carro-card{border:1px solid var(--linha);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;background:#fff;min-width:0;}
   .carro-card.vazio{border:1px dashed #e5a07f;background:#fffaf7;}
+  .passeio-sec{border-left:6px solid var(--cor,#0f7a68);padding:0!important;overflow:hidden;}
+  .passeio-sec .passeio-topo{background:var(--fundo,#f2f8f6);padding:16px 22px;border-bottom:1px solid var(--linha);}
+  .passeio-sec .passeio-carros{padding:16px 22px 20px;}
+  .passeio-sec .carro-card{border-top:4px solid var(--cor,#0f7a68);}
+  .passeio-sec .carro-card.vazio{border-top:4px solid #e5a07f;}
+  .carro-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:11px;background:var(--cor,#0f7a68);color:#fff;font-size:.7rem;font-weight:800;}
+  .tag{font-size:.66rem;font-weight:800;border-radius:6px;padding:2px 7px;letter-spacing:.02em;white-space:nowrap;}
+  .tag.t-bus{background:#dcefe9;color:#0b4f44} .tag.t-micrao{background:#ece3fb;color:#5b2a9c} .tag.t-mini{background:#ece3fb;color:#5b2a9c}
+  .tag.t-van{background:#fde7d3;color:#8a3b0b} .tag.t-carro{background:#e8ecea;color:#3c4a46}
+  .tag.i-esp{background:#fff1b8;color:#7a5600} .tag.i-ing{background:#d9ecff;color:#0b4a8a} .tag.i-bil{background:#f3dcf5;color:#7a1f86}
+  .tag.pvt{background:#fbd9e3;color:#8a1538}
+  .tag.st-ok{background:#dff3ea;color:#0b6b4c} .tag.st-av{background:#eef1f0;color:#4c605b}
   .carro-card .rot{font-size:.7rem;font-weight:800;color:var(--muted);letter-spacing:.03em;}
   .carro-card input.plano-guia{border:1px solid transparent;border-radius:8px;padding:5px 8px;margin:-5px -8px;font-family:inherit;font-size:1rem;font-weight:800;color:var(--tinta);background:transparent;text-transform:uppercase;width:calc(100% + 16px);}
   .carro-card input.plano-guia:hover{border-color:var(--linha);} .carro-card input.plano-guia:focus{border-color:var(--verde);background:#fff;outline:none;}
@@ -765,6 +777,8 @@
     const r=await fetch(API_PLANO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:PLANO.data||amanhaISO(),origem:PLANO.area,...dados})});
     const j=await r.json(); sessaoExpirou(j); return j;
   }
+  const CORES_PASSEIO=[["#0f7a68","#eef7f4"],["#2563eb","#eef3fd"],["#c2410c","#fdf2ea"],["#7c3aed","#f4effd"],["#0e7490","#ecf6f9"],["#be185d","#fcf0f5"],["#4d7c0f","#f2f7ea"],["#a16207","#fbf5e6"]];
+  function corPasseio(nome){ const n=normP(nomeServ(nome)).replace(/\(.*\)/,"").trim(); let h=0; for(const ch of n) h=(h*31+ch.charCodeAt(0))>>>0; return CORES_PASSEIO[h%CORES_PASSEIO.length]; }
   function renderPlano(m, area){
     pararAcompanhamento();
     PLANO.area=area; if(!PLANO.data) PLANO.data=amanhaISO(); PLANO.editando=null;
@@ -828,7 +842,8 @@
       const falta=p.carros.filter(c=>!c.guia).length, dono=p.saida===minhaSaida();
       const temGuia=p.carros.some(c=>c.guia), btAv=podeGuia()&&temGuia, btPdf=temGuia&&podePdf(p);
       const sd=SAIDA[p.saida]||SAIDA.porto;
-      h+='<section class="card" style="padding:20px 22px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
+      const cp=corPasseio(p.nome);
+      h+='<section class="card passeio-sec" style="--cor:'+cp[0]+';--fundo:'+cp[1]+'"><div class="passeio-topo" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
         +'<h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--tinta)">'+esc(nomeServ(p.nome))+'</h3>'
         +'<span class="pill" style="background:'+sd[1]+';color:'+sd[2]+'">'+sd[0]+'</span>'
         +(p.obs?'<span class="pill" style="background:#b8860b;color:#fff">'+esc(p.obs)+'</span>':'')
@@ -838,9 +853,15 @@
         +(btPdf?'<button class="btn mini sec" onclick="enviarPdfPasseios(\''+p.id+'\')">PDF</button>':'')
         +(dono?'<button class="btn mini sec" onclick="maisCarro(\''+p.id+'\')">＋ Carro</button><button class="btn mini sec" onclick="editarPasseio(\''+p.id+'\')">Editar</button><button class="btn mini danger" title="Remover passeio" onclick="removerPasseio(\''+p.id+'\')">🗑️</button>':'')
         +'</span></div>';
-      h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px">';
+      h+='<div class="passeio-carros" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px">';
       p.carros.forEach((c,i)=>{
-        const rot=["CARRO "+(i+1),tipoCarro(c.tipo).toUpperCase(),idiomaCarro(c)?idiomaCarro(c).toUpperCase():"",c.privativo?("PVT "+(c.privativo.reserva||"")).trim():""].filter(Boolean).join(" · ");
+        const tp=tipoCarro(c.tipo), idi=idiomaCarro(c);
+        const clsT={"Bus":"t-bus","Micrão":"t-micrao","Mini":"t-mini","Van":"t-van","Carro":"t-carro"}[tp]||"t-carro";
+        const clsI=/espan/i.test(idi||"")?"i-esp":/ingl/i.test(idi||"")?"i-ing":"i-bil";
+        const rot='<span style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span class="carro-num">'+(i+1)+'</span>'
+          +'<span class="tag '+clsT+'">'+esc(tp.toUpperCase())+'</span>'
+          +(idi?'<span class="tag '+clsI+'">'+esc(idi.toUpperCase())+'</span>':'')
+          +(c.privativo?'<span class="tag pvt">PVT '+esc(c.privativo.reserva||"")+'</span>':'')+'</span>';
         const guia = podeGuia()
           ? (c.guia?'':'<label style="display:flex;flex-direction:column;gap:4px;font-size:.72rem;font-weight:800;color:#8a2f17">Guia')+'<input class="plano-guia" list="listaGuias" autocomplete="off" value="'+esc(c.guia||"")+'" placeholder="Digite o nome" aria-label="Guia do carro '+(i+1)+'" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarGuia(\''+p.id+'\',\''+c.id+'\',this)">'+(c.guia?'':'</label>')
           : (c.guia?'<span style="font-size:1rem;font-weight:800;color:var(--tinta)">'+esc(titulo(c.guia))+'</span>':'<span style="font-size:.9rem;font-weight:700;color:#c2410c">Sem guia</span>');
@@ -848,11 +869,11 @@
         if(c.guia&&podePdf(p)){
           const pdf=envioDe(PLANO.data,"pdf",c.guia), av=podeGuia()?envioDe(PLANO.data,"passeio",c.guia):null;
           const hh=(e)=>new Date(e.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-          st=pdf?'<span style="font-size:.74rem;font-weight:700;color:var(--ok)">PDF enviado '+hh(pdf)+'</span>':(av?'<span style="font-size:.74rem;font-weight:700;color:var(--muted)">Avisado '+hh(av)+'</span>':'');
+          st=pdf?'<span class="tag st-ok">✓ PDF '+hh(pdf)+'</span>':(av?'<span class="tag st-av">Avisado '+hh(av)+'</span>':'');
         }
         const acoes=(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')
           +(dono?'<button class="btn mini danger" style="padding:3px 9px" title="Cancelar este carro" onclick="removerCarro(\''+p.id+'\',\''+c.id+'\','+(i+1)+')">✕</button>':'');
-        h+='<div class="carro-card'+(c.guia?'':' vazio')+'"><span class="rot">'+esc(rot)+'</span>'+guia
+        h+='<div class="carro-card'+(c.guia?'':' vazio')+'">'+rot+guia
           +((st||acoes)?'<div style="display:flex;align-items:center;gap:6px;min-height:26px">'+st+'<span style="margin-left:auto;display:flex;gap:4px">'+acoes+'</span></div>':'')+'</div>';
       });
       h+='</div></section>';
