@@ -373,6 +373,7 @@
     if(id==="cen-disp"){ renderDisponibilidade(m); return; }
     if(id==="inicio"){ renderInicio(m); return; }
     if(id==="cen-reclam"){ renderReclamacoes(m); return; }
+    if(id==="cen-relatorio"){ renderRelatorio(m); return; }
     if(id==="porto-escala"||id==="cen-escala"){ renderEscala(m,"guias"); return; }
     if(id==="porto-passeios"||id==="cen-passeios"){ renderPlano(m, id==="cen-passeios"?"central":"porto"); return; }
     // demais abas: em breve (preencheremos uma a uma)
@@ -1631,6 +1632,160 @@
     (MAPA.resultado||[]).forEach(g=>g.alertas.forEach(a=>linhas.push([g.nome,a.data?dataBR(a.data):"",a.ro,a.servico,ALERTA[a.tipo][0],a.detalhe,ALERTA[a.tipo][3],a.valor||""])));
     const csv="\ufeff"+linhas.map(l=>l.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\n");
     baixarArquivo("conferencia_mapa.csv",new Blob([csv],{type:"text/csv"}));
+  }
+
+
+  // ======================= CENTRAL: RELATÓRIO (relatórios dos guias × escala do Phoenix) =======================
+  // Duas visões: "Relatórios do dia" (o que cada guia marcou e a escala dele no Phoenix, lado a lado)
+  // e "Divergências da quinzena" (mesma conferência do mapa, mas lendo direto do Phoenix, sem arquivo do PAAR).
+  // Passeio não entra na conferência (não precisa de relatório); apoio segue as regras combinadas.
+  const RELT={ aba:"dia", dia:null, qid:null, dados:{}, filtro:"pend", abertos:{}, busca:"" };
+  function relHoje(){ return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Recife"}).format(new Date()); }
+  function relSomaDias(iso,n){ const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+  function relQuinzenas(){
+    const h=relHoje(), out=[]; let a=+h.slice(0,4), m=+h.slice(5,7), meio=+h.slice(8,10)>15;
+    for(let k=0;k<4;k++){
+      const mm=String(m).padStart(2,"0"), ult=new Date(a,m,0).getDate();
+      out.push(meio?[a+"-"+mm+"-16",a+"-"+mm+"-"+ult]:[a+"-"+mm+"-01",a+"-"+mm+"-15"]);
+      if(meio) meio=false; else { meio=true; m--; if(!m){ m=12; a--; } }
+    }
+    return out.map(([i,f])=>({qid:i+"_"+f,ini:i,fim:f,txt:dataBR(i).slice(0,5)+" a "+dataBR(f).slice(0,5)+(f>=h&&i<=h?" (em andamento)":"")}));
+  }
+  function relServico(cod){ const s=String(cod||"");
+    if(s.startsWith("chegada")) return "IN"; if(s.startsWith("saida")) return "OUT";
+    if(s==="apoio-recife-tarde") return "Apoio (volta)"; if(s.startsWith("apoio")) return "Apoio";
+    if(s==="passeio") return "Passeio"; if(s==="so-vendas") return "Só vendas"; if(!s) return "—"; return "Transfer"; }
+  async function relChamar(acao,ini,fim){
+    const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,inicio:ini,fim})});
+    const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
+  }
+  // lê Phoenix + relatórios do período e faz a conferência
+  async function relCarregar(ini,fim,info){
+    const k=ini+"_"+fim; if(RELT.dados[k]) return RELT.dados[k];
+    info("Lendo os relatórios dos guias...");
+    const rel=(await relChamar("relatorios",ini,fim)).relatorios||[];
+    info("Lendo as escalas no Phoenix de "+dataBR(ini)+(ini===fim?"":" a "+dataBR(fim))+"... pode levar 1 a 2 minutos na primeira vez");
+    const linhas=(await relChamar("linhas",ini,fim)).linhas||[];
+    const ros={}; for(const l of linhas) if(l.escala&&!ros[l.escala]) ros[l.escala]={servico:l.servico};
+    // escala do Phoenix agrupada por guia, no formato da conferência do mapa
+    const porG={};
+    for(const l of linhas){
+      const g=String(l.guia||"").trim(); if(!g) continue;
+      const k2=normP(g); const x=porG[k2]=porG[k2]||{nome:g,doc:"",linhas:[]};
+      x.linhas.push({data:l.data,hora:String(l.apresentacao||l.inicio||"").slice(0,5),ro:l.escala||"",modo:"",
+        servico:l.auxiliar?("APOIO · "+l.servico):String(l.servico||""),veiculo:l.veiculo||"",motorista:String(l.motorista||"").trim(),valor:null,tipo:l.tipo||""});
+    }
+    const guias=Object.values(porG);
+    const resultado=conferirMapa(guias,rel,ros);
+    // o que a conferência do mapa não pega: relatório num dia em que o guia não tem escala no Phoenix,
+    // ou apoio no relatório sem apoio na escala
+    const acharG=(nome)=>guias.find(g=>normP(g.nome)===normP(nome))||guias.find(g=>nomeBate(nome,g.nome)&&nomeBate(g.nome,nome));
+    for(const r of rel){
+      const feitos=(r.itens||[]).filter(i=>!i.naoRealizado&&catRel(i.servico)&&catRel(i.servico)!=="passeio"); if(!feitos.length) continue;
+      const g=acharG(r.guia); const doDia=g?g.linhas.filter(l=>l.data===r.data):[];
+      let res=g?resultado.find(x=>x.nome===g.nome):resultado.find(x=>normP(x.nome)===normP(r.guia));
+      if(!res){ res={nome:r.guia,total:0,qtd:0,alertas:[],semEscala:true}; resultado.push(res); }
+      const add=(i,det)=>res.alertas.push({tipo:"falta",data:r.data,ro:"",servico:relServico(i.servico),detalhe:det,valor:0});
+      if(!doDia.length) feitos.forEach(i=>add(i,"O relatório diz que fez, mas não há escala desse guia no Phoenix nesse dia"));
+      else if(!doDia.some(l=>/APOIO/i.test(l.servico))) feitos.filter(i=>String(catRel(i.servico)).startsWith("apoio")).forEach(i=>add(i,"O relatório tem apoio, mas a escala do Phoenix não tem apoio nesse dia"));
+    }
+    resultado.forEach(x=>x.alertas=x.alertas.filter(a=>a.tipo!=="zero"&&a.tipo!=="cnpj"&&!(ini===fim&&a.tipo==="nome")));
+    const d={ini,fim,rel,linhas,guias,resultado,em:Date.now()}; RELT.dados[k]=d; return d;
+  }
+
+  function renderRelatorio(m){
+    if(!RELT.dia) RELT.dia=relSomaDias(relHoje(),-1);
+    if(!RELT.qid) RELT.qid=relQuinzenas()[0].qid;
+    cab("Relatórios dos guias × escala do Phoenix","");
+    const qs=relQuinzenas();
+    m.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">'
+      +'<span class="chip '+(RELT.aba==="dia"?"on":"")+'" onclick="RELT.aba=\'dia\';renderRelatorio(document.getElementById(\'mainConteudo\'))">Relatórios do dia</span>'
+      +'<span class="chip '+(RELT.aba==="quinzena"?"on":"")+'" onclick="RELT.aba=\'quinzena\';renderRelatorio(document.getElementById(\'mainConteudo\'))">Divergências da quinzena</span></div>'
+      +'<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">'
+      +(RELT.aba==="dia"
+        ?'<input type="date" id="relDia" value="'+RELT.dia+'" max="'+relHoje()+'" onchange="RELT.dia=this.value;relAtualizar()" style="padding:8px 10px;border:1px solid var(--linha);border-radius:9px;font:inherit">'
+        :'<select id="relQ" onchange="RELT.qid=this.value;relAtualizar()" style="padding:8px 10px;border:1px solid var(--linha);border-radius:9px;font:inherit">'+qs.map(q=>'<option value="'+q.qid+'"'+(q.qid===RELT.qid?" selected":"")+'>'+q.txt+'</option>').join("")+'</select>')
+      +'<button class="btn" onclick="relAtualizar(true)">Conferir</button>'
+      +'<input placeholder="Buscar guia..." value="'+esc(RELT.busca)+'" oninput="RELT.busca=this.value;relDesenhar()" style="padding:8px 10px;border:1px solid var(--linha);border-radius:9px;font:inherit;min-width:180px">'
+      +'<span id="relInfo" style="font-size:.8rem;color:var(--muted)"></span></div>'
+      +'<div id="relCorpo"></div>';
+    relAtualizar();
+  }
+  function relPeriodo(){ if(RELT.aba==="dia") return [RELT.dia,RELT.dia]; const [i,f]=RELT.qid.split("_"); const h=relHoje(); return [i,f<h?f:h]; }
+  async function relAtualizar(forcar){
+    const [ini,fim]=relPeriodo(); const k=ini+"_"+fim; const info=(t)=>{ const e=document.getElementById("relInfo"); if(e) e.textContent=t; };
+    if(forcar) delete RELT.dados[k];
+    const corpo=document.getElementById("relCorpo"); if(!corpo) return;
+    if(!RELT.dados[k]) corpo.innerHTML='<div class="card" style="color:var(--muted)">Carregando...</div>';
+    try{ await relCarregar(ini,fim,info); const d=RELT.dados[k];
+      info(d.rel.length+" relatório(s) · "+d.guias.length+" guia(s) escalado(s) · atualizado às "+new Date(d.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}));
+      relDesenhar();
+    }catch(e){ console.error(e); info(""); if(relPeriodo().join("_")===k) corpo.innerHTML='<div class="card" style="color:var(--alerta)">Não consegui conferir: '+esc(e.message)+'</div>'; }
+  }
+  function relPill(t,n){ const a=ALERTA[t]; return '<span style="font-size:.7rem;font-weight:800;color:'+a[2]+';background:'+a[1]+';border-radius:999px;padding:3px 9px;white-space:nowrap">'+(n!=null?n+" · ":"")+a[0]+'</span>'; }
+  function relDesenhar(){
+    const corpo=document.getElementById("relCorpo"); if(!corpo) return;
+    const [ini,fim]=relPeriodo(); const d=RELT.dados[ini+"_"+fim]; if(!d) return;
+    const bq=normP(RELT.busca);
+    const R=d.resultado.filter(g=>!bq||normP(g.nome).includes(bq));
+    const cont={}; d.resultado.forEach(g=>g.alertas.forEach(a=>cont[a.tipo]=(cont[a.tipo]||0)+1));
+    const comPend=d.resultado.filter(g=>g.alertas.length);
+    const kpi=(t)=>'<div class="resumo'+(cont[t]?' alerta':'')+'"><div class="num">'+(cont[t]||0)+'</div><div class="lbl">'+ALERTA[t][0]+'</div></div>';
+    let h='<div class="cards-resumo"><div class="resumo ok"><div class="num">'+(d.resultado.length-comPend.length)+'</div><div class="lbl">Guias sem divergência</div></div>'+kpi("falta")+kpi("naofez")+kpi("semrelato")+kpi("pendente")+kpi("apoio")+'</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'
+      +'<span class="chip '+(RELT.filtro==="pend"?"on":"")+'" onclick="RELT.filtro=\'pend\';relDesenhar()">Com divergência ('+comPend.length+')</span>'
+      +'<span class="chip '+(RELT.filtro==="todos"?"on":"")+'" onclick="RELT.filtro=\'todos\';relDesenhar()">Todos ('+d.resultado.length+')</span>'
+      +'<button class="btn sec mini" style="margin-left:auto" onclick="relBaixar()">Baixar planilha</button></div>';
+    h+='<p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">Corrija no Phoenix e clique em Conferir de novo até zerar. Passeio não entra: não precisa de relatório.</p>';
+    const lista=(RELT.filtro==="pend"?R.filter(g=>g.alertas.length):R).slice().sort((a,b)=>b.alertas.length-a.alertas.length||a.nome.localeCompare(b.nome));
+    if(!lista.length) h+='<div class="card" style="color:var(--muted)">'+(R.length?"Nenhuma divergência. Tudo batendo com o Phoenix.":"Nenhum guia encontrado.")+'</div>';
+    h+=lista.map(g=>relCartao(g,d)).join("");
+    corpo.innerHTML=h;
+  }
+  function relCartao(g,d){
+    const chave=normP(g.nome), ab=!!RELT.abertos[chave];
+    const tipos={}; g.alertas.forEach(a=>tipos[a.tipo]=(tipos[a.tipo]||0)+1);
+    const pills=Object.keys(tipos).length?Object.entries(tipos).map(([t,n])=>relPill(t,n)).join(" "):'<span style="font-size:.7rem;font-weight:800;color:var(--ok);background:#e3f2ee;border-radius:999px;padding:3px 9px">Tudo certo</span>';
+    let det="";
+    if(ab){
+      if(g.alertas.length) det+='<div style="border-top:1px solid var(--linha);padding:4px 0">'+g.alertas.slice().sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(a=>
+        '<div style="display:grid;grid-template-columns:60px minmax(0,1.3fr) minmax(0,2fr) minmax(0,1.3fr);gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--linha);font-size:.8rem">'
+        +'<b>'+esc(a.data?dataBR(a.data).slice(0,5):"")+'</b><span>'+relPill(a.tipo)+'<br><span style="color:var(--muted)">'+esc(a.servico||"")+(a.ro?' · '+esc(a.ro):'')+'</span></span>'
+        +'<span>'+esc(a.detalhe)+'</span><span style="color:var(--verde);font-weight:600">'+esc(ALERTA[a.tipo][3])+'</span></div>').join("")+'</div>';
+      if(RELT.aba==="dia") det+=relLadoALado(g,d);
+    }
+    return '<div class="card" style="padding:10px 16px;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer" onclick="RELT.abertos[\''+chave+'\']=!RELT.abertos[\''+chave+'\'];relDesenhar()">'
+      +'<span>'+(ab?"▾":"▸")+'</span><div style="min-width:170px"><b>'+esc(g.nome)+'</b>'+(g.semEscala?'<div style="font-size:.72rem;color:var(--muted)">sem escala no Phoenix</div>':'')+'</div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+pills+'</div></div>'+det+'</div>';
+  }
+  // relatório do guia e escala do Phoenix lado a lado (visão do dia)
+  function relLadoALado(g,d){
+    const N=normP(g.nome);
+    const bate=(nome)=>normP(nome)===N||(nomeBate(nome,g.nome)&&nomeBate(g.nome,nome));
+    const rels=d.rel.filter(r=>bate(r.guia));
+    const esc2=(d.guias.find(x=>normP(x.nome)===N)||{linhas:[]}).linhas.slice().sort((a,b)=>a.hora.localeCompare(b.hora));
+    const ITENS_CONHECIDOS=["servico","naoRealizado","motivo","motorista","recIdioma","_usado"];
+    const itensRel=rels.flatMap(r=>r.itens||[]);
+    const colR=itensRel.length?itensRel.map(i=>{
+      const extra=Object.entries(i).filter(([k,v])=>!ITENS_CONHECIDOS.includes(k)&&v!=null&&v!==""&&typeof v!=="object"&&String(v).length<120).map(([k,v])=>esc(k)+": "+esc(v)).join(" · ");
+      return '<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>'+esc(relServico(i.servico))+'</b> '
+        +(i.naoRealizado?'<span style="color:#8a4a0c;font-weight:700">não realizado</span>':'<span style="color:var(--ok);font-weight:700">feito</span>')
+        +(i.motorista?' · motorista '+esc(i.motorista):'')+(i.recIdioma?' · idioma REC '+esc(i.recIdioma):'')
+        +(i.motivo?'<div style="color:var(--muted)">Motivo: '+esc(i.motivo)+'</div>':'')+(extra?'<div style="color:var(--muted);font-size:.74rem">'+extra+'</div>':'')+'</div>';
+    }).join(""):'<p style="color:var(--muted)">'+(rels.length?"Relatório sem serviços marcados.":"Sem relatório neste dia.")+'</p>';
+    const colP=esc2.length?esc2.map(l=>'<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>'+esc(l.hora||"--:--")+'</b> '+esc(l.servico)
+      +'<div style="color:var(--muted);font-size:.74rem">'+esc(l.ro)+(l.veiculo?' · '+esc(l.veiculo):'')+(l.motorista?' · '+esc(l.motorista):'')+'</div></div>').join(""):'<p style="color:var(--muted)">Sem escala no Phoenix neste dia.</p>';
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;border-top:1px solid var(--linha);padding:10px 0 4px;font-size:.8rem">'
+      +'<div><div style="font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Relatório do guia</div>'+colR+'</div>'
+      +'<div><div style="font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Escala no Phoenix</div>'+colP+'</div></div>';
+  }
+  function relBaixar(){
+    const [ini,fim]=relPeriodo(); const d=RELT.dados[ini+"_"+fim]; if(!d) return;
+    const linhas=[["Guia","Data","Escala (RO)","Serviço","Situação","Detalhe","O que fazer"]];
+    d.resultado.forEach(g=>g.alertas.forEach(a=>linhas.push([g.nome,a.data?dataBR(a.data):"",a.ro,a.servico,ALERTA[a.tipo][0],a.detalhe,ALERTA[a.tipo][3]])));
+    const csv="\ufeff"+linhas.map(l=>l.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(";")).join("\n");
+    baixarArquivo("relatorios_x_phoenix_"+ini+(ini===fim?"":"_"+fim)+".csv",new Blob([csv],{type:"text/csv"}));
   }
 
 
