@@ -518,7 +518,6 @@
     const hora=x.criadoEm?new Date(x.criadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
     let linha='<span style="font-size:1rem;font-weight:800;color:var(--tinta)">'+dataBR(x.data).slice(0,5)+'</span><span class="pill" style="background:'+s[1]+';color:'+s[2]+'">'+s[0]+'</span>';
     if((x.status==="concluido"||x.status==="erro")&&x.pendentesAntes!=null) linha+='<span style="font-size:.86rem;font-weight:700">'+x.executados+' de '+x.pendentesAntes+' fechados</span>'+(x.sobraram?'<span style="font-size:.86rem;font-weight:700;color:#b45309">'+x.sobraram+' ainda com botão</span>':'');
-    const link=x.linkExecucao && USUARIO.admin ? ' · <a href="'+esc(x.linkExecucao)+'" target="_blank" style="color:var(--verde);">GitHub</a>' : '';
     let corpo='';
     if(x.status==="rodando"&&!parado) corpo='<div class="barra-anda" style="margin-top:12px"><span></span></div><div style="font-size:.8rem;color:var(--muted);margin-top:8px">O robô está clicando nos serviços. Esta tela atualiza sozinha.</div>';
     else if(x.status==="enviado"&&!parado) corpo='<div style="font-size:.8rem;color:var(--muted);margin-top:8px">Aguardando o robô começar (costuma levar até 1 minuto).</div>';
@@ -526,7 +525,7 @@
     if(x.erro&&!det.length) corpo+='<div style="font-size:.82rem;color:var(--alerta);margin-top:8px">'+esc(x.erro)+'</div>';
     if(det.length) corpo+='<div style="margin-top:12px;background:#fffaf3;border:1px solid #f1d9b5;border-radius:12px;padding:4px 14px">'+det.slice(0,8).map((d,k)=>'<div style="font-size:.82rem;padding:8px 0;'+(k?'border-top:1px solid #f1e3cc;':'')+'">'+esc(d)+'</div>').join("")+(det.length>8?'<div style="font-size:.8rem;color:var(--muted);padding:8px 0;border-top:1px solid #f1e3cc">e mais '+(det.length-8)+'</div>':'')+'</div>';
     return '<div class="card" style="padding:18px 22px"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'+linha
-      +'<span style="margin-left:auto;font-size:.78rem;color:var(--muted)">por '+esc(x.solicitante)+' às '+hora+link+'</span></div>'+corpo+'</div>';
+      +'<span style="margin-left:auto;font-size:.78rem;color:var(--muted)">por '+esc(x.solicitante)+' às '+hora+'</span></div>'+corpo+'</div>';
   }
   async function pedirFechamento(){
     const data=document.getElementById("fecharData").value;
