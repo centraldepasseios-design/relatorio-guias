@@ -1888,26 +1888,29 @@
   function consAviso(st){ return st&&/rascunho|cancel|pendente/i.test(st)?'<div style="background:#fff1e0;color:#8a4a0c;border-radius:10px;padding:8px 12px;font-weight:700;font-size:.85rem;margin-bottom:10px">⚠️ '+esc(st)+'</div>':''; }
   function consCartao(r){
     const linha=(rot,val)=>val?'<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--linha);font-size:.86rem"><span style="min-width:110px;color:var(--muted)">'+rot+'</span><b style="font-weight:600">'+val+'</b></div>':'';
-    const tel=r.telefone?esc(r.telefone)+' <a href="https://wa.me/'+String(r.telefone).replace(/\D/g,"")+'" target="_blank" style="color:var(--verde);font-weight:700;margin-left:6px">WhatsApp</a>':'';
-    const outras=r.outras||[];
-    const tituloVenda=(v,principal)=>'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:'+(principal?'0 0 8px':'22px 0 4px')+'">'
-      +'<h3 style="font-size:'+(principal?'1.25rem':'1.05rem')+';font-weight:800">'+esc(v.codigo)+'</h3>'
-      +(consOrigem(v)?'<span style="font-size:.8rem;color:var(--muted)">'+consOrigem(v)+'</span>':'')
-      +(!principal&&v.status?'<span style="font-size:.72rem;font-weight:800;background:#eef1f0;color:#3c524d;border-radius:999px;padding:3px 9px">'+esc(v.status)+'</span>':'')+'</div>';
-    let h='<div class="card">'+consAviso(r.status)+tituloVenda(r,true)
-      +linha("Cliente",esc(r.cliente||"-"))+linha("Telefone",tel)+linha("Idioma",esc(r.idioma||""));
-    if(outras.length) h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px"><span style="font-size:.78rem;color:var(--muted)">Vendas da mesma reserva:</span>'
-      +'<span class="chip on">'+esc(r.codigo)+'</span>'+outras.map(x=>'<span class="chip" onclick="document.getElementById(\'cv-'+esc(x.codigo).replace(/\W/g,"")+'\').scrollIntoView({behavior:\'smooth\'})">'+esc(x.codigo)+'</span>').join("")+'</div>';
-    h+='<div style="margin-top:14px;font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços de '+esc(r.codigo)+'</div>'+consServicos(r.servicos);
-    for(const v of outras){
-      h+='<div id="cv-'+esc(v.codigo).replace(/\W/g,"")+'" style="border-top:2px solid var(--linha);margin-top:18px">'+tituloVenda(v,false);
+    // ordem: reserva mãe primeiro (REC-767019), depois as filhas (.1, .2...)
+    const todas=[r,...(r.outras||[])].sort((a,b)=>a.codigo.localeCompare(b.codigo,"pt",{numeric:true}));
+    const topo=todas.find(v=>!v.naoAbriu)||r;
+    const tel=topo.telefone?esc(topo.telefone)+' <a href="https://wa.me/'+String(topo.telefone).replace(/\D/g,"")+'" target="_blank" style="color:var(--verde);font-weight:700;margin-left:6px">WhatsApp</a>':'';
+    const ancora=(v)=>'cv-'+esc(v.codigo).replace(/\W/g,"");
+    let h='<div class="card">'
+      +linha("Cliente",esc(topo.cliente||"-"))+linha("Telefone",tel)+linha("Idioma",esc(topo.idioma||""));
+    if(todas.length>1) h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px"><span style="font-size:.78rem;color:var(--muted)">Vendas da mesma reserva:</span>'
+      +todas.map(v=>'<span class="chip'+(v.codigo===r.codigo?' on':'')+'" onclick="document.getElementById(\''+ancora(v)+'\').scrollIntoView({behavior:\'smooth\'})">'+esc(v.codigo)+'</span>').join("")+'</div>';
+    todas.forEach((v,k)=>{
+      h+='<div id="'+ancora(v)+'" style="'+(k?'border-top:2px solid var(--linha);':'')+'margin-top:'+(k?'18px':'14px')+'">'
+        +'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:'+(k?'18px':'4px')+' 0 4px">'
+        +'<h3 style="font-size:1.15rem;font-weight:800">'+esc(v.codigo)+'</h3>'
+        +(consOrigem(v)?'<span style="font-size:.8rem;color:var(--muted)">'+consOrigem(v)+'</span>':'')
+        +(v.status?'<span style="font-size:.72rem;font-weight:800;background:#eef1f0;color:#3c524d;border-radius:999px;padding:3px 9px">'+esc(v.status)+'</span>':'')
+        +(v.codigo===r.codigo&&todas.length>1?'<span style="font-size:.72rem;font-weight:800;color:var(--verde)">· a que você consultou</span>':'')+'</div>';
       if(v.naoAbriu) h+='<div style="font-size:.82rem;color:var(--muted)">Não consegui abrir esta venda. <a href="#" style="color:var(--verde);font-weight:700" onclick="document.getElementById(\'consRec\').value=\''+esc(v.codigo)+'\';consBuscar();return false">Consultar só ela</a></div>';
       else{
-        if(v.cliente&&normP(v.cliente)!==normP(r.cliente)) h+='<div style="font-size:.82rem;margin-bottom:4px">Cliente: <b>'+esc(v.cliente)+'</b></div>';
+        if(v.cliente&&normP(v.cliente)!==normP(topo.cliente)) h+='<div style="font-size:.82rem;margin-bottom:4px">Cliente: <b>'+esc(v.cliente)+'</b></div>';
         h+=consAviso(v.status)+consServicos(v.servicos);
       }
       h+='</div>';
-    }
+    });
     return h+'</div>';
   }
 
