@@ -1915,11 +1915,51 @@
     return h+'</div>';
   }
 
+  // ---- Envio das vagas nos grupos de WhatsApp ----
+  const VAG_DEST={ porto:{rot:"Porto",grupos:"VAGAS PASSEIOS SAINDO DE PORTO"}, recife:{rot:"Recife",grupos:"Phoenix Recife e Informativos Luck"} };
+  const VAGENV={ previa:null, hist:{}, enviando:false };
+  function vagPodeEnviar(d){ return USUARIO.admin||(USUARIO.areas||[]).includes("central")||(d==="porto"&&(USUARIO.areas||[]).includes("porto")); }
+  function vagPainelEnvio(){
+    const dests=Object.keys(VAG_DEST).filter(vagPodeEnviar); if(!dests.length) return "";
+    const hist=VAGENV.hist[CONS.vagasDia]||{};
+    let h='<div class="card" style="margin-bottom:16px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:.9rem">📲 Enviar nos grupos</b>'
+      +dests.map(d=>'<button class="btn sec mini" onclick="vagPrevia(\''+d+'\')">'+VAG_DEST[d].rot+'</button>'+(hist[d]?'<span style="font-size:.74rem;color:var(--ok)">enviado às '+new Date(hist[d].em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+' por '+esc(hist[d].por||"")+'</span>':'')).join("")+'</div>';
+    const p=VAGENV.previa;
+    if(p&&p.dia===CONS.vagasDia){
+      h+='<div style="margin-top:12px;border-top:1px solid var(--linha);padding-top:12px">'
+        +'<div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">Prévia · vai para: <b>'+esc(VAG_DEST[p.destino].grupos)+'</b></div>'
+        +(p.carregando?'<div style="color:var(--muted);font-size:.85rem">Montando a mensagem...</div>'
+          :p.erro?'<div style="color:var(--alerta);font-size:.85rem">'+esc(p.erro)+'</div>'
+          :'<pre style="white-space:pre-wrap;font-family:inherit;font-size:.84rem;background:#f3f7f5;border-radius:10px;padding:12px;max-height:340px;overflow:auto">'+esc(p.texto)+'</pre>'
+            +(p.resultado?'<div style="font-size:.84rem;margin-top:8px">'+p.resultado.map(x=>(x.ok?'✅ ':'⚠️ ')+esc(x.grupo)+(x.ok?'':' — '+esc(x.erro))).join("<br>")+'</div>'
+              :'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" '+(VAGENV.enviando?'disabled':'')+' onclick="vagEnviar()">'+(VAGENV.enviando?'Enviando...':'Enviar agora')+'</button><button class="btn sec" onclick="VAGENV.previa=null;vagDesenhar()">Cancelar</button></div>'))
+        +'</div>';
+    }
+    return h+'</div>';
+  }
+  async function vagHistorico(dia){
+    try{ const j=await chamarConsulta("vagasHistorico",{data:dia}); VAGENV.hist[dia]=j.envios||{}; if(CONS.vagasDia===dia) vagDesenhar(); }catch(e){}
+  }
+  async function vagPrevia(destino){
+    const dia=CONS.vagasDia; VAGENV.previa={destino,dia,carregando:true}; vagDesenhar();
+    try{ const j=await chamarConsulta("vagasTexto",{data:dia,destino}); if(VAGENV.previa&&VAGENV.previa.dia===dia) VAGENV.previa={destino,dia,texto:j.texto}; }
+    catch(e){ VAGENV.previa={destino,dia,erro:"Não consegui montar a mensagem: "+e.message}; }
+    vagDesenhar();
+  }
+  async function vagEnviar(){
+    const p=VAGENV.previa; if(!p||VAGENV.enviando) return;
+    if(!confirm("Enviar as vagas de "+dataBR(p.dia)+" para "+VAG_DEST[p.destino].grupos+"?")) return;
+    VAGENV.enviando=true; vagDesenhar();
+    try{ const j=await chamarConsulta("vagasEnviar",{data:p.dia,destino:p.destino}); p.resultado=j.enviados||[]; vagHistorico(p.dia); }
+    catch(e){ p.resultado=[{grupo:"Envio",ok:false,erro:e.message}]; }
+    VAGENV.enviando=false; vagDesenhar();
+  }
+
   // ---- Vagas nos passeios ----
   function renderVagas(m, area){
     if(!CONS.vagasDia) CONS.vagasDia=consHoje();
     if(area==="porto"&&CONS.vagasReg==="todas") CONS.vagasReg="PORTO DE GALINHAS";
-    cab("Vagas livres nos passeios do dia (já descontada a vaga do guia; sem privativos)","");
+    cab("Vagas livres nos passeios do dia (já descontados guia e, nos passeios saindo de Porto exceto Maragogi, o fotógrafo; sem privativos)","");
     m.innerHTML='<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">'
       +'<button class="btn sec mini" onclick="consMudaDia(-1)">‹</button>'
       +'<input type="date" id="vagDia" value="'+CONS.vagasDia+'" onchange="CONS.vagasDia=this.value;vagCarregar()" style="padding:8px 10px;border:1px solid var(--linha);border-radius:9px;font:inherit">'
@@ -1932,6 +1972,7 @@
   function consMudaDia(n){ const d=new Date(CONS.vagasDia+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); CONS.vagasDia=d.toISOString().slice(0,10); const i=document.getElementById("vagDia"); if(i) i.value=CONS.vagasDia; vagCarregar(); }
   async function vagCarregar(forcar){
     const dia=CONS.vagasDia, box=document.getElementById("vagRes"), info=document.getElementById("vagInfo"); if(!box) return;
+    vagHistorico(dia);
     const c=CONS.vagas[dia];
     if(c&&!forcar&&Date.now()-c.em<5*60e3){ vagDesenhar(); return; }
     box.innerHTML='<div class="card" style="color:var(--muted)">Lendo a escala dos passeios no Phoenix...</div>'; if(info) info.textContent="";
@@ -1943,7 +1984,7 @@
     if(info) info.textContent="atualizado às "+new Date(r.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
     if(!r.regioes.length){ box.innerHTML='<div class="card" style="color:var(--muted)">Nenhum passeio escalado com guia em '+dataBR(r.data)+'.</div>'; return; }
     const regs=r.regioes.map(x=>x.regiao);
-    let h='<div class="cards-resumo"><div class="resumo ok"><div class="num">'+r.totalVagas+'</div><div class="lbl">Vagas livres no dia</div></div>'
+    let h=vagPainelEnvio()+'<div class="cards-resumo"><div class="resumo ok"><div class="num">'+r.totalVagas+'</div><div class="lbl">Vagas livres no dia</div></div>'
       +r.regioes.map(x=>'<div class="resumo"><div class="num">'+x.passeios.reduce((s,p)=>s+p.vagas,0)+'</div><div class="lbl">'+esc(x.regiao)+'</div></div>').join("")+'</div>';
     h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><span class="chip '+(CONS.vagasReg==="todas"?"on":"")+'" onclick="CONS.vagasReg=\'todas\';vagDesenhar()">Todas as saídas</span>'
       +regs.map(g=>'<span class="chip '+(CONS.vagasReg===g?"on":"")+'" onclick="CONS.vagasReg=\''+g+'\';vagDesenhar()">'+esc(g.charAt(0)+g.slice(1).toLowerCase())+'</span>').join("")+'</div>';
