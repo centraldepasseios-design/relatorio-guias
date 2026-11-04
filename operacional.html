@@ -1907,7 +1907,8 @@
       if(v.naoAbriu) h+='<div style="font-size:.82rem;color:var(--muted)">Não consegui abrir esta venda. <a href="#" style="color:var(--verde);font-weight:700" onclick="document.getElementById(\'consRec\').value=\''+esc(v.codigo)+'\';consBuscar();return false">Consultar só ela</a></div>';
       else{
         if(v.cliente&&normP(v.cliente)!==normP(topo.cliente)) h+='<div style="font-size:.82rem;margin-bottom:4px">Cliente: <b>'+esc(v.cliente)+'</b></div>';
-        h+=consAviso(v.status)+consServicos(v.servicos);
+        if(!(v.servicos||[]).length&&/rascunho/i.test(v.status||"")) h+='<div style="background:#fff1e0;color:#8a4a0c;border-radius:10px;padding:10px 12px;font-size:.85rem;margin-top:6px"><b>⚠️ Venda em rascunho</b> · ainda não foi finalizada no PDV (por exemplo, aguardando autorização de desconto). Os serviços aparecem aqui quando ela for finalizada.</div>';
+        else h+=consAviso(v.status)+consServicos(v.servicos);
       }
       h+='</div>';
     });
