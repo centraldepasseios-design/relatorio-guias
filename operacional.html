@@ -1667,7 +1667,23 @@
     info("Lendo os relatórios dos guias...");
     const rel=(await relChamar("relatorios",ini,fim)).relatorios||[];
     info("Lendo as escalas no Phoenix de "+dataBR(ini)+(ini===fim?"":" a "+dataBR(fim))+"... pode levar 1 a 2 minutos na primeira vez");
-    const linhas=(await relChamar("linhas",ini,fim)).linhas||[];
+    // escala lida na hora do Phoenix, dia a dia (a mesma leitura da tela Escala dos guias),
+    // para não usar uma cópia guardada antes de alguma mudança na escala
+    const dias=[]; for(let d=ini; d<=fim; d=relSomaDias(d,1)) dias.push(d);
+    const linhas=[], falhou=[]; let feitos=0;
+    const lerDia=async(d)=>{
+      try{
+        const r=await fetch(API_ESCALA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:d,token:USUARIO.token})});
+        const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro");
+        (j.linhas||[]).forEach(l=>linhas.push({...l,data:d}));
+      }catch(e){ if(/sessão expirada/.test(e.message)) throw e; console.log("[relatorio] escala de",d,e.message); falhou.push(d); }
+      feitos++; info("Lendo as escalas no Phoenix: "+feitos+" de "+dias.length+" dia(s)...");
+    };
+    const fila=[...dias]; await Promise.all([0,1,2].map(async()=>{ while(fila.length) await lerDia(fila.shift()); }));
+    if(falhou.length){ // dia que não carregou: usa a leitura da conferência só para ele
+      try{ const resto=(await relChamar("linhas",falhou.sort()[0],falhou.sort().slice(-1)[0])).linhas||[]; resto.filter(l=>falhou.includes(l.data)).forEach(l=>linhas.push(l)); }
+      catch(e){ throw new Error("não consegui ler a escala de "+falhou.map(d=>dataBR(d).slice(0,5)).join(", ")); }
+    }
     const ros={}; for(const l of linhas) if(l.escala&&!ros[l.escala]) ros[l.escala]={servico:l.servico};
     // escala do Phoenix agrupada por guia, no formato da conferência do mapa
     const porG={};
