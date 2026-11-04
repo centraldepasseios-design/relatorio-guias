@@ -1867,15 +1867,11 @@
     }catch(e){ box.innerHTML='<div class="card" style="color:var(--alerta)">Não consegui consultar: '+esc(e.message)+'</div>'; }
     finally{ b.disabled=false; }
   }
-  function consCartao(r){
-    const linha=(rot,val)=>val?'<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--linha);font-size:.86rem"><span style="min-width:110px;color:var(--muted)">'+rot+'</span><b style="font-weight:600">'+val+'</b></div>':'';
-    const tel=r.telefone?esc(r.telefone)+' <a href="https://wa.me/'+String(r.telefone).replace(/\D/g,"")+'" target="_blank" style="color:var(--verde);font-weight:700;margin-left:6px">WhatsApp</a>':'';
-    let origem="";
-    if(r.origem&&r.origem.tipo==="pdv") origem="Venda PDV · lançada por "+esc(r.origem.quem);
-    else if(r.origem&&r.origem.tipo==="operadora") origem="Incluso · "+esc(r.origem.quem);
-    const alerta=r.status&&/rascunho|cancel|pendente/i.test(r.status)?'<div style="background:#fff1e0;color:#8a4a0c;border-radius:10px;padding:8px 12px;font-weight:700;font-size:.85rem;margin-bottom:10px">⚠️ '+esc(r.status)+'</div>':'';
+  function consOrigem(v){ if(v.origem&&v.origem.tipo==="pdv") return "Venda PDV · lançada por "+esc(v.origem.quem); if(v.origem&&v.origem.tipo==="operadora") return "Incluso · "+esc(v.origem.quem); return ""; }
+  function consServicos(lista){
     const ic={IN:"✈️",OUT:"✈️",TOUR:"🏖️",TRANSFER:"🚐",PACOTE:"🎟️"};
-    const servs=(r.servicos||[]).map(s=>{
+    if(!(lista||[]).length) return '<div style="font-size:.82rem;color:var(--muted);padding:10px 0;border-top:1px solid var(--linha)">Nenhum serviço nesta venda.</div>';
+    return lista.map(s=>{
       let esc2="";
       if(s.situacao==="escalado") esc2='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:.82rem"><span>🚐 <b>'+esc(s.motorista||"-")+'</b>'+(s.veiculo?' · '+esc(s.veiculo):'')+'</span><span>🧭 Guia: <b>'+esc(s.guia||"(sem guia)")+'</b></span>'+(s.ro?'<span style="color:var(--muted)">'+esc(s.ro)+'</span>':'')+'</div>';
       else if(s.situacao==="pacote") esc2='<div style="font-size:.8rem;color:var(--muted);margin-top:6px">Pacote: os passeios escolhidos aparecem separados.</div>';
@@ -1888,11 +1884,31 @@
         +'<span style="font-size:.82rem;color:var(--muted)">'+esc(s.data)+(s.horario?' '+esc(s.horario):'')+(s.voo?' · voo '+esc(s.voo):'')+(s.modo?' · '+esc(s.modo):'')+'</span></div>'
         +apr+(s.obs?'<div style="font-size:.82rem;margin-top:4px;color:var(--muted)">📝 '+esc(s.obs)+'</div>':'')+esc2+'</div>';
     }).join("");
-    return '<div class="card">'+alerta
-      +'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px"><h3 style="font-size:1.25rem;font-weight:800">'+esc(r.codigo)+'</h3>'+(origem?'<span style="font-size:.8rem;color:var(--muted)">'+origem+'</span>':'')+'</div>'
-      +linha("Cliente",esc(r.cliente||"-"))+linha("Telefone",tel)+linha("Idioma",esc(r.idioma||""))
-      +((r.relacionadas||[]).length?'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px"><span style="font-size:.78rem;color:var(--muted)">Outras vendas da mesma reserva:</span>'+r.relacionadas.map(x=>'<span class="chip" title="'+esc(x.status||"")+'" onclick="document.getElementById(\'consRec\').value=\''+esc(x.codigo)+'\';consBuscar()">'+esc(x.codigo)+(x.status?' · '+esc(x.status):'')+'</span>').join("")+'</div>':'')
-      +'<div style="margin-top:12px;font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços</div>'+servs+'</div>';
+  }
+  function consAviso(st){ return st&&/rascunho|cancel|pendente/i.test(st)?'<div style="background:#fff1e0;color:#8a4a0c;border-radius:10px;padding:8px 12px;font-weight:700;font-size:.85rem;margin-bottom:10px">⚠️ '+esc(st)+'</div>':''; }
+  function consCartao(r){
+    const linha=(rot,val)=>val?'<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--linha);font-size:.86rem"><span style="min-width:110px;color:var(--muted)">'+rot+'</span><b style="font-weight:600">'+val+'</b></div>':'';
+    const tel=r.telefone?esc(r.telefone)+' <a href="https://wa.me/'+String(r.telefone).replace(/\D/g,"")+'" target="_blank" style="color:var(--verde);font-weight:700;margin-left:6px">WhatsApp</a>':'';
+    const outras=r.outras||[];
+    const tituloVenda=(v,principal)=>'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:'+(principal?'0 0 8px':'22px 0 4px')+'">'
+      +'<h3 style="font-size:'+(principal?'1.25rem':'1.05rem')+';font-weight:800">'+esc(v.codigo)+'</h3>'
+      +(consOrigem(v)?'<span style="font-size:.8rem;color:var(--muted)">'+consOrigem(v)+'</span>':'')
+      +(!principal&&v.status?'<span style="font-size:.72rem;font-weight:800;background:#eef1f0;color:#3c524d;border-radius:999px;padding:3px 9px">'+esc(v.status)+'</span>':'')+'</div>';
+    let h='<div class="card">'+consAviso(r.status)+tituloVenda(r,true)
+      +linha("Cliente",esc(r.cliente||"-"))+linha("Telefone",tel)+linha("Idioma",esc(r.idioma||""));
+    if(outras.length) h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px"><span style="font-size:.78rem;color:var(--muted)">Vendas da mesma reserva:</span>'
+      +'<span class="chip on">'+esc(r.codigo)+'</span>'+outras.map(x=>'<span class="chip" onclick="document.getElementById(\'cv-'+esc(x.codigo).replace(/\W/g,"")+'\').scrollIntoView({behavior:\'smooth\'})">'+esc(x.codigo)+'</span>').join("")+'</div>';
+    h+='<div style="margin-top:14px;font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços de '+esc(r.codigo)+'</div>'+consServicos(r.servicos);
+    for(const v of outras){
+      h+='<div id="cv-'+esc(v.codigo).replace(/\W/g,"")+'" style="border-top:2px solid var(--linha);margin-top:18px">'+tituloVenda(v,false);
+      if(v.naoAbriu) h+='<div style="font-size:.82rem;color:var(--muted)">Não consegui abrir esta venda. <a href="#" style="color:var(--verde);font-weight:700" onclick="document.getElementById(\'consRec\').value=\''+esc(v.codigo)+'\';consBuscar();return false">Consultar só ela</a></div>';
+      else{
+        if(v.cliente&&normP(v.cliente)!==normP(r.cliente)) h+='<div style="font-size:.82rem;margin-bottom:4px">Cliente: <b>'+esc(v.cliente)+'</b></div>';
+        h+=consAviso(v.status)+consServicos(v.servicos);
+      }
+      h+='</div>';
+    }
+    return h+'</div>';
   }
 
   // ---- Vagas nos passeios ----
