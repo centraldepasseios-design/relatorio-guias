@@ -1691,7 +1691,13 @@
       const cr=catsDoRel(r);
       if(cr.size) c=c.filter(g=>[...catsDoDia(g,r.data)].some(x=>cr.has(x)));
       else c=c.filter(g=>g.linhas.some(l=>l.data===r.data));
-      return c.length===1?c[0]:null;
+      if(c.length<=1) return c[0]||null;
+      // mais de um guia possível: desempata pelo motorista do relatório e pelo nome mais completo
+      const mots=new Set((r.itens||[]).map(i=>normP(i.motorista)).filter(Boolean));
+      const pont=(g)=>g.linhas.filter(l=>l.data===r.data&&mots.has(normP(l.motorista))).length*10
+        +(nomeBate(r.guia,g.nome)?2:0)+(nomeBate(g.nome,r.guia)?1:0);
+      const notas=c.map(g=>({g,p:pont(g)})).sort((x,y)=>y.p-x.p);
+      return notas[0].p>notas[1].p?notas[0].g:null;
     };
     const relDe={}, soltos=[];
     for(const r of rel){ const g=dono(r); if(g) (relDe[g.nome]=relDe[g.nome]||[]).push({...r,guia:g.nome}); else soltos.push(r); }
