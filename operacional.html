@@ -969,8 +969,23 @@
   // listinha do campo "guia": nomes como estão no Phoenix + os da lista de contatos
   function preencherGuias(){
     const d=document.getElementById("listaGuias"); if(!d) return;
-    const nomes=[...new Set([...(PLANO.catalogoGuias||[]),...(ENV.contatos||[]).map(c=>c.nome)])].sort();
-    d.innerHTML=nomes.map(n=>'<option value="'+esc(n)+'">').join("");
+    // base: nomes como estão no Phoenix. Da lista de contatos só entra quem não está lá —
+    // e um nome curto ("FABIO") que é o começo de um nome do Phoenix ("FABIO GOMES") não entra,
+    // para não aparecer o mesmo guia duas vezes.
+    const phx=[...new Set((PLANO.catalogoGuias||[]).map(n=>String(n).trim().toUpperCase()).filter(Boolean))];
+    const NP=phx.map(n=>normP(n));
+    const extra=(ENV.contatos||[]).map(c=>String(c.nome||"").trim().toUpperCase()).filter(Boolean).filter(n=>{
+      const k=normP(n); return !NP.some(p=>p===k||p.startsWith(k+" "));
+    });
+    // contato com nome completo ("FABIO GOMES") de um guia que no Phoenix está só com o primeiro
+    // nome ("FABIO"): vira uma opção só, com o nome do Phoenix e o nome completo de legenda
+    const legenda={}, fora=new Set();
+    for(const n of extra){
+      const k=normP(n); const base=phx.filter(p=>k.startsWith(normP(p)+" "));
+      if(base.length===1){ const outros=extra.filter(x=>normP(x).startsWith(normP(base[0])+" ")); if(outros.length===1){ legenda[base[0]]=n; fora.add(n); } }
+    }
+    const nomes=[...new Set([...phx,...extra.filter(n=>!fora.has(n))])].sort();
+    d.innerHTML=nomes.map(n=>'<option value="'+esc(n)+'"'+(legenda[n]?' label="'+esc(titulo(legenda[n]))+'"':'')+'>').join("");
   }
   function opcoesPasseio(saida){
     const doPhoenix=(PLANO.catalogo||[]).filter(n=>regiaoServ(n)===saida);
@@ -2367,6 +2382,18 @@
   function ultTxt(nome){ const u=ultimaDe(nome); if(!u.ultima&&!u.proxima) return '<span style="font-size:.72rem;color:var(--muted)">sem escala nos últimos 60 dias</span>';
     const dias=u.ultima?Math.round((new Date(hojeISO()+"T12:00:00")-new Date(u.ultima+"T12:00:00"))/864e5):null;
     return '<span style="font-size:.72rem;color:'+(dias!=null&&dias>=15?'#b45309':'var(--muted)')+'">'+(u.ultima?'última escala '+(dias===0?'hoje':dataBR(u.ultima).slice(0,5)+(dias>=7?' ('+dias+' dias)':'')):'')+(u.proxima?(u.ultima?' · ':'')+'próxima '+dataBR(u.proxima).slice(0,5):'')+'</span>'; }
+  // o detalhe só aparece quando diz algo além da etiqueta (ex.: "Após as 13hs")
+  function detRepetido(det,rot){ const d=normP(det); return !d||d===normP(rot)||["INDISPONIVEL","COM RESTRICAO","DISPONIVEL O DIA TODO","DISPONIVEL"].includes(d); }
+  // coluna "Última escala": data em destaque e há quantos dias (laranja a partir de 15 dias)
+  function ultCol(nome){
+    const u=ultimaDe(nome);
+    if(!u.ultima&&!u.proxima) return '<div style="width:120px;display:flex;flex-direction:column"><span style="font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Última escala</span><span style="font-size:.82rem;color:var(--muted)">nenhuma em 60 dias</span></div>';
+    const dias=u.ultima?Math.round((new Date(hojeISO()+"T12:00:00")-new Date(u.ultima+"T12:00:00"))/864e5):null;
+    const cor=dias!=null&&dias>=15?'#b45309':'var(--tinta)';
+    return '<div style="width:120px;display:flex;flex-direction:column"><span style="font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Última escala</span>'
+      +(u.ultima?'<span style="font-size:.95rem;font-weight:800;color:'+cor+'">'+dataBR(u.ultima).slice(0,5)+' <span style="font-size:.74rem;font-weight:600">'+(dias===0?'hoje':dias===1?'ontem':'há '+dias+' dias')+'</span></span>':'<span style="font-size:.82rem;color:var(--muted)">—</span>')
+      +(u.proxima?'<span style="font-size:.72rem;color:var(--muted)">próxima '+dataBR(u.proxima).slice(0,5)+'</span>':'')+'</div>';
+  }
   // avisou depois das 13h do dia anterior (regra do app)
   function avisoTarde(sit,dia){ if(!sit.em) return false; const lim=new Date(somaDias(dia,-1)+"T13:00:00-03:00").getTime(); return sit.em>lim; }
   function desenharDisp(){
@@ -2388,9 +2415,10 @@
     const linhaDisp=(l)=>{ const c=DSP_COR[l.sit.s], t=avisoTarde(l.sit,dia)&&(l.sit.s==="r"||l.sit.s==="i");
       return '<div class="card" style="margin:0;padding:12px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:14px;'+(t?'border-color:#f3b9ab':'')+'">'
         +'<span style="width:38px;height:38px;border-radius:19px;background:var(--verde-claro);color:var(--verde-esc);font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center">'+esc(l.nome.split(" ").slice(0,2).map(p=>p[0]).join(""))+'</span>'
-        +'<div style="width:170px;display:flex;flex-direction:column"><b style="color:var(--tinta)">'+esc(titulo(l.nome))+'</b>'+(l.sit.em?'<span style="font-size:.74rem;'+(t?'color:#9f2a15;font-weight:800':'color:var(--muted)')+'">'+new Date(l.sit.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(t?' · depois das 13h':'')+'</span>':'')+ultTxt(l.nome)+'</div>'
+        +'<div style="width:170px;display:flex;flex-direction:column"><b style="color:var(--tinta)">'+esc(titulo(l.nome))+'</b>'+(l.sit.em?'<span style="font-size:.74rem;'+(t?'color:#9f2a15;font-weight:800':'color:var(--muted)')+'">'+new Date(l.sit.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(t?' · depois das 13h':'')+'</span>':'')+'</div>'
+        +ultCol(l.nome)
         +'<span class="pill" style="background:'+c[0]+';color:'+c[1]+';min-width:96px;text-align:center">'+c[2]+'</span>'
-        +'<span style="flex:1 1 200px;font-size:.88rem;font-weight:600">'+esc(l.sit.det)+'</span>'
+        +'<span style="flex:1 1 200px;font-size:.88rem;font-weight:600">'+(detRepetido(l.sit.det,c[2])?'':esc(l.sit.det))+'</span>'
         +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k])).join("")+'</div></div>'; };
     // seções um embaixo da outra: Porto, Estagiários, Recife (e quem não está em nenhuma lista)
     const usados=new Set();
