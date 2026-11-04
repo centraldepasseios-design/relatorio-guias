@@ -1842,7 +1842,7 @@
   }
   async function consBuscar(){
     const i=document.getElementById("consRec"), b=document.getElementById("consBtn"), box=document.getElementById("consRes");
-    const n=String(i.value||"").replace(/\D/g,""); if(n.length<4){ alert("Digite o número da reserva."); return; }
+    const n=(String(i.value||"").match(/\d{4,}(?:\.\d{1,3})?/)||[""])[0]; if(!n){ alert("Digite o número da reserva."); return; }
     b.disabled=true; box.innerHTML='<div class="card" style="color:var(--muted)">Consultando a REC-'+n+' no Phoenix...</div>';
     try{
       const r=await chamarConsulta("reserva",{numero:n});
@@ -1875,6 +1875,7 @@
     return '<div class="card">'+alerta
       +'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px"><h3 style="font-size:1.25rem;font-weight:800">'+esc(r.codigo)+'</h3>'+(origem?'<span style="font-size:.8rem;color:var(--muted)">'+origem+'</span>':'')+'</div>'
       +linha("Cliente",esc(r.cliente||"-"))+linha("Telefone",tel)+linha("Idioma",esc(r.idioma||""))
+      +((r.relacionadas||[]).length?'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px"><span style="font-size:.78rem;color:var(--muted)">Outras vendas da mesma reserva:</span>'+r.relacionadas.map(x=>'<span class="chip" title="'+esc(x.status||"")+'" onclick="document.getElementById(\'consRec\').value=\''+esc(x.codigo)+'\';consBuscar()">'+esc(x.codigo)+(x.status?' · '+esc(x.status):'')+'</span>').join("")+'</div>':'')
       +'<div style="margin-top:12px;font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços</div>'+servs+'</div>';
   }
 
