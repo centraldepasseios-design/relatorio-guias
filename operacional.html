@@ -361,7 +361,8 @@
 
   function montarMenu(){
     const sb=document.getElementById("sbScroll"); sb.innerHTML="";
-    { const bloco=document.createElement("div"); bloco.className="sb-area";
+    // Início: só para a Central de Guias (e admin); Recife e Porto abrem direto na primeira aba deles
+    if(USUARIO.admin||(USUARIO.areas||[]).includes("central")){ const bloco=document.createElement("div"); bloco.className="sb-area";
       const d=document.createElement("div"); d.className="sb-item"; d.dataset.id="inicio";
       d.innerHTML='<span class="ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></svg></span> <span class="rotulo">Início</span>';
       d.onclick=()=>abrir("inicio","Início","",d); bloco.appendChild(d); sb.appendChild(bloco); }
