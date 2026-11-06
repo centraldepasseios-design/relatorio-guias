@@ -957,11 +957,16 @@
       +'<div class="resumo alerta"><div class="num">≈ '+tot.kmPerde.toLocaleString("pt-BR")+' km</div><div class="lbl">Que daria para poupar com as casadinhas possíveis</div></div>'
       +'<div class="resumo"><div class="num">'+media("ocupVans")+'%</div><div class="lbl">Ocupação média das vans</div></div></div>';
     const reg=(x,a)=>{ const r=x.regioes.find(y=>y.area===a); return r?(r.p?r.c+'/'+r.p:'—'):'—'; };
-    h+='<div class="card" style="overflow-x:auto"><table class="chk-tab" style="min-width:760px"><thead><tr><th>Dia</th><th>Motoristas</th><th>OUT</th><th>IN</th><th>Porto</th><th>Maragogi</th><th>Cabo</th><th>Sem par</th><th>Km vazio</th><th>Até 15 pax</th><th>Ocup. vans</th><th>Salvo por</th></tr></thead><tbody>'
-      +D.map(x=>'<tr><td style="font-weight:700">'+dataBR(x.data).slice(0,5)+'</td><td>'+x.motoristas+'</td><td>'+x.out+'</td><td>'+x.in+'</td><td>'+reg(x,"PGA")+'</td><td>'+reg(x,"MRG")+'</td><td>'+reg(x,"CABO")+'</td><td>'+x.semPar+'</td><td>'+Number(x.km).toLocaleString("pt-BR")+'</td><td>'+x.ate15+'%</td><td>'+x.ocupVans+'%</td><td style="color:var(--muted)">'+esc(x.por||"")+'</td></tr>').join("")
+    h+='<div class="card" style="overflow-x:auto"><table class="chk-tab" style="min-width:760px"><thead><tr><th>Dia</th><th>Motoristas</th><th>OUT</th><th>IN</th><th>Porto</th><th>Maragogi</th><th>Cabo</th><th>Sem par</th><th>Km vazio</th><th>Até 15 pax</th><th>Ocup. vans</th><th>Salvo por</th><th></th></tr></thead><tbody>'
+      +D.map(x=>'<tr><td style="font-weight:700">'+dataBR(x.data).slice(0,5)+'</td><td>'+x.motoristas+'</td><td>'+x.out+'</td><td>'+x.in+'</td><td>'+reg(x,"PGA")+'</td><td>'+reg(x,"MRG")+'</td><td>'+reg(x,"CABO")+'</td><td>'+x.semPar+'</td><td>'+Number(x.km).toLocaleString("pt-BR")+'</td><td>'+x.ate15+'%</td><td>'+x.ocupVans+'%</td><td style="color:var(--muted)">'+esc(x.por||"")+'</td><td><button class="btn sec mini" title="Apagar este dia do histórico" onclick="chkApagarDia(\''+x.data+'\')">🗑</button></td></tr>').join("")
       +'</tbody></table></div>';
     h+='<p style="font-size:.76rem;color:var(--muted)">"Que daria para poupar": cada casadinha possível e não feita = 2 viagens vazias (Porto 65 km, Maragogi 130 km, Cabo 35 km cada). É estimativa, pelos horários; não considera jornada nem porte do veículo.</p>';
     return h;
+  }
+  async function chkApagarDia(data){
+    if(!confirm("Apagar do histórico o dia "+dataBR(data)+"?")) return;
+    try{ await chamarPrevia({acao:"apagar",data}); delete CHK.hist[data.slice(0,7)]; chkDesenharHist(); }
+    catch(e){ alert("Não consegui apagar: "+e.message); }
   }
   async function chkCarregarHist(mes){
     if(CHK.carregandoHist===mes) return; CHK.carregandoHist=mes;
@@ -997,8 +1002,7 @@
       +'<div class="resumo"><div class="num">'+A.ocupVans+'%</div><div class="lbl">Ocupação média das vans</div></div></div>';
     const max=Math.max(1,...A.regioes.map(r=>r.p));
     h+='<div class="card"><h3 style="font-size:1rem;color:var(--tinta);margin-bottom:4px">Casadinhas: feitas × possíveis</h3><p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">Barra cheia: casadinhas da prévia. Contorno: o máximo que os horários de voo e coleta permitem.</p>';
-    for(const r of A.regioes) h+='<div class="chk-barra"><span class="nome">'+N[r.area]+'</span><div class="cont" style="width:'+Math.max(r.p/max*60,3)+'%"><div class="ench" style="width:'+(r.p?r.c/r.p*100:0)+'%"></div></div><span style="font-size:.82rem">'+(r.p?r.c+" de "+r.p:"sem par possível")+'</span>'
-      +(r.p>r.c?'<a href="#" style="font-size:.78rem;font-weight:700;color:var(--verde);margin-left:10px" onclick="document.getElementById(\'falta-'+r.area+'\').scrollIntoView({behavior:\'smooth\'});return false">faltam '+(r.p-r.c)+' · ver sugestões ↓</a>':'')+'</div>';
+    for(const r of A.regioes) h+='<div class="chk-barra"><span class="nome">'+N[r.area]+'</span><div class="cont" style="width:'+Math.max(r.p/max*60,3)+'%"><div class="ench" style="width:'+(r.p?r.c/r.p*100:0)+'%"></div></div><span style="font-size:.82rem">'+(r.p?r.c+" de "+r.p:"sem par possível")+'</span>'+'</div>';
     h+='</div><div class="card" style="overflow-x:auto"><table class="chk-tab" style="min-width:560px"><thead><tr><th>Região</th><th>Viagens</th><th>IN</th><th>OUT</th><th>Casadinhas</th><th>Possíveis</th><th>Sem par</th><th>Km vazio</th></tr></thead><tbody>';
     for(const r of A.regioes) h+='<tr><td style="font-weight:700">'+N[r.area]+'</td><td>'+r.v+'</td><td>'+r.i+'</td><td>'+r.o+'</td><td>'+r.c+'</td><td>'+r.p+'</td><td>'+r.s+'</td><td>'+r.km.toLocaleString("pt-BR")+'</td></tr>';
     h+='</tbody></table></div>';
