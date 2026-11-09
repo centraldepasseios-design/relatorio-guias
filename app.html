@@ -75,6 +75,15 @@
 <body>
 <div id="raiz"></div>
 <script>
+  // link do voo no FlightAware: ele só acha o voo certo com o código da companhia de 3 letras (ICAO).
+  // Ex.: G3 1586 -> GLO1586 (Gol). Companhia fora da lista: abre a busca do Google com o voo.
+  const ICAO={G3:"GLO",AD:"AZU",LA:"TAM",JJ:"TAM","2Z":"PTB",TP:"TAP",AR:"ARG",CM:"CMP",AA:"AAL",UA:"UAL",DL:"DAL",AF:"AFR",KL:"KLM",IB:"IBE",UX:"AEA",AV:"AVA",H2:"SKU",JA:"JAT",LH:"DLH"};
+  function linkVoo(v){
+    const m=String(v||"").toUpperCase().replace(/[\s-]/g,"").match(/^([A-Z0-9]{2})(\d{1,4})$/);
+    if(!m||!ICAO[m[1]]) return "https://www.google.com/search?q=voo+"+encodeURIComponent(v||"");
+    return "https://flightaware.com/live/flight/"+ICAO[m[1]]+m[2];
+  }
+
 const API="https://us-central1-operacional-luck.cloudfunctions.net/app";
 const S={t:localStorage.getItem("ag_t"),nome:localStorage.getItem("ag_nome"),pag:localStorage.getItem("ag_pag"),aba:"escala",dia:null,relDia:null,histFiltro:"atual",cache:{}};
 const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -166,7 +175,7 @@ function desenharEscala(servs){
       +(hoteis.length?'<span class="det">🏨 '+esc(hoteis.join(" · "))+'</span>':'')
       +(idi.length?'<span class="det" style="color:var(--chegada);font-weight:800">🌐 Idioma: '+esc(idi.join(", "))+'</span>':'')
       +obs.map(o=>'<span class="obs">📝 '+esc(o)+'</span>').join("")
-      +(l.tipo==="IN"&&voos.length?'<a class="peq" style="color:var(--chegada);font-weight:800" target="_blank" href="https://www.flightaware.com/live/flight/'+esc((rs[0].voo||""))+'">Rastrear voo ↗</a>':'')
+      +(l.tipo==="IN"&&voos.length?'<a class="peq" style="color:var(--chegada);font-weight:800" target="_blank" href="'+esc(linkVoo(rs[0].voo))+'">Rastrear voo ↗</a>':'')
       +'</div></div>';
     anterior=l;
   }
