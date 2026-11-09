@@ -175,7 +175,10 @@ function desenharEscala(servs){
       +(hoteis.length?'<span class="det">🏨 '+esc(hoteis.join(" · "))+'</span>':'')
       +(idi.length?'<span class="det" style="color:var(--chegada);font-weight:800">🌐 Idioma: '+esc(idi.join(", "))+'</span>':'')
       +obs.map(o=>'<span class="obs">📝 '+esc(o)+'</span>').join("")
-      +(l.tipo==="IN"&&voos.length?'<a class="peq" style="color:var(--chegada);font-weight:800" target="_blank" href="'+esc(linkVoo(rs[0].voo))+'">Rastrear voo ↗</a>':'')
+      +(l.tipo==="IN"&&voos.length?(()=>{ // um botão para cada voo diferente do IN
+        const vs=uniq(rs.map(r=>String(r.voo||"").trim()).filter(Boolean));
+        return '<span style="display:flex;gap:14px;flex-wrap:wrap">'+vs.map(v=>'<a class="peq" style="color:var(--chegada);font-weight:800" target="_blank" href="'+esc(linkVoo(v))+'">Rastrear '+(vs.length>1?esc(v)+' ':'voo ')+'↗</a>').join("")+'</span>';
+      })():'')
       +'</div></div>';
     anterior=l;
   }

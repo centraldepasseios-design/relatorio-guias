@@ -541,7 +541,7 @@
           legs.push({id:id++,r,sh:r.sh,kind:"OUT",code,area:CHK_AREA[code]||code,start,end:start+(CHK_ROAD[code]||60),deadline:start,startLoc:code,endLoc:"AIR",flight:null,semVoo:true,
             intl:new Set(),pax:+r.paxo||0,nh:chkHoteis(r.hout),priv:/PRIVATIVO|\bPRIV\b|\bPVT\b/i.test(r.outtxt),voos:[],pick:chkPick(r.outtxt),junto:/JUNTO/i.test(r.outtxt)});
         } else {
-          const dur=/MARAGOGI|JAPARATINGA/.test(t)?(/\bPORTO\b/.test(t)?100:170):/\bPORTO\b|\bPGA\b/.test(t)&&/RECIFE|BOA VIAGEM|PIEDADE|AEROPORTO|IBIS/.test(t)?90:60;
+          const dur=/MARAGOGI|JAPARATINGA/.test(t)?170:/\bPORTO\b|\bPGA\b/.test(t)&&/RECIFE|BOA VIAGEM|PIEDADE|AEROPORTO|IBIS/.test(t)?90:60;
           const partes=String(r.outtxt).split("\n")[0].split("/");
           const lA=chkAreaTexto(partes[0]), lB=partes.length>1?chkAreaTexto(partes.slice(1).join("/")):lA;
           const lApoio=/APOIO|GARAGEM/.test(t)?(/\bPORTO\b/.test(t)?"PGA":/RECIFE|PRAZERES/.test(t)?"AIR":null):null;
@@ -570,12 +570,6 @@
   function chkViagens(legs){
     const trips=[];
     for(const L of legs){
-      if(L.kind!=="EXTRA"||L.apoio||!L.r.veic||L.start==null) continue;
-      const o=legs.find(x=>x.kind==="OUT"&&x.r.veic===L.r.veic&&x.r.mot===L.r.mot&&x.start!=null&&x.end!=null&&L.start>=x.start-20&&L.start<=x.end-(CHK_ROAD[x.code]||60)+20&&(!L.startLoc||CHK_AREA[L.startLoc]===x.area||L.startLoc===x.code));
-      if(o){ L.juntoOut=o; o.posAero=20; o.extraJunto=(o.extraJunto||[]).concat(L.r.linha); }
-    }
-    legs=legs.filter(L=>!L.juntoOut);
-    for(const L of legs){
       if(L.start==null) { trips.push(Object.assign({},L,{linhas:[L.r.linha],rows:[L.r],intl:new Set(L.intl||[]),privs:[L.priv],juntos:[L.junto]})); continue; }
       const t=L.r.veic&&trips.find(t=>t.kind===L.kind&&t.kind!=="EXTRA"&&t.sh===L.sh&&t.r.veic===L.r.veic&&t.r.mot===L.r.mot&&t.area===L.area&&t.start!=null&&Math.abs(t.start-L.start)<=30);
       if(t){
@@ -589,8 +583,6 @@
     return trips;
   }
 
-  // ordem do dia: no IN conta a hora em que o motorista precisa estar no aeroporto (pax saindo)
-  const chkOrd=t=>t.kind==="IN"?t.deadline-1:t.start;
   function chkRef(t){ return (t.sh==="N"?"Noite":"Dia")+" L"+t.linhas.join("/")+(t.r.mot?" · "+titulo(t.r.mot):"")+(t.r.veic?" · "+t.r.veic:""); }
   function chkDesc(t){
     if(t.kind==="EXTRA") return t.txt+" "+chkHora(t.start);
@@ -610,7 +602,7 @@
       const intl=t.intl.has(true); let status="OK", margem=null;
       if(t.start==null) status="Sem horário";
       else if(t.flight!=null){ margem=t.flight-t.end;
-        if(margem<(intl?CHK_P.intR:CHK_P.domR)) status="Risco"; else if(margem<(intl?CHK_P.intA:CHK_P.domA)) status="Atenção"; else if(margem>CHK_P.esperaLonga&&!t.priv) status="Espera longa"; }
+        if(margem<(intl?CHK_P.intR:CHK_P.domR)) status="Risco"; else if(margem<(intl?CHK_P.intA:CHK_P.domA)) status="Atenção"; else if(margem>CHK_P.esperaLonga) status="Espera longa"; }
       const pick=t.pick!=null?chkAbs(t.pick,t.sh):null;
       if(pick!=null&&t.start!=null&&Math.abs(pick-t.start)>=10&&status!=="Risco") status="Ajustar coleta";
       margens.push({t,status,margem,pick});
@@ -625,7 +617,7 @@
     // 2) lotação, privativo junto, internacional com doméstico
     for(const t of road){
       const c=chkCap(t.r.veic), ref=chkRef(t), tu=t.sh==="N"?"noite":"dia";
-      if(t.pax>c.cap&&!(t.privs.length>1&&t.privs.some(x=>x))&&!t.rows.some(r=>new RegExp("PARA "+t.pax+" PAX","i").test(r.outtxt+" "+r.intxt))) add(tu,"conferir","Lotação",ref,chkDesc(t)+" num "+c.tipo+" (limite "+c.cap+").","Confirmar se há criança ou trocar o veículo.");
+      if(t.pax>c.cap&&!(t.privs.length>1&&t.privs.some(x=>x))) add(tu,"conferir","Lotação",ref,chkDesc(t)+" num "+c.tipo+" (limite "+c.cap+").","Confirmar se há criança ou trocar o veículo.");
       if(t.privs.length>1&&t.privs.some(x=>x)&&!t.juntos.some(x=>x)) add(tu,"conflito",t.privs.every(x=>x)?"Privativos juntos":"Privativo com regular",ref,chkDesc(t)+" — "+t.privs.length+" reservas na mesma viagem, sendo "+t.privs.filter(x=>x).length+" privativa(s).","Separar: privativo não junta com regular nem com outro privativo.");
       if(t.intl.size>1) add(tu,"conflito","Internacional com doméstico",ref,chkDesc(t)+".","Separar ou confirmar a exceção.");
       const porNum={}; for(const x of t.voos){ (porNum[x.voo]=porNum[x.voo]||new Set()).add(x.t); }
@@ -646,7 +638,7 @@
         if([...t.intl][0]!==[...u.intl][0]&&t.intl.size&&u.intl.size) continue;
         const c=chkCap(t.r.veic); if(t.pax+u.pax>c.cap||t.nh+u.nh>8) continue;
         const ok=u.kind==="IN"? Math.abs(t.flight-u.flight)<25 : (t.end!=null&&u.end!=null&&Math.abs(t.end-u.end)<=15&&t.flight!=null&&u.flight!=null&&Math.abs(t.flight-u.flight)<25);
-        if(ok) opcoes.push({txt:"Juntar com "+titulo(t.r.mot)+" ("+t.r.veic+", "+t.pax+" pax): fica "+(t.pax+u.pax)+"/"+c.cap+" e "+(t.nh+u.nh)+" hotéis.",score:-5});
+        if(ok) opcoes.push({txt:"Juntar com "+titulo(t.r.mot)+" ("+t.r.veic+", "+t.pax+" pax): fica "+(t.pax+u.pax)+"/"+c.cap+" e "+(t.nh+u.nh)+" hotéis.",score:5});
       }
       // encaixe na agenda de um motorista
       for(const [mot,ts0] of Object.entries(porMot)){
@@ -657,11 +649,11 @@
           const p=ts[i-1], n=ts[i];
           if(p&&p.end==null) continue;
           const veic=(p||n).r.veic, c=chkCap(veic);
-          if(u.pax>c.cap&&!(u.r.veic&&chkCap(u.r.veic).tipo===c.tipo)) continue;
+          if(u.pax>c.cap) continue;
           const pede=chkNorm(u.r.outtxt+" "+u.r.intxt);
           if(/SEDAN|SUV|HAVAL/.test(pede)&&c.tipo!=="Localiza") continue;
           if(/PRIV(ATIVO)? VAN|\bVAN\b/.test(pede)&&c.tipo==="Localiza") continue;
-          const chega=p? p.end+(p.posAero||0)+chkViagem(p.endLoc,u.startLoc) : null;
+          const chega=p? p.end+chkViagem(p.endLoc,u.startLoc) : null;
           if(p&&chega>u.deadline) continue;
           if(n&&u.end+chkViagem(u.endLoc,n.startLoc)>n.deadline) continue;
           if(!p&&n&&n.start-u.end>120) continue;
@@ -670,7 +662,7 @@
           const vazio=(p?chkViagem(p.endLoc,u.startLoc):0)+(n?chkViagem(u.endLoc,n.startLoc):0)-(p&&n?chkViagem(p.endLoc,n.startLoc):0);
           const espera=p? u.deadline-chega : 0;
           const porte=(c.cap-u.pax>12?25:0)+(u.priv&&u.pax<=3&&c.tipo!=="Localiza"?15:0);
-          opcoes.push({txt:titulo(mot)+" ("+veic+")"+(p?": termina "+chkDesc(p).split(" (")[0]+" ~"+chkHora(p.end)+(p.endLoc==="AIR"?" no aeroporto":p.endLoc?" em "+p.endLoc:""):"")+(n?(p?" e ":": ")+"o próximo serviço é "+chkHora(n.start):"")+".",score:vazio+espera/8+porte+(p&&p.kind==="EXTRA"?25:0)+(n&&n.kind==="EXTRA"?10:0)+(u.r.veic&&chkCap(u.r.veic).tipo!==c.tipo?15:0)});
+          opcoes.push({txt:titulo(mot)+" ("+veic+")"+(p?": termina "+chkDesc(p).split(" (")[0]+" ~"+chkHora(p.end)+(p.endLoc&&p.endLoc!=="AIR"?" em "+p.endLoc:" no aeroporto"):"")+(n?(p?" e ":": ")+"o próximo serviço é "+chkHora(n.start):"")+".",score:vazio+espera/4+porte});
           break;
         }
       }
@@ -679,42 +671,28 @@
     };
     const folgas={};
     for(const [mot,ts] of Object.entries(porMot)){
-      ts.sort((a,b)=>chkOrd(a)-chkOrd(b));
+      ts.sort((a,b)=>a.start-b.start);
       for(let i=0;i+1<ts.length;i++){
         const a=ts[i], b=ts[i+1]; if(a.end==null) continue;
-        const chega=a.end+(a.posAero||0)+chkViagem(a.endLoc,b.startLoc), folga=b.deadline-chega;
+        const chega=a.end+chkViagem(a.endLoc,b.startLoc), folga=b.deadline-chega;
         folgas[a.id]=folga;
         if(a.kind==="EXTRA"&&b.kind==="EXTRA") continue;
         const tu=b.sh==="N"?"noite":"dia";
         const txt=chkDesc(a)+" termina ~"+chkHora(a.end)+(a.endLoc&&a.endLoc!=="AIR"?" em "+a.endLoc:"")+"; "+chkDesc(b)+(b.kind==="IN"?" (pax saindo ~"+chkHora(b.deadline)+")":"")+".";
-        if(folga<-15) add(tu,"conflito",a.r.veic!==b.r.veic?"Motorista em dois veículos":(a.kind==="IN"&&b.kind==="OUT"?"Casadinha não fecha":"Horários não fecham"),"L"+a.linhas.join("/")+" → L"+b.linhas.join("/")+" · "+titulo(mot),txt+" Faltam ~"+chkDur(-folga)+".",(()=>{ if(a.kind==="OUT"&&a.flight!=null){ const nova=a.flight-a.end-folga, lim=a.intl.has(true)?CHK_P.intA:CHK_P.domA; if(-folga<=60&&a.flight-(a.end+folga)>=lim) return "Antecipar a coleta do OUT em ~"+chkDur(-folga)+": ainda chega "+chkDur(a.flight-(a.end+folga))+" antes do voo."; } const o=chkOp(b,mot); return o.length?(/^Juntar/.test(o[0].txt)?"Tirar "+chkDesc(b).split(" · ")[0]+" daqui e "+o[0].txt.charAt(0).toLowerCase()+o[0].txt.slice(1):"Passar "+chkDesc(b).split(" · ")[0]+" para "+o[0].txt.replace(/\.$/,"")+"."):"Passar um dos serviços para outro motorista ou ajustar o horário."; })(),"mot-"+mot+"-"+a.id);
-        else if(folga<10&&!a.apoio&&!b.apoio) add(tu,"horario","Apertado","L"+a.linhas.join("/")+" → L"+b.linhas.join("/")+" · "+titulo(mot),txt+(folga<0?" Atraso de ~"+chkDur(-folga)+".":" Folga de ~"+chkDur(folga)+"."),"Avisar o motorista.","apt-"+mot+"-"+a.id);
+        if(folga<-15) add(tu,"conflito",a.r.veic!==b.r.veic?"Motorista em dois veículos":(a.kind==="IN"&&b.kind==="OUT"?"Casadinha não fecha":"Horários não fecham"),"L"+a.linhas.join("/")+" → L"+b.linhas.join("/")+" · "+titulo(mot),txt+" Faltam ~"+chkDur(-folga)+".",(()=>{ if(a.kind==="OUT"&&a.flight!=null){ const nova=a.flight-a.end-folga, lim=a.intl.has(true)?CHK_P.intA:CHK_P.domA; if(nova+folga>=0&&a.flight-(a.end+folga)>=lim) return "Antecipar a coleta do OUT em ~"+chkDur(-folga)+": ainda chega "+chkDur(a.flight-(a.end+folga))+" antes do voo."; } const o=chkOp(b,mot); return o.length?(/^Juntar/.test(o[0].txt)?"Tirar "+chkDesc(b).split(" · ")[0]+" daqui e "+o[0].txt.charAt(0).toLowerCase()+o[0].txt.slice(1):"Passar "+chkDesc(b).split(" · ")[0]+" para "+o[0].txt.replace(/\.$/,"")+"."):"Passar um dos serviços para outro motorista ou ajustar o horário."; })(),"mot-"+mot+"-"+a.id);
+        else if(folga<10) add(tu,"horario","Apertado","L"+a.linhas.join("/")+" → L"+b.linhas.join("/")+" · "+titulo(mot),txt+(folga<0?" Atraso de ~"+chkDur(-folga)+".":" Folga de ~"+chkDur(folga)+"."),"Avisar o motorista.","apt-"+mot+"-"+a.id);
       }
     }
     const porVei={}; for(const t of trips) if(t.start!=null&&t.r.veic) (porVei[t.r.veic]=porVei[t.r.veic]||[]).push(t);
     for(const [vei,ts] of Object.entries(porVei)){
       if(/^(LOCALIZA|VAN|MICRO|MICRAO|BUS)$/i.test(chkNorm(vei))){ add(ts[0].sh==="N"?"noite":"dia","conferir","Veículo sem número",chkRef(ts[0]),"Veículo lançado só como \""+vei+"\".","Completar o número do veículo."); continue; }
-      ts.sort((a,b)=>chkOrd(a)-chkOrd(b));
-      const probs=[];
+      ts.sort((a,b)=>a.start-b.start);
       for(let i=0;i+1<ts.length;i++){
         const a=ts[i], b=ts[i+1]; if(a.r.mot===b.r.mot||a.end==null) continue;
-        const folga=b.deadline-(a.end+(a.posAero||0)+chkViagem(a.endLoc,b.startLoc));
-        if(folga<10&&!(a.apoio||b.apoio)) probs.push({a,b,folga});
+        const folga=b.deadline-(a.end+chkViagem(a.endLoc,b.startLoc));
+        if(folga<10) add(b.sh==="N"?"noite":"dia",folga<-15?"conflito":"horario","Troca de veículo",vei+" · "+titulo(a.r.mot)+" → "+titulo(b.r.mot),titulo(a.r.mot)+" termina "+chkDesc(a)+" ~"+chkHora(a.end)+" e "+titulo(b.r.mot)+" precisa do "+vei+" para "+chkDesc(b)+".",folga<-15?"Trocar o veículo de um deles.":"Apertado; avisar os dois.","vei-"+vei+"-"+a.id);
       }
-      if(!probs.length) continue;
-      const grave=probs.some(x=>x.folga<-15), x0=probs.find(x=>x.folga<-15)||probs[0];
-      const mots=[...new Set(probs.flatMap(x=>[x.a.r.mot,x.b.r.mot]))].map(titulo);
-      const txt=probs.map(x=>titulo(x.a.r.mot)+" termina "+chkDesc(x.a)+" ~"+chkHora(x.a.end)+" e "+titulo(x.b.r.mot)+" precisa do carro para "+chkDesc(x.b)+(x.folga<0?" (faltam ~"+chkDur(-x.folga)+")":"")).join("; ")+".";
-      let sug="Apertado; avisar os dois.";
-      if(grave){ const o=chkOp(x0.b,x0.b.r.mot).filter(o=>!/^Juntar/.test(o.txt)); sug=o.length?"Passar "+chkDesc(x0.b).split(" · ")[0]+" para "+o[0].txt.replace(/\.$/,"")+".":"Trocar o veículo de um deles."; }
-      add(x0.b.sh==="N"?"noite":"dia",grave?"conflito":"horario","Troca de veículo",vei+" · "+mots.join(" / "),txt,sug,"vei-"+vei);
     }
-
-    // voo com horários diferentes em linhas diferentes
-    { const vh={}; for(const t of road) for(const v of t.voos){ (vh[v.voo]=vh[v.voo]||[]).push({t,h:v.t}); }
-      for(const [voo,L] of Object.entries(vh)){ const hs=[...new Set(L.map(x=>x.h))]; if(hs.length<2) continue;
-        const ls=[...new Set(L.map(x=>x.t))]; if(ls.length<2) continue;
-        add(L[0].t.sh==="N"?"noite":"dia","conferir","Voo com dois horários",voo,"O "+voo+" aparece com "+hs.map(chkHora).join(" e ")+": "+ls.map(t=>(t.sh==="N"?"Noite":"Dia")+" L"+t.linhas.join("/")+(t.r.mot?" "+titulo(t.r.mot):"")).join(", ")+".","Confirmar o horário certo do voo."); } }
 
     // 4) sem veículo: encaixe em quem já está na escala
     const semV=chkViagens(chkTrechos(rows.filter(r=>!r.veic&&!/APOIO/i.test(r.outtxt))));
@@ -789,128 +767,7 @@
     const cont={}; for(const it of itens){ const base=it.cat+"|"+it.tipo+"|"+it.ref; cont[base]=(cont[base]||0)+1; it.id=base+"|"+cont[base]; }
     return {itens,margens,trips,porMot,folgas,aprov,resumo};
   }
-  // ---- Checagem da prévia: mapa de serviço do Phoenix (Excel/HTML ou JSON) ----
-  function chkPhxRec(c,data){
-    const pax=String(c.pax||"").split("/").reduce((s,x)=>s+(+x||0),0);
-    const voo=String(c.voo||"").toUpperCase().replace(/\s*-\s*/,"-").replace(/\s+/g,"");
-    return {codigo:(c.codigo||"").trim(),modo:c.modo||"",tipo:chkNorm(c.tipo),servico:c.servico||"",cliente:c.cliente||"",
-      voo:/^[A-Z0-9]{2}-\d+$/.test(voo)&&!/^RG-/.test(voo)?voo.replace("-"," "):"",hVoo:chkMin(c.hVoo),hApr:chkMin(c.hApr),
-      origem:c.origem||"",destino:c.destino||"",parceiro:c.parceiro||"",pax,veic:(c.veic&&c.veic!=="-")?String(c.veic).trim():"",
-      mot:(c.mot&&c.mot!=="-")?chkNorm(c.mot):"",data:data||"",obs:""};
-  }
-  const CHK_PHX_COLS=["codigo","voucher","modo","tipo","servico","cliente","doc","tel","voo","idioma","hVoo","hApr","hAprF","origem","destino","parceiro","pax","adicional","veic","guia","mot","vendedor","grupo"];
-  function chkPhxLer(texto){
-    const t=texto.replace(/^\uFEFF/,"").trim(), recs=[], obsPor={};
-    if(t.startsWith("{")||t.startsWith("[")){
-      const obj=JSON.parse(t), linhas=Array.isArray(obj)?obj:Object.keys(obj).sort((a,b)=>a-b).map(k=>obj[k]);
-      let data="", last=null;
-      for(const v of linhas){
-        const arr=[]; for(let i=0;i<40;i++){ if(("col_"+i) in v) arr.push(v["col_"+i]); else break; }
-        const c0=String(arr[0]||"");
-        if(arr.length===1&&/^\d{2}\/\d{2}\/\d{4}$/.test(c0)){ data=c0; continue; }
-        if(/^Observa/i.test(c0)){ if(last) (obsPor[last.codigo]=obsPor[last.codigo]||[]).push(c0); continue; }
-        let a=arr; if(a.length===22) a=[last?last.codigo:""].concat(a);
-        if(a.length<23) continue;
-        const c={}; CHK_PHX_COLS.forEach((k,i)=>c[k]=a[i]);
-        last=chkPhxRec(c,data); recs.push(last);
-      }
-    } else {
-      const doc=new DOMParser().parseFromString(t,"text/html");
-      const SEQ={0:"codigo",1:"voucher",5:"modo",6:"tipo",7:"servico",8:"cliente",11:"voo",13:"hVoo",14:"hApr",16:"origem",17:"destino",18:"parceiro",19:"pax",21:"veic",22:"guia",23:"mot"};
-      let data="", last=null;
-      for(const tr of doc.querySelectorAll("tr")){
-        const txt=tr.textContent.trim();
-        if(tr.classList.contains("kv-grid-group-row")&&/^\d{2}\/\d{2}\/\d{4}$/.test(txt)){ data=txt; continue; }
-        if(/^Observa/i.test(txt)){ if(last) (obsPor[last.codigo]=obsPor[last.codigo]||[]).push(txt.split("\n")[0]); continue; }
-        if(!tr.hasAttribute("data-key")) continue;
-        const c={};
-        for(const td of tr.querySelectorAll("td[data-col-seq]")){ const k=SEQ[td.getAttribute("data-col-seq")]; if(k) c[k]=td.textContent.trim(); }
-        if(!c.codigo) c.codigo=last?last.codigo:"";
-        last=chkPhxRec(c,data); recs.push(last);
-      }
-    }
-    for(const r of recs) r.obs=(obsPor[r.codigo]||[]).join(" ").replace(/Observa[çc][ãa]o:\s*/gi,"");
-    return recs;
-  }
 
-  function chkHotelNorm(h){ return chkNorm(String(h||"").split("(")[0].split("|")[0]).replace(/[^A-Z0-9 ]/g," ").replace(/\b(POUSADA|HOTEL|RESORT|FLAT|FLATS|BY AFT|GAV|PORTO DE GALINHAS|BEACH)\b/g," ").replace(/\s+/g," ").trim(); }
-  function chkHotelIgual(a,b){ if(!a||!b) return false; if(a===b) return true; const m=Math.min(a.length,b.length,12); return m>=5&&(a.startsWith(b.slice(0,m))||b.startsWith(a.slice(0,m))); }
-
-  // compara o mapa do Phoenix com a prévia e devolve itens no mesmo formato dos outros
-  function chkCompararPhoenix(rows,recs){
-    const itens=[]; const add=(turno,cat,tipo,ref,found,action)=>itens.push({turno,cat,tipo,ref,found,action});
-    const datas=[...new Set(recs.map(r=>r.data).filter(Boolean))].sort((a,b)=>a.split("/").reverse().join("").localeCompare(b.split("/").reverse().join("")));
-    const D=datas[datas.length-1]||"", Dm1=datas.length>1?datas[datas.length-2]:"";
-    // serviços da prévia (uma entrada por voo da linha)
-    const prev=[];
-    for(const r of rows){
-      for(const [k,txt,hs,hora] of [["OUT",r.outtxt,r.hout,r.col1],["IN",r.intxt,r.hinH,r.hin]]){
-        const sv=chkServicos(txt); const hot=String(hs||"").split("+").map(chkHotelNorm).filter(Boolean);
-        const [a,b]=chkColeta(hora);
-        for(const s of sv) prev.push({r,kind:k,voo:s.voo,t:s.t,hot,col:[a,b],priv:/PRIVATIVO/i.test(txt),code:s.code});
-        const rec=String(txt||"").match(/REC-\d+/g)||[];
-        if(!sv.length&&rec.length) prev.push({r,kind:k,voo:"",t:chkMin(hora),hot,col:[a,b],priv:/PRIV/i.test(txt),code:""});
-        prev.filter(p=>p.r===r&&p.kind===k).forEach(p=>p.recs=rec);
-      }
-    }
-    const ehApoio=p=>/APOIO|GARAGEM|DISPOSI|STAND|FUNC/i.test(p.servico+" "+p.parceiro);
-    const turnoDe=(p,m)=> m? (m.r.sh==="N"?"noite":"dia") : (p.data===Dm1||((p.tipo==="IN"?p.hVoo:p.hApr)!=null&&(p.tipo==="IN"?p.hVoo:p.hApr)<360)?"noite":"dia");
-    const refP=p=>p.codigo+" · "+(p.tipo==="OUT"?chkHotelNorm(p.origem):chkHotelNorm(p.destino))+(p.voo?" · "+p.voo+" "+chkHora(p.hVoo):"");
-    const linha=m=>(m.r.sh==="N"?"Noite":"Dia")+" L"+m.r.linha+(m.r.mot?" "+titulo(m.r.mot):"")+(m.r.veic?" ("+m.r.veic+")":"");
-    const semVeicNoite=[], vistosP=new Set(), veicDif={}, foraPrev={};
-    const usados=new Set();
-    for(const p of recs){
-      if(!p.codigo||!(p.tipo==="IN"||p.tipo==="OUT")||ehApoio(p)) continue;
-      const hora=p.tipo==="IN"?p.hVoo:p.hApr;
-      if(p.data===Dm1&&(hora||0)<17*60){
-        const m0=prev.find(x=>(x.recs||[]).includes(p.codigo));
-        if(m0&&m0.r.sh==="D") add("dia","conferir","Data diferente",refP(p),"No Phoenix esta reserva está em "+p.data+" ("+chkHora(hora)+"), mas a prévia leva no dia "+D+" ("+linha(m0)+").","Confirmar o dia com o box.");
-        continue;
-      }
-      if(p.data!==D&&p.data!==Dm1) continue;
-      const chave=p.codigo+p.tipo+p.voo+p.data; if(vistosP.has(chave)) continue; vistosP.add(chave);
-      const hotel=chkHotelNorm(p.tipo==="OUT"?p.origem:p.destino);
-      const cancel=/N[ÃA]O ESCALAR|DISPENSOU|\bCLD\b|CANCELAD|NO.?SHOW/i.test(p.obs);
-      let cands=prev.filter(x=>x.kind===p.tipo&&((x.recs||[]).includes(p.codigo)||(p.voo&&x.voo===p.voo&&x.hot.some(h=>chkHotelIgual(h,hotel)))));
-      if(!cands.length&&p.voo){
-        const antes=(p.obs.match(/ANTES[^/]{0,40}/i)||[""])[0].replace(/\s*-\s*/g," ").toUpperCase();
-        cands=prev.filter(x=>{ if(x.kind!==p.tipo||x.voo===p.voo) return false;
-          if(antes&&antes.includes(x.voo)) return x.hot.some(h=>chkHotelIgual(h,hotel));
-          const d=Math.abs(x.t-p.hVoo)%1440, dd=Math.min(d,1440-d);
-          return p.mot&&x.r.mot===p.mot&&dd<=180&&x.hot.some(h=>chkHotelIgual(h,hotel)); }).map(x=>Object.assign({},x,{vooDif:true}));
-      }
-      const m=cands.find(x=>x.r.mot&&x.r.mot===p.mot)||cands.find(x=>x.r.veic)||cands[0];
-      if(m) usados.add(m.r.sh+m.r.linha+m.kind);
-      const tu=turnoDe(p,m);
-      if(cancel){ if(m&&m.r.veic) add(tu,"conflito","Cancelado no roteiro",refP(p),"No Phoenix: \""+p.obs.slice(0,140)+"\". Na prévia ainda está em "+linha(m)+".","Tirar da prévia (ou confirmar com o box)."); continue; }
-      if(/\b(\d)\s*D[AE]S?\s*(\d)\s*PAX|SOMENTE\s*0?\d+\s*PAX/i.test(p.obs)) add(tu,"conferir","Pax diferente",refP(p),"Observação do Phoenix: \""+p.obs.slice(0,140)+"\".","Conferir quantos pax viajam.");
-      if(!m){
-        if(p.data===D&&p.tipo==="IN"&&p.hVoo!=null&&p.hVoo>=18*60+45&&!p.veic){ semVeicNoite.push(p); continue; }
-        if(!p.voo&&!hora) continue;
-        if(p.veic){ const k=p.mot+"|"+p.veic+"|"+p.tipo; (foraPrev[k]=foraPrev[k]||[]).push({tu,p}); continue; }
-        add(tu,p.veic?"conferir":"semveic","Não está na prévia",refP(p),(p.tipo==="IN"?"IN ":"OUT ")+(p.voo||"")+" "+chkHora(p.tipo==="IN"?p.hVoo:p.hApr)+" · "+p.pax+" pax ("+p.parceiro+")"+(p.veic?" — no Phoenix com "+titulo(p.mot)+" ("+p.veic+")":" — sem veículo no Phoenix")+".",p.veic?"Conferir se a prévia precisa dessa reserva.":"Reserva nova ou mudada: encaixar.");
-        continue;
-      }
-      if(m.vooDif) add(tu,"conferir","Voo mudou",refP(p),"No Phoenix o voo é "+p.voo+" "+chkHora(p.hVoo)+"; na prévia ("+linha(m)+") está "+m.voo+" "+chkHora(m.t)+(/ANTES/i.test(p.obs)?". Obs.: \""+p.obs.match(/ANTES[^/]{0,60}/i)[0]+"\"":"")+".","Recalcular a viagem desse motorista com o voo novo.");
-      if(p.veic&&m.r.veic&&chkNorm(p.veic)!==chkNorm(m.r.veic)){
-        if(p.mot&&p.mot===m.r.mot){ const k=p.mot+"|"+p.veic+"|"+m.r.veic; (veicDif[k]=veicDif[k]||{p,m,tu,n:0}).n++; }
-        else add(tu,"conferir","Motorista diferente",refP(p),"No Phoenix: "+titulo(p.mot)+" ("+p.veic+"). Na prévia: "+linha(m)+".","Corrigir no Phoenix ou na prévia (pode ser junção já aplicada).");
-      }
-      if(p.tipo==="OUT"&&p.hApr!=null&&m.col[0]!=null&&(p.hApr<m.col[0]-10||p.hApr>m.col[1]+10)) add(tu,"horario","Coleta diferente do Phoenix",refP(p),"Phoenix coleta "+chkHora(p.hApr)+"; a prévia ("+linha(m)+") coleta "+chkHora(m.col[0])+(m.col[1]!==m.col[0]?"→"+chkHora(m.col[1]):"")+".","Seguir o Phoenix (horário pedido pelo pax) e corrigir a prévia.");
-    }
-    const grupos=[];
-    for(const L of Object.values(foraPrev)){ L.sort((x,y)=>(x.p.tipo==="IN"?x.p.hVoo:x.p.hApr)-(y.p.tipo==="IN"?y.p.hVoo:y.p.hApr)); let g=null;
-      for(const x of L){ const h=x.p.tipo==="IN"?x.p.hVoo:x.p.hApr; if(!g||h-g.h0>45){ g={tu:x.tu,p:x.p,lista:[],h0:h}; grupos.push(g); } g.lista.push(x.p); } }
-    for(const {tu,p,lista} of grupos){
-      const pax=lista.reduce((s,x)=>s+x.pax,0), voos=[...new Set(lista.map(x=>x.voo+" "+chkHora(x.tipo==="IN"?x.hVoo:x.hApr)))].join(", ");
-      add(tu,"conferir","Não está na prévia",titulo(p.mot)+" ("+p.veic+")",lista.length===1?refP(p)+": "+p.tipo+" "+voos+" · "+pax+" pax — no Phoenix com "+titulo(p.mot)+", mas não aparece na prévia.":p.tipo+" "+voos+": "+lista.length+" reservas ("+pax+" pax) no Phoenix com "+titulo(p.mot)+" que não aparecem na prévia — "+lista.map(x=>x.codigo).join(", ")+".","Conferir se a prévia está desatualizada para esse motorista.");
-    }
-    for(const {p,m,tu,n} of Object.values(veicDif)) add(tu,"conferir","Veículo diferente",titulo(p.mot),"Na prévia "+titulo(p.mot)+" está com "+m.r.veic+" e no Phoenix com "+p.veic+" ("+n+" reserva"+(n>1?"s":"")+").","Acertar o veículo em um dos dois.");
-    if(semVeicNoite.length){ const pax=semVeicNoite.reduce((s,p)=>s+p.pax,0);
-      add("dia","semveic","INs da noite sem veículo","Noite de "+D,semVeicNoite.length+" INs ("+pax+" pax) a partir das "+chkHora(Math.min(...semVeicNoite.map(p=>p.hVoo)))+" ainda sem veículo no Phoenix.","Só informativo: entram na próxima prévia da noite."); }
-    const cont={}; for(const it of itens){ const base="phx|"+it.cat+"|"+it.tipo+"|"+it.ref; cont[base]=(cont[base]||0)+1; it.id=base+"|"+cont[base]; it.fonte="phoenix"; }
-    return {itens,dia:D,total:recs.length};
-  }
   // ---- Checagem da prévia: tela ----
   let CHK={arquivo:"",chave:"",res:null,turno:"dia",aba:"itens",filtro:"todos",mot:"",resp:{}};
   const CHK_CAT={
@@ -963,11 +820,7 @@
       m.innerHTML=`<div class="card" style="max-width:760px">
         <h3 style="font-size:1.05rem;color:var(--tinta);margin-bottom:6px">Enviar a prévia de escala</h3>
         <p style="font-size:.88rem;color:var(--muted);margin-bottom:16px;line-height:1.5">Escolha o arquivo "Prévia de Escala Luck REC" (.xlsx). A conferência roda aqui no navegador e lê as abas Noite e Dia.</p>
-        <label style="display:block;font-size:.82rem;font-weight:700;margin-bottom:4px">Prévia de escala (.xlsx)</label>
-        <div class="barra-busca"><input type="file" id="chkArq" accept=".xlsx,.xls"></div>
-        <label style="display:block;font-size:.82rem;font-weight:700;margin-bottom:4px">Mapa de Serviço do Phoenix (opcional · Excel, HTML ou JSON)</label>
-        <p style="font-size:.78rem;color:var(--muted);margin-bottom:6px">No Phoenix: Mapa de Serviço com IN, OUT e TRANSFER, do dia de hoje e de amanhã, todos os registros na página, exportar em Excel.</p>
-        <div class="barra-busca"><input type="file" id="chkPhx" accept=".xls,.html,.htm,.json"><button class="btn" id="chkBtn" onclick="chkProcessar()">Conferir prévia</button></div>
+        <div class="barra-busca"><input type="file" id="chkArq" accept=".xlsx,.xls"><button class="btn" id="chkBtn" onclick="chkProcessar()">Conferir prévia</button></div>
         <div id="chkMsg" style="font-size:.85rem;color:var(--muted)"></div>
         <ul style="font-size:.84rem;color:var(--texto);line-height:1.7;margin:14px 0 0 18px">
           <li>Casadinhas que não fecham e motorista ou veículo em dois lugares, contando a estrada.</li>
@@ -975,7 +828,6 @@
           <li>Lotação por tipo de veículo, privativo junto com regular, internacional com doméstico.</li>
           <li>Serviços e apoios sem veículo, com sugestão de quem pode encaixar.</li>
           <li>Junções que liberam um motorista, porte do veículo e casadinhas feitas × possíveis.</li>
-          <li>Com o mapa do Phoenix: voo que mudou, reserva nova ou fora da prévia, motorista ou veículo diferente, coleta diferente, cancelados e "não escalar" ainda no roteiro.</li>
         </ul></div>`;
       return;
     }
@@ -990,25 +842,11 @@
       const wb=XLSX.read(await f.arrayBuffer());
       const rows=chkLinhas(wb);
       if(!rows.length) throw new Error("Não achei as abas \"Prévia Escala (Noite)\" e \"Prévia Escala (Dia)\" nesse arquivo.");
-      CHK.res=chkAnalisar(rows); CHK.arquivo=f.name; CHK.chave="chkPrevia:"+f.name+":"+f.size; CHK.rows=rows; CHK.phx=null;
-      const fp=(document.getElementById("chkPhx")||{files:[]}).files[0];
-      if(fp) chkJuntarPhx(await fp.text(),fp.name);
+      CHK.res=chkAnalisar(rows); CHK.arquivo=f.name; CHK.chave="chkPrevia:"+f.name+":"+f.size;
       try{ CHK.resp=JSON.parse(localStorage.getItem(CHK.chave)||"{}"); }catch(e){ CHK.resp={}; }
       CHK.turno=CHK.res.itens.some(i=>i.turno==="dia")?"dia":"noite"; CHK.aba="itens"; CHK.filtro="todos"; CHK.mot="";
       chkDesenhar();
     }catch(e){ btn.disabled=false; btn.textContent="Conferir prévia"; msgEl.style.color="var(--alerta)"; msgEl.textContent=e.message||"Não consegui ler o arquivo."; }
-  }
-  function chkJuntarPhx(texto,nome){
-    const recs=chkPhxLer(texto);
-    if(!recs.length) throw new Error("Não consegui ler o mapa do Phoenix (\""+nome+"\"). Exporte em Excel, HTML ou JSON.");
-    const c=chkCompararPhoenix(CHK.rows,recs);
-    CHK.res.itens=CHK.res.itens.filter(i=>i.fonte!=="phoenix").concat(c.itens);
-    CHK.phx={arquivo:nome,total:c.total,dia:c.dia,itens:c.itens.length};
-  }
-  async function chkAddPhx(){
-    const f=document.getElementById("chkPhx2").files[0], el=document.getElementById("chkPhxMsg");
-    if(!f){ el.textContent="Escolha o arquivo do mapa."; return; }
-    try{ chkJuntarPhx(await f.text(),f.name); chkDesenhar(); }catch(e){ el.style.color="var(--alerta)"; el.textContent=e.message; }
   }
   function chkNovo(){ CHK.res=null; renderChecagem(document.getElementById("mainConteudo")); }
   function chkSet(k,v){ CHK[k]=v; if(k==="turno"){ CHK.filtro="todos"; CHK.mot=""; } chkDesenhar(); }
@@ -1020,7 +858,7 @@
 
   function chkDesenhar(){
     const m=document.getElementById("mainConteudo"); const R=CHK.res, Z=R.resumo;
-    cab(esc(CHK.arquivo)+" · dia: "+Z.motDia+" motoristas, "+Z.outDia+" OUT, "+Z.inDia+" IN"+(Z.semVeic?" · "+Z.semVeic+" sem veículo":"")+(CHK.phx?" · Phoenix: "+CHK.phx.total+" linhas cruzadas":""),
+    cab(esc(CHK.arquivo)+" · dia: "+Z.motDia+" motoristas, "+Z.outDia+" OUT, "+Z.inDia+" IN"+(Z.semVeic?" · "+Z.semVeic+" sem veículo":""),
       '<button class="btn sec" onclick="chkBaixar()">Baixar respostas</button> <button class="btn" onclick="chkNovo()">Enviar outra prévia</button>');
     const nT={noite:R.itens.filter(i=>i.turno==="noite").length,dia:R.itens.filter(i=>i.turno==="dia").length};
     let h='<div class="chk-topo">'+segmento([["noite","Noite de hoje ("+nT.noite+")"],["dia","Dia de amanhã ("+nT.dia+")"]],CHK.turno,"chkSet('turno','$v')")
@@ -1034,8 +872,7 @@
   }
   function chkHtmlItens(){
     const doTurno=CHK.res.itens.filter(i=>i.turno===CHK.turno);
-    let h=CHK.phx?'':'<div class="card" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;margin-bottom:14px"><b style="font-size:.86rem">Cruzar com o Phoenix</b><span style="font-size:.8rem;color:var(--muted)">Mapa de Serviço (Excel, HTML ou JSON) de hoje e amanhã:</span><input type="file" id="chkPhx2" accept=".xls,.html,.htm,.json"><button class="btn sec" onclick="chkAddPhx()">Cruzar</button><span id="chkPhxMsg" style="font-size:.8rem"></span></div>';
-    h+='<div class="chk-res">';
+    let h='<div class="chk-res">';
     for(const [k,c] of Object.entries(CHK_CAT)){
       const n=doTurno.filter(i=>i.cat===k).length, on=CHK.filtro===k;
       h+='<button class="'+(on?"on":"")+'" style="color:'+c.cor+'" aria-pressed="'+on+'" onclick="chkSet(\'filtro\',\''+(on?"todos":k)+'\')"><span class="l">'+c.nome+'</span><span class="n">'+n+'</span><span class="d">'+c.dica+'</span></button>';
@@ -1047,7 +884,7 @@
     if(!vis.length) return h+'<div class="em-breve"><div class="ic">✅</div><h3>Nada aqui</h3><p>Nenhum item nesse filtro.</p></div>';
     vis.forEach((it,i)=>{
       const c=CHK_CAT[it.cat], r=CHK.resp[it.id]||{};
-      h+='<div class="chk-item '+(r.st||"")+'"><div class="cab"><span class="pill" style="background:'+c.bg+';color:'+c.cor+'">'+c.nome+'</span><span class="tipo">'+esc(it.tipo)+'</span>'+(it.fonte==="phoenix"?'<span class="pill" style="background:#e9eef7;color:#33507a">Phoenix</span>':'')+'<span class="ref">'+esc(it.ref)+'</span></div>'
+      h+='<div class="chk-item '+(r.st||"")+'"><div class="cab"><span class="pill" style="background:'+c.bg+';color:'+c.cor+'">'+c.nome+'</span><span class="tipo">'+esc(it.tipo)+'</span><span class="ref">'+esc(it.ref)+'</span></div>'
         +'<div class="txt">'+esc(it.found)+'</div>'
         +'<div class="sug"><b>SUGESTÃO</b><span>'+esc(it.action)+'</span></div>'
         +'<div class="acoes"><button class="'+(r.st==="ok"?"on":"")+'" onclick="chkResponder('+i+',\'ok\')">'+(r.st==="ok"?"Aceito":"Aceitar")+'</button>'
@@ -1369,8 +1206,7 @@
       cab(dataLonga(ESC.data),'<input type="date" id="escData" value="'+ESC.data+'" onchange="ESC.data=this.value;document.getElementById(\'subPg\').textContent=dataLonga(this.value);carregarEscala(true)" aria-label="Dia"><button class="btn sec" onclick="carregarEscala(true)">Atualizar do Phoenix</button><span id="escEnviarTopo"></span>');
       m.innerHTML='<div id="escResumo"></div><div class="filtros">'
         +campoBusca("escBusca","Buscar guia",ESC.busca,"ESC.busca=this.value;desenharEscala()")
-        +segmento([["todas","Todas as saídas"],["porto","Porto"],["recife","Recife / Cabo"]],ESC.regiao,"escFiltro('regiao','$v')")
-        +segmento([["todos","Tudo"],["trf","IN / OUT / TRF"],["tour","Passeios"]],ESC.tipo,"escFiltro('tipo','$v')")
+        +'<span style="font-size:.8rem;color:var(--muted)">IN, OUT, transfer e apoio · Porto, Cabo e Recife juntos. Passeios ficam na aba Passeios.</span>'
         +'<span id="escInfo" style="font-size:.8rem;color:var(--muted);margin-left:auto"></span></div><div id="escConteudo"></div>';
       carregarEscala(false); return;
     }
@@ -1409,7 +1245,8 @@
     const c=ESC.cache[ESC.data]; if(!box||!c) return;
     if(envPrecisaCarregar(ESC.data)){ envCarregar(ESC.data).then(desenharEscala); }
     info.textContent="Lido às "+c.hora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-    let L=c.linhas.filter(l=>ESC.regiao==="todas"||regiaoServ(l.servico)===ESC.regiao);
+    // escala dos guias: todas as saídas juntas (o guia vê o dia inteiro dele); o filtro de saída fica só nos passeios
+    let L=ESC.modo==="guias"?c.linhas:c.linhas.filter(l=>ESC.regiao==="todas"||regiaoServ(l.servico)===ESC.regiao);
     box.innerHTML = ESC.modo==="guias" ? htmlGuias(L) : htmlPasseios(L);
   }
   const TIPO_TXT={IN:"IN",OUT:"OUT",TRANSFER:"TRF",TOUR:"Passeio"};
@@ -1419,8 +1256,7 @@
   function tagServ(t){ const c=TAG_COR[t]||TAG_COR.TRF; return '<span style="font-size:.66rem;font-weight:800;color:'+c[1]+';background:'+c[0]+';border-radius:6px;padding:3px 7px;white-space:nowrap">'+esc(String(t).toUpperCase())+'</span>'; }
   function htmlGuias(L){
     L=L.filter(l=>l.guia);
-    if(ESC.tipo==="trf") L=L.filter(l=>l.tipo!=="TOUR"||l.auxiliar);
-    if(ESC.tipo==="tour") L=L.filter(l=>l.tipo==="TOUR"&&!l.auxiliar);
+    L=L.filter(l=>l.tipo!=="TOUR"||l.auxiliar); // só IN, OUT, transfer e apoio
     const b=ESC.busca.trim().toUpperCase(); if(b) L=L.filter(l=>l.guia.toUpperCase().includes(b));
     const por={}; for(const l of L){ const k=l.guia.toUpperCase(); (por[k]=por[k]||{nome:l.guia,itens:[]}).itens.push(l); }
     const guias=Object.values(por);
@@ -1584,7 +1420,7 @@
     m.innerHTML=`
       <div class="filtros">
         <button class="btn" onclick="editarPasseio(null)">＋ Passeio saindo de ${NOME_SAIDA[minhaSaida()]}</button>
-        ${area==="porto"?"":'<button class="btn sec" onclick="abrirImportar()">📋 Colar mensagem</button>'}
+
         <span id="planoChips"></span>
         <span id="planoInfo" style="font-size:.8rem;color:var(--muted);flex-basis:100%;order:9;"></span>
         <button class="btn sec" style="margin-left:auto" onclick="ESC.data=PLANO.data;renderEscala(document.getElementById('mainConteudo'),'passeios')">🔎 Ver no Phoenix</button>
@@ -1666,7 +1502,7 @@
           const hh=(e)=>new Date(e.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
           st=pdf?'<span class="tag st-ok">✓ PDF '+hh(pdf)+'</span>':(av?'<span class="tag st-av">Avisado '+hh(av)+'</span>':'');
         }
-        const acoes=(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')
+        const acoes=(c.guia?'<button class="btn mini sec" style="padding:3px 9px" title="Avisar só '+esc(c.guia)+' do passeio dele" onclick="avisarGuiaPasseio(\''+esc(c.guia).replace(/'/g,"")+'\')">📲</button>':'')+(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')
           +(dono?'<button class="btn mini danger" style="padding:3px 9px" title="Cancelar este carro" onclick="removerCarro(\''+p.id+'\',\''+c.id+'\','+(i+1)+')">✕</button>':'');
         h+='<div class="carro-card'+(c.guia?'':' vazio')+'">'+rot+guia
           +((st||acoes)?'<div style="display:flex;align-items:center;gap:6px;min-height:26px">'+st+'<span style="margin-left:auto;display:flex;gap:4px">'+acoes+'</span></div>':'')+'</div>';
@@ -1841,7 +1677,10 @@
   function msgEscala(g, data){
     const hora=(l)=>(l.apresentacao||l.inicio||"99:99");
     const itens=g.itens.filter(entraNaEscala).slice().sort((a,b)=>hora(a).localeCompare(hora(b)));
-    return '🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n'
+    const pri=itens[0];
+    const destaque=pri?('⏰ *SUA APRESENTAÇÃO: '+(pri.apresentacao||horaTxt(pri.inicio))+'*\n'
+      +(pri.apresentacaoLocal?'no '+pri.apresentacaoLocal+' · ':'')+(pri.tipo==="TOUR"?'Apoio – ':'')+nomePasseio(pri.servico)+'\n━━━━━━━━━━\n\n'):'';
+    return '🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n'+destaque
       +itens.map(l=>'*'+(l.tipo==="TOUR"?'Apoio – ':'')+nomePasseio(l.servico)+'*\n'
         +(l.apresentacao?'⏰ Apresentação: *'+l.apresentacao+'*'+(l.inicio&&l.inicio!=="00:00"&&l.inicio!==l.apresentacao?' (início '+l.inicio+')':''):'⏰ Início: *'+horaTxt(l.inicio)+'*')
         +'\n🚐 '+(l.veiculo||"-")+(l.motorista?' · Mot. '+l.motorista:'')+(l.pax!=null?' · '+l.pax+' pax':'')).join('\n\n')
@@ -1882,6 +1721,14 @@
     for(const p of ps) p.carros.forEach((c,i)=>{ if(!c.guia) return; const k=normGuia(c.guia); (por[k]=por[k]||{guia:c.guia,carros:[]}).carros.push({p,c,n:i+1}); });
     const itens=Object.values(por).map(x=>({guia:x.guia,mensagem:msgPasseio(x.guia,x.carros,PLANO.data)}));
     abrirEnvio("passeio",PLANO.data,itens,()=>desenharPlano());
+  }
+
+  // avisa um guia só (ex.: carro incluído depois do aviso geral); junta todos os carros dele no dia
+  function avisarGuiaPasseio(guia){
+    const k=normGuia(guia), carros=[];
+    for(const p of (PLANO.plano.passeios||[])) p.carros.forEach((c,i)=>{ if(c.guia&&normGuia(c.guia)===k) carros.push({p,c,n:i+1}); });
+    if(!carros.length){ alert("Esse guia não está em nenhum carro."); return; }
+    abrirEnvio("passeio",PLANO.data,[{guia:carros[0].c.guia,mensagem:msgPasseio(carros[0].c.guia,carros,PLANO.data)}],()=>desenharPlano());
   }
 
   function enviarPdfPasseios(passeioId){
