@@ -1261,7 +1261,7 @@
     const por={}; for(const l of L){ const k=l.guia.toUpperCase(); (por[k]=por[k]||{nome:l.guia,itens:[]}).itens.push(l); }
     const guias=Object.values(por);
     if(!guias.length) return '<div class="em-breve"><div class="ic">🧭</div><h3>Nenhum guia escalado</h3><p>Nada encontrado para esse dia e filtros.</p></div>';
-    const ord=(l)=>l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99");
+    const ord=(l)=>(l.apresentacaoVespera||/dia anterior/i.test(l.apresentacao||"")?"0":"1")+String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99")).slice(0,5);
     for(const g of guias) g.itens.sort((a,b)=>ord(a).localeCompare(ord(b)));
     guias.sort((a,b)=>ord(a.itens[0]).localeCompare(ord(b.itens[0]))||a.nome.localeCompare(b.nome));
     ESC.guiasTela=guias; ESC.abertos=ESC.abertos||{};
@@ -1674,17 +1674,27 @@
 
   // ---- mensagens ----
   const entraNaEscala=(l)=>l.tipo!=="TOUR"||l.auxiliar;
+  // ordem do dia do guia: o que tem apresentação na véspera (madrugada) vem primeiro
+  const vespera=(l)=>!!l.apresentacaoVespera||/dia anterior/i.test(l.apresentacao||"");
+  const ordemServ=(l)=>(vespera(l)?"0":"1")+String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99")).slice(0,5);
+  // Mensagem curta: a apresentação só no primeiro serviço (depois ele segue com o motorista)
+  // e a lista dos serviços com o horário de início. Veículo, motorista e pax ficam no app.
+  // Se o motorista mudar no meio do dia, aparece uma nova apresentação naquele serviço.
   function msgEscala(g, data){
-    const hora=(l)=>(l.apresentacao||l.inicio||"99:99");
-    const itens=g.itens.filter(entraNaEscala).slice().sort((a,b)=>hora(a).localeCompare(hora(b)));
+    const itens=g.itens.filter(entraNaEscala).slice().sort((a,b)=>ordemServ(a).localeCompare(ordemServ(b)));
+    const nome=(l)=>(l.tipo==="TOUR"?"Apoio – ":"")+nomePasseio(l.servico);
+    const horaIni=(l)=>(l.inicio&&l.inicio!=="00:00")?l.inicio:(l.apresentacao||"").slice(0,5);
     const pri=itens[0];
-    const destaque=pri?('⏰ *SUA APRESENTAÇÃO: '+(pri.apresentacao||horaTxt(pri.inicio))+'*\n'
-      +(pri.apresentacaoLocal?'no '+pri.apresentacaoLocal+' · ':'')+(pri.tipo==="TOUR"?'Apoio – ':'')+nomePasseio(pri.servico)+'\n━━━━━━━━━━\n\n'):'';
-    return '🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n'+destaque
-      +itens.map(l=>'*'+(l.tipo==="TOUR"?'Apoio – ':'')+nomePasseio(l.servico)+'*\n'
-        +(l.apresentacao?'⏰ Apresentação: *'+l.apresentacao+'*'+(l.inicio&&l.inicio!=="00:00"&&l.inicio!==l.apresentacao?' (início '+l.inicio+')':''):'⏰ Início: *'+horaTxt(l.inicio)+'*')
-        +'\n🚐 '+(l.veiculo||"-")+(l.motorista?' · Mot. '+l.motorista:'')+(l.pax!=null?' · '+l.pax+' pax':'')).join('\n\n')
-      +RODAPE;
+    let txt='🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n';
+    if(pri) txt+='⏰ *APRESENTAÇÃO: '+(pri.apresentacao||horaTxt(pri.inicio))+'*\n'+(pri.apresentacaoLocal?'📍 No '+pri.apresentacaoLocal+'\n':'')+'\n';
+    let motAnt=pri?String(pri.motorista||"").trim().toUpperCase():"";
+    itens.forEach((l,k)=>{
+      const mot=String(l.motorista||"").trim().toUpperCase();
+      if(k>0&&mot&&motAnt&&mot!==motAnt&&l.apresentacao) txt+='\n⏰ *Nova apresentação: '+l.apresentacao+'*'+(l.apresentacaoLocal?' no '+l.apresentacaoLocal:'')+' (outro motorista)\n';
+      if(mot) motAnt=mot;
+      txt+=(k+1)+'. '+(horaIni(l)?horaIni(l)+' · ':'')+nome(l)+'\n';
+    });
+    return txt.trimEnd()+'\n\nDetalhes (veículo, motorista e pax) no app.'+RODAPE;
   }
   function msgPasseio(guia, carros, data){
     const quando=data===amanhaISO()?"Amanhã, "+dataBR(data):"Dia "+dataBR(data);
