@@ -445,6 +445,19 @@
   const CHK_AREA={PGA:"PGA",SER:"PGA",CAR:"PGA",MRG:"MRG",JPA:"MRG",CABO:"CABO",PAIVA:"CABO",REC:"REC",PIPA:"PIPA"};
   const CHK_KM={PGA:65,MRG:130,CABO:35};
   const CHK_P={desemb:40,parada:10,domR:90,domA:120,intR:120,intA:150,esperaLonga:240};
+  // restrições de horário dos motoristas (nome como está na prévia)
+  const CHK_RESTR={
+    cedo:{ate:15*60,nomes:["ZACA","MARCOS MOURA","DELSON","JOAO CORBIANO","SILVA","LINDON"]},   // pegam cedo, não pegam tarde
+    tarde:{desde:12*60,nomes:["EDSON","JOSAFA","RIZALDO","ANTONIO","HUGO","CARLITO","JOSIAS","MARCOS FERREIRA"]} // pegam tarde
+  };
+  function chkRestricao(mot){ const m=chkNorm(mot); return CHK_RESTR.cedo.nomes.includes(m)?"cedo":CHK_RESTR.tarde.nomes.includes(m)?"tarde":null; }
+  // o serviço cabe no turno do motorista? (madrugada vale para os dois)
+  function chkNoTurno(mot,ini,fim){
+    const r=chkRestricao(mot); if(!r||ini==null) return true;
+    const i=((ini%1440)+1440)%1440, f=((((fim==null?ini:fim))%1440)+1440)%1440;
+    if(r==="cedo") return !(f>CHK_RESTR.cedo.ate||i>=CHK_RESTR.cedo.ate);
+    return !(i>=5*60&&i<CHK_RESTR.tarde.desde);
+  }
   function chkNorm(s){ return String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim(); }
   function chkMin(v){
     if(v==null||v==="") return null;
@@ -500,6 +513,12 @@
     const m=s.match(/PICK\s*-?\s*UP[^0-9]{0,25}(\d{1,2})\s*[H:]\s*(\d{2})?/)||s.match(/SAIDA DO (?:HTL|HOTEL)[^0-9]{0,12}(\d{1,2})\s*[H:]\s*(\d{2})?/)||s.match(/DESEJA (?:TRF|SAIR|SAIDA)[^0-9]{0,15}(\d{1,2})\s*[H:]\s*(\d{2})?/);
     return m? (+m[1])*60+(+(m[2]||0)) : null;
   }
+  function chkInicioLancado(inicios,mot){
+    if(!inicios) return null; const m=chkNorm(mot);
+    if(m in inicios) return inicios[m];
+    const ks=Object.keys(inicios).filter(k=>m.startsWith(k)||k.startsWith(m)||(k.split(" ")[0]===m.split(" ")[0]&&m.split(" ")[1]&&k.split(" ")[1]&&m.split(" ")[1].startsWith(k.split(" ")[1])));
+    return ks.length===1?inicios[ks[0]]:null;
+  }
   function chkAbs(m,sh){ if(m==null) return null; return sh==="N"? (m<720?m+1440:m) : m+1440; }
   function chkViagem(de,para){
     if(!de||!para) return 0; if(de===para) return de==="AIR"?0:10;
@@ -509,12 +528,14 @@
 
   // lê as abas Noite e Dia da planilha (linhas como vêm do SheetJS, header:1)
   function chkLinhas(wb){
-    const rows=[];
+    const rows=[]; rows.inicios={};
     for(const [sh,re] of [["N",/escala \(noite\)/i],["D",/escala \(dia\)/i]]){
       const nome=wb.SheetNames.find(n=>re.test(n)); if(!nome) continue;
       const L=XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,raw:true,defval:null});
       for(let i=1;i<L.length;i++){
         const v=L[i]||[]; const outtxt=v[7], intxt=v[8];
+        // lista "MOTORISTA | horário de início" no fim da aba Noite
+        if(sh==="N"&&!outtxt&&!intxt&&!v[4]&&typeof v[0]==="string"&&/^[A-Za-zÀ-ú .'-]+$/.test(v[0].trim())&&chkMin(v[1])!=null){ rows.inicios[chkNorm(v[0])]=chkMin(v[1]); continue; }
         if(!outtxt&&!intxt) continue;
         rows.push({sh,linha:i+1,col1:v[0],hin:v[1],hout:v[2],hinH:v[3],veic:v[4]?String(v[4]).trim():"",mot:v[5]?chkNorm(v[5]):"",guia:v[6],outtxt:outtxt?String(outtxt):"",intxt:intxt?String(intxt):"",paxo:v[9],paxi:v[10]});
       }
@@ -650,7 +671,7 @@
       }
       // encaixe na agenda de um motorista
       for(const [mot,ts0] of Object.entries(porMot)){
-        if(mot===excl||(filtro&&!filtro(mot,u))) continue;
+        if(mot===excl||(filtro&&!filtro(mot,u))||!chkNoTurno(mot,u.kind==="IN"?u.deadline:u.start,u.end)) continue;
         const ts=ts0.filter(t=>t.id!==u.id);
         if(!ts.some(t=>t.sh===u.sh)) continue;
         for(let i=0;i<=ts.length;i++){
@@ -678,6 +699,15 @@
       return opcoes.slice(0,2);
     };
     const folgas={};
+    for(const [mot,ts] of Object.entries(porMot)){
+      const r=chkRestricao(mot); if(!r) continue;
+      const fora=ts.filter(t=>t.start!=null&&!chkNoTurno(mot,t.kind==="IN"?t.deadline:t.start,t.end)&&!(t.apoio));
+      if(!fora.length) continue;
+      const sh=fora[0].sh;
+      add(sh==="N"?"noite":"dia","horario","Fora do turno do motorista",titulo(mot)+" · "+[...new Set(fora.map(t=>t.r.veic))].join("/"),
+        titulo(mot)+(r==="cedo"?" pega cedo e não pega tarde (até "+chkHora(CHK_RESTR.cedo.ate)+")":" pega tarde (a partir de "+chkHora(CHK_RESTR.tarde.desde)+")")+", mas está com: "+fora.map(t=>chkDesc(t).split(" · ")[0]+" (L"+t.linhas.join("/")+", até ~"+chkHora(t.end)+")").join("; ")+".",
+        (()=>{ const o=chkOp(fora[0],mot); return o.length&&!/^Juntar/.test(o[0].txt)?"Passar "+chkDesc(fora[0]).split(" · ")[0]+" para "+o[0].txt.replace(/\.$/,"")+".":"Trocar com um motorista do turno certo."; })(),"turno-"+mot);
+    }
     for(const [mot,ts] of Object.entries(porMot)){
       ts.sort((a,b)=>chkOrd(a)-chkOrd(b));
       for(let i=0;i+1<ts.length;i++){
@@ -789,7 +819,7 @@
 
     // 7) jornada dos motoristas (reclamações: rodando muito, sem almoço, escala apertada)
     const CHK_BASE_PORTO=["MICRAO 1961","MICRAO 2423","MICRAO 1905","MICRAO 1849","VAN 1853","VAN 2315","VAN 2321","VAN 2436","VAN 1830","0F46"];
-    const jornadas=[];
+    const jornadas=[], semLista=new Set(), semInicioOk=[], lancUsado=new Set();
     for(const [mot,ts0] of Object.entries(porMot)){
       const ts=ts0.filter(t=>t.start!=null&&t.end!=null&&!/GARAGEM.*RESID|RESID.*GARAGEM/i.test(t.txt||"")).sort((a,b)=>chkOrd(a)-chkOrd(b));
       if(!ts.length) continue;
@@ -799,7 +829,11 @@
       for(const g of grupos){
         const veics=[...new Set(g.map(t=>chkNorm(t.r.veic)))];
         const base=veics.some(v=>CHK_BASE_PORTO.includes(v))?"PGA":"AIR";
-        const ini=chkOrd(g[0])-(g[0].kind==="IN"?0:chkViagem(base,g[0].startLoc))-(g[0].kind==="IN"?chkViagem(base,"AIR"):0);
+        let ini=chkOrd(g[0])-(g[0].kind==="IN"?0:chkViagem(base,g[0].startLoc))-(g[0].kind==="IN"?chkViagem(base,"AIR"):0);
+        // início da jornada: o horário que o operacional lança no fim da aba Noite (quando houver)
+        const lanc=g[0].sh==="N"&&!lancUsado.has(mot)?chkInicioLancado(rows.inicios,mot):null, iniCalc=ini; if(lanc!=null) lancUsado.add(mot);
+        if(lanc!=null){ ini=chkAbs(lanc,"N"); if(ini>chkOrd(g[0])+(g[0].kind==="IN"?CHK_P.desemb:0)-chkViagem(base,g[0].startLoc||"AIR")+10) semInicioOk.push({mot,ini,first:g[0]}); }
+        else if(g[0].sh==="N"&&!lancUsado.has(mot)) semLista.add(mot);
         const ult=g[g.length-1], fim=ult.end+(ult.posAero||0)+chkViagem(ult.endLoc||base,base);
         let efetivo=chkViagem(base,g[0].startLoc)+chkViagem(ult.endLoc||base,base), maiorPausa=0, apertados=0; const livres=[];
         for(let i=0;i<g.length;i++){
@@ -810,14 +844,22 @@
         const dur=fim-ini, sh=g.some(t=>t.sh==="D")?"D":"N";
         const dia=sh==="D"?1440:0;
         const trabAlmoco=g.some(t=>(t.kind==="IN"?t.deadline:t.start)<dia+870&&t.end>dia+690);
-        const temAlmoco=livres.some(([a,b])=>Math.min(b,dia+930)-Math.max(a,dia+630)>=60);
+        // almoço/pausa: 2 intervalos de 30 min (ou 1 de 1h) — regra do operacional
+        const naJanela=livres.map(([a,b])=>Math.min(b,dia+930)-Math.max(a,dia+630));
+        const temAlmoco=naJanela.some(x=>x>=60)||naJanela.filter(x=>x>=30).length>=2;
+        const pausas30=livres.filter(([a,b])=>b-a>=30).length;
         const semAlmoco=trabAlmoco&&!temAlmoco&&!(ini>dia+870||fim<dia+690);
-        const intra=(dur>360&&maiorPausa<60)||(dur>240&&dur<=360&&maiorPausa<15);
+        const intra=(dur>360&&!(maiorPausa>=60||pausas30>=2))||(dur>240&&dur<=360&&maiorPausa<15);
         const servicos=g.filter(t=>t.kind!=="EXTRA").length+g.filter(t=>t.apoio).length/2+g.filter(t=>t.kind==="EXTRA"&&!t.apoio).length;
         const mrg=g.some(t=>t.area==="MRG"||/MARAGOGI|JAPARATINGA/i.test(t.txt||""));
         const partida=g.some(t=>t.apoio)&&efetivo<0.55*(fim-ini);
-        jornadas.push({mot,sh,base:base==="PGA"?"Porto":"Recife",veics,servicos,ini,fim,dur,efetivo:Math.round(efetivo),maiorPausa,apertados,semAlmoco,intra,mrg,partida,trips:g,alertas:[]});
+        jornadas.push({iniLancado:lanc!=null,mot,sh,base:base==="PGA"?"Porto":"Recife",veics,servicos,ini,fim,dur,efetivo:Math.round(efetivo),maiorPausa,apertados,semAlmoco,intra,mrg,partida,trips:g,alertas:[]});
       }
+    }
+    if(Object.keys(rows.inicios||{}).length){
+      const falt=[...semLista].filter(m=>(porMot[m]||[]).some(t=>t.sh==="N"&&t.kind!=="EXTRA"));
+      if(falt.length) add("noite","conferir","Fora da lista de início","Aba Noite · lista de horários",falt.map(titulo).join(", ")+" têm serviço à noite mas não estão na lista de horário de início.","Incluir na lista (a jornada deles foi calculada pelo primeiro serviço).");
+      for(const x of semInicioOk) add("noite","horario","Início depois do 1º serviço",titulo(x.mot),"Lançado para começar às "+chkHora(x.ini)+", mas o primeiro serviço é "+chkDesc(x.first)+".","Conferir o horário de início na lista da aba Noite.");
     }
     // descanso entre a jornada da noite e a do dia do mesmo motorista
     for(const j of jornadas){ const ant=jornadas.filter(x=>x.mot===j.mot&&x!==j&&x.fim<=j.ini).sort((a,b)=>b.fim-a.fim)[0]; j.descanso=ant?j.ini-ant.fim:null; }
@@ -1209,7 +1251,7 @@
       +'<div class="resumo"><div class="num">'+chkDur(R.dur)+'</div><div class="lbl">Jornada média (saída e volta à base)</div></div>'
       +'<div class="resumo"><div class="num">'+chkDur(R.ef)+'</div><div class="lbl">Tempo efetivo médio (dirigindo)</div></div>'
       +'<div class="resumo alerta"><div class="num">'+R.acima10+'</div><div class="lbl">Jornadas acima de 10h ('+R.acima12+' acima de 12h)</div></div>'
-      +'<div class="resumo alerta"><div class="num">'+R.semAlmoco+'</div><div class="lbl">Sem 1h livre entre 10:30 e 15:30</div></div>'
+      +'<div class="resumo alerta"><div class="num">'+R.semAlmoco+'</div><div class="lbl">Sem 2 intervalos de 30 min entre 10:30 e 15:30</div></div>'
       +'<div class="resumo"><div class="num">'+R.so1+'</div><div class="lbl">Motoristas com só 1 serviço</div></div></div>';
     if(R.acima10+R.semAlmoco&&R.so1) h+='<div class="card" style="font-size:.86rem;line-height:1.5">Carga mal distribuída: <b>'+(R.acima10+R.semAlmoco)+'</b> alertas de jornada ou almoço enquanto <b>'+R.so1+'</b> motoristas fazem um serviço só. Ao fechar a escala, passe um serviço de quem tem 3–4 (de preferência o da hora do almoço ou o último) para quem tem 0–1 no mesmo lugar e horário.</div>';
     const ord=J.slice().sort((a,b)=>b.alertas.length-a.alertas.length||b.dur-a.dur);
@@ -1222,7 +1264,7 @@
         +'<td>'+(j.semAlmoco?'<b style="color:#7a4a00">não</b>':'ok')+'</td><td>'+(j.descanso!=null?chkDur(j.descanso):"—")+'</td>'
         +'<td>'+(j.alertas.length?j.alertas.map(chkPillJ).join(""):'<span style="color:var(--muted)">—</span>')+'</td><td style="font-size:.8rem;max-width:320px">'+esc(j.sugestao||"")+'</td></tr>';
     }
-    h+='</tbody></table></div><p style="font-size:.76rem;color:var(--muted);line-height:1.5">Jornada = da saída da base (garagem Prazeres ou Porto, pelo veículo) até a volta, com o deslocamento vazio. Efetivo = viagens e deslocamentos, sem esperas. Sem almoço = trabalha entre 11:30 e 14:30 sem 1h livre entre 10:30 e 15:30. Jornada partida (apoio de manhã e fim de tarde) não conta como sobrecarga. Passeios de ônibus não estão na prévia de transfer: quem dirige passeio pode estar mais carregado. Tempos de estrada são estimados.</p>';
+    h+='</tbody></table></div><p style="font-size:.76rem;color:var(--muted);line-height:1.5">Jornada = da saída da base (garagem Prazeres ou Porto, pelo veículo) até a volta, com o deslocamento vazio. Efetivo = viagens e deslocamentos, sem esperas. Sem almoço = trabalha entre 11:30 e 14:30 sem 2 intervalos de 30 min (ou 1 de 1h) livres entre 10:30 e 15:30. Sem pausa = mais de 6h de jornada sem 2 intervalos de 30 min (ou 1 de 1h). Jornada partida (apoio de manhã e fim de tarde) não conta como sobrecarga. Passeios de ônibus não estão na prévia de transfer: quem dirige passeio pode estar mais carregado. Tempos de estrada são estimados.</p>';
     return h;
   }
   // ===== Histórico do aproveitamento (salva o dia; no fim do mês puxa o mês inteiro) =====
@@ -1297,7 +1339,7 @@
       +'<div class="resumo"><div class="num">'+chkDur(med("dur"))+'</div><div class="lbl">Jornada média (saída e volta à base)</div></div>'
       +'<div class="resumo"><div class="num">'+chkDur(med("ef"))+'</div><div class="lbl">Tempo efetivo médio (dirigindo)</div></div>'
       +'<div class="resumo alerta"><div class="num">'+a10+' ('+Math.round(100*a10/n)+'%)</div><div class="lbl">Jornadas acima de 10h · '+a12+' acima de 12h</div></div>'
-      +'<div class="resumo alerta"><div class="num">'+sa+'</div><div class="lbl">Sem 1h livre entre 10:30 e 15:30</div></div>'
+      +'<div class="resumo alerta"><div class="num">'+sa+'</div><div class="lbl">Sem 2 intervalos de 30 min entre 10:30 e 15:30</div></div>'
       +'<div class="resumo alerta"><div class="num">'+dc+'</div><div class="lbl">Descanso menor que 11h</div></div>'
       +'<div class="resumo"><div class="num">'+s1+' ('+Math.round(100*s1/n)+'%)</div><div class="lbl">Jornadas com só 1 serviço</div></div></div>';
     const por={};
@@ -1560,8 +1602,7 @@
       cab(dataLonga(ESC.data),'<input type="date" id="escData" value="'+ESC.data+'" onchange="ESC.data=this.value;document.getElementById(\'subPg\').textContent=dataLonga(this.value);carregarEscala(true)" aria-label="Dia"><button class="btn sec" onclick="carregarEscala(true)">Atualizar do Phoenix</button><span id="escEnviarTopo"></span>');
       m.innerHTML='<div id="escResumo"></div><div class="filtros">'
         +campoBusca("escBusca","Buscar guia",ESC.busca,"ESC.busca=this.value;desenharEscala()")
-        +segmento([["todas","Todas as saídas"],["porto","Porto"],["recife","Recife / Cabo"]],ESC.regiao,"escFiltro('regiao','$v')")
-        +segmento([["todos","Tudo"],["trf","IN / OUT / TRF"],["tour","Passeios"]],ESC.tipo,"escFiltro('tipo','$v')")
+        +'<span style="font-size:.8rem;color:var(--muted)">IN, OUT, transfer e apoio · Porto, Cabo e Recife juntos. Passeios ficam na aba Passeios.</span>'
         +'<span id="escInfo" style="font-size:.8rem;color:var(--muted);margin-left:auto"></span></div><div id="escConteudo"></div>';
       carregarEscala(false); return;
     }
@@ -1600,7 +1641,8 @@
     const c=ESC.cache[ESC.data]; if(!box||!c) return;
     if(envPrecisaCarregar(ESC.data)){ envCarregar(ESC.data).then(desenharEscala); }
     info.textContent="Lido às "+c.hora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-    let L=c.linhas.filter(l=>ESC.regiao==="todas"||regiaoServ(l.servico)===ESC.regiao);
+    // escala dos guias: todas as saídas juntas (o guia vê o dia inteiro dele); o filtro de saída fica só nos passeios
+    let L=ESC.modo==="guias"?c.linhas:c.linhas.filter(l=>ESC.regiao==="todas"||regiaoServ(l.servico)===ESC.regiao);
     box.innerHTML = ESC.modo==="guias" ? htmlGuias(L) : htmlPasseios(L);
   }
   const TIPO_TXT={IN:"IN",OUT:"OUT",TRANSFER:"TRF",TOUR:"Passeio"};
@@ -1610,13 +1652,12 @@
   function tagServ(t){ const c=TAG_COR[t]||TAG_COR.TRF; return '<span style="font-size:.66rem;font-weight:800;color:'+c[1]+';background:'+c[0]+';border-radius:6px;padding:3px 7px;white-space:nowrap">'+esc(String(t).toUpperCase())+'</span>'; }
   function htmlGuias(L){
     L=L.filter(l=>l.guia);
-    if(ESC.tipo==="trf") L=L.filter(l=>l.tipo!=="TOUR"||l.auxiliar);
-    if(ESC.tipo==="tour") L=L.filter(l=>l.tipo==="TOUR"&&!l.auxiliar);
+    L=L.filter(l=>l.tipo!=="TOUR"||l.auxiliar); // só IN, OUT, transfer e apoio
     const b=ESC.busca.trim().toUpperCase(); if(b) L=L.filter(l=>l.guia.toUpperCase().includes(b));
     const por={}; for(const l of L){ const k=l.guia.toUpperCase(); (por[k]=por[k]||{nome:l.guia,itens:[]}).itens.push(l); }
     const guias=Object.values(por);
     if(!guias.length) return '<div class="em-breve"><div class="ic">🧭</div><h3>Nenhum guia escalado</h3><p>Nada encontrado para esse dia e filtros.</p></div>';
-    const ord=(l)=>l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99");
+    const ord=(l)=>(l.apresentacaoVespera||/dia anterior/i.test(l.apresentacao||"")?"0":"1")+String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99")).slice(0,5);
     for(const g of guias) g.itens.sort((a,b)=>ord(a).localeCompare(ord(b)));
     guias.sort((a,b)=>ord(a.itens[0]).localeCompare(ord(b.itens[0]))||a.nome.localeCompare(b.nome));
     ESC.guiasTela=guias; ESC.abertos=ESC.abertos||{};
@@ -1775,7 +1816,7 @@
     m.innerHTML=`
       <div class="filtros">
         <button class="btn" onclick="editarPasseio(null)">＋ Passeio saindo de ${NOME_SAIDA[minhaSaida()]}</button>
-        ${area==="porto"?"":'<button class="btn sec" onclick="abrirImportar()">📋 Colar mensagem</button>'}
+
         <span id="planoChips"></span>
         <span id="planoInfo" style="font-size:.8rem;color:var(--muted);flex-basis:100%;order:9;"></span>
         <button class="btn sec" style="margin-left:auto" onclick="ESC.data=PLANO.data;renderEscala(document.getElementById('mainConteudo'),'passeios')">🔎 Ver no Phoenix</button>
@@ -1857,7 +1898,7 @@
           const hh=(e)=>new Date(e.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
           st=pdf?'<span class="tag st-ok">✓ PDF '+hh(pdf)+'</span>':(av?'<span class="tag st-av">Avisado '+hh(av)+'</span>':'');
         }
-        const acoes=(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')
+        const acoes=(c.guia?'<button class="btn mini sec" style="padding:3px 9px" title="Avisar só '+esc(c.guia)+' do passeio dele" onclick="avisarGuiaPasseio(\''+esc(c.guia).replace(/'/g,"")+'\')">📲</button>':'')+(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')
           +(dono?'<button class="btn mini danger" style="padding:3px 9px" title="Cancelar este carro" onclick="removerCarro(\''+p.id+'\',\''+c.id+'\','+(i+1)+')">✕</button>':'');
         h+='<div class="carro-card'+(c.guia?'':' vazio')+'">'+rot+guia
           +((st||acoes)?'<div style="display:flex;align-items:center;gap:6px;min-height:26px">'+st+'<span style="margin-left:auto;display:flex;gap:4px">'+acoes+'</span></div>':'')+'</div>';
@@ -2029,14 +2070,27 @@
 
   // ---- mensagens ----
   const entraNaEscala=(l)=>l.tipo!=="TOUR"||l.auxiliar;
+  // ordem do dia do guia: o que tem apresentação na véspera (madrugada) vem primeiro
+  const vespera=(l)=>!!l.apresentacaoVespera||/dia anterior/i.test(l.apresentacao||"");
+  const ordemServ=(l)=>(vespera(l)?"0":"1")+String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99")).slice(0,5);
+  // Mensagem curta: a apresentação só no primeiro serviço (depois ele segue com o motorista)
+  // e a lista dos serviços com o horário de início. Veículo, motorista e pax ficam no app.
+  // Se o motorista mudar no meio do dia, aparece uma nova apresentação naquele serviço.
   function msgEscala(g, data){
-    const hora=(l)=>(l.apresentacao||l.inicio||"99:99");
-    const itens=g.itens.filter(entraNaEscala).slice().sort((a,b)=>hora(a).localeCompare(hora(b)));
-    return '🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n'
-      +itens.map(l=>'*'+(l.tipo==="TOUR"?'Apoio – ':'')+nomePasseio(l.servico)+'*\n'
-        +(l.apresentacao?'⏰ Apresentação: *'+l.apresentacao+'*'+(l.inicio&&l.inicio!=="00:00"&&l.inicio!==l.apresentacao?' (início '+l.inicio+')':''):'⏰ Início: *'+horaTxt(l.inicio)+'*')
-        +'\n🚐 '+(l.veiculo||"-")+(l.motorista?' · Mot. '+l.motorista:'')+(l.pax!=null?' · '+l.pax+' pax':'')).join('\n\n')
-      +RODAPE;
+    const itens=g.itens.filter(entraNaEscala).slice().sort((a,b)=>ordemServ(a).localeCompare(ordemServ(b)));
+    const nome=(l)=>(l.tipo==="TOUR"?"Apoio – ":"")+nomePasseio(l.servico);
+    const horaIni=(l)=>(l.inicio&&l.inicio!=="00:00")?l.inicio:(l.apresentacao||"").slice(0,5);
+    const pri=itens[0];
+    let txt='🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n';
+    if(pri) txt+='⏰ *APRESENTAÇÃO: '+(pri.apresentacao||horaTxt(pri.inicio))+'*\n'+(pri.apresentacaoLocal?'📍 No '+pri.apresentacaoLocal+'\n':'')+'\n';
+    let motAnt=pri?String(pri.motorista||"").trim().toUpperCase():"";
+    itens.forEach((l,k)=>{
+      const mot=String(l.motorista||"").trim().toUpperCase();
+      if(k>0&&mot&&motAnt&&mot!==motAnt&&l.apresentacao) txt+='\n⏰ *Nova apresentação: '+l.apresentacao+'*'+(l.apresentacaoLocal?' no '+l.apresentacaoLocal:'')+' (outro motorista)\n';
+      if(mot) motAnt=mot;
+      txt+=(k+1)+'. '+(horaIni(l)?horaIni(l)+' · ':'')+nome(l)+'\n';
+    });
+    return txt.trimEnd()+'\n\nDetalhes (veículo, motorista e pax) no app.'+RODAPE;
   }
   function msgPasseio(guia, carros, data){
     const quando=data===amanhaISO()?"Amanhã, "+dataBR(data):"Dia "+dataBR(data);
@@ -2073,6 +2127,14 @@
     for(const p of ps) p.carros.forEach((c,i)=>{ if(!c.guia) return; const k=normGuia(c.guia); (por[k]=por[k]||{guia:c.guia,carros:[]}).carros.push({p,c,n:i+1}); });
     const itens=Object.values(por).map(x=>({guia:x.guia,mensagem:msgPasseio(x.guia,x.carros,PLANO.data)}));
     abrirEnvio("passeio",PLANO.data,itens,()=>desenharPlano());
+  }
+
+  // avisa um guia só (ex.: carro incluído depois do aviso geral); junta todos os carros dele no dia
+  function avisarGuiaPasseio(guia){
+    const k=normGuia(guia), carros=[];
+    for(const p of (PLANO.plano.passeios||[])) p.carros.forEach((c,i)=>{ if(c.guia&&normGuia(c.guia)===k) carros.push({p,c,n:i+1}); });
+    if(!carros.length){ alert("Esse guia não está em nenhum carro."); return; }
+    abrirEnvio("passeio",PLANO.data,[{guia:carros[0].c.guia,mensagem:msgPasseio(carros[0].c.guia,carros,PLANO.data)}],()=>desenharPlano());
   }
 
   function enviarPdfPasseios(passeioId){
