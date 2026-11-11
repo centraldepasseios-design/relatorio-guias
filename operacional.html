@@ -848,6 +848,64 @@
     const cont={}; for(const it of itens){ const base=it.cat+"|"+it.tipo+"|"+it.ref; cont[base]=(cont[base]||0)+1; it.id=base+"|"+cont[base]; }
     return {itens,margens,trips,porMot,folgas,aprov,resumo,jornadas};
   }
+
+  // ---- Observações especiais (lidas de todas as reservas) ----
+  const CHK_OBS=[
+    {tipo:"Acessibilidade",re:/CADEIRA DE RODAS|CADEIRANTE|SCOOTER|MOBILIDADE|MULETA|ANDADOR|JOELHO|DIFICULDADE (DE|PARA) (LOCOMO|ANDAR|SUBIR|DESCER)|LOCOMO[CÇ]|PCD|DEFICI[EÊ]N|AUTIS|GESTANTE|GR[AÁ]VIDA|OXIG[EÊ]NIO|PRECISA DE AJUDA|AJUDA PARA SUBIR/,acao:"Escalar carro adequado e avisar o motorista para ajudar no embarque."},
+    {tipo:"Criança / cadeirinha",re:/CADEIRINHA|BEB[EÊ] ?CONFORTO|CONFORTO BEB|ASSENTO (DE )?ELEVA|BOOSTER|ACOPLA/,acao:"Conferir se o item está no carro (e se o veículo acopla)."},
+    {tipo:"Bagagem / veículo pedido",re:/\d+\s*MALAS|MALAS? GRANDE|BAGAGEM|CARRO[ÇC]A|PRANCHA|BIKE|BICICLETA|MAIOR (SUV|CARRO)|SUV (GRANDE|PREMIUM)|HAVAL|MICRO DE \d+|\d+\s*[ÔO]NIBUS|CARRO E N[AÃ]O VAN|CACHORR|\bPET\b|ANIMAL/,acao:"Confirmar se o veículo escalado comporta."},
+    {tipo:"Atendimento",re:/INFLUENC|CESTA|\bVIP\b|FUNCION[AÁ]RI|DIRETOR|ANIVERS|LUA DE MEL|\b[AÁ]GUA\b|ALMO[CÇ]|APRESENTA[RM]? NO BOX|NO BOX|N[AÃ]O (TEM|POSSUI) VOO|SEM VOO|CORTESIA|AGENTE DE VIAGEN|N[AÃ]O TEM CELULAR|IMPRIMIR|ATT ESPECIAL|ATEN[CÇ][AÃ]O ESPECIAL/,acao:"Avisar o motorista e o Box."}
+  ];
+  const CHK_VANS_CADEIRINHA=["VAN 2670","VAN 2685","VAN 2686","VAN 2616","VAN 2436"];
+  function chkObsEspeciais(txt){
+    const t=chkNorm(txt); if(!t) return [];
+    if(/CRIADA PARA FINS DE ESCALA/.test(t)) return [];
+    const partes=String(txt).split(/\/\/|\n|\s\/\s|\*\*/).map(x=>x.trim()).filter(Boolean);
+    const achados=[];
+    for(const c of CHK_OBS){
+      const tr=partes.filter(x=>c.re.test(chkNorm(x))&&!/^VER HOTEL/i.test(x)); if(!tr.length) continue;
+      achados.push({tipo:c.tipo,trecho:tr.join(" · ").slice(0,260),acao:c.acao});
+    }
+    return achados;
+  }
+  function chkItensObs(rows,recs,casar){
+    const itens=[], vistos=new Set();
+    const add=(turno,tipo,ref,found,action,fonte)=>itens.push({turno,cat:"obs",tipo,ref,found,action,fonte});
+    const veicOk=(tipo,veic)=>!(tipo==="Criança / cadeirinha"&&/^VAN /.test(chkNorm(veic))&&!CHK_VANS_CADEIRINHA.includes(chkNorm(veic)));
+    for(const p of (recs||[])){
+      if(!p.obs||p._m===undefined||/N[ÃA]O ESCALAR|DISPENSOU|\bCLD\b|CANCELAD/i.test(p.obs)) continue;
+      const ach=chkObsEspeciais(p.obs); if(!ach.length) continue;
+      const m=casar?casar(p):null;
+      for(const a of ach){
+        const k=p.codigo+"|"+a.tipo; if(vistos.has(k)) continue; vistos.add(k);
+        const quem=m&&m.r.veic?titulo(m.r.mot)+" ("+m.r.veic+")":p.veic?titulo(p.mot)+" ("+p.veic+", Phoenix)":"sem veículo";
+        const hora=chkHora(p.tipo==="IN"?p.hVoo:p.hApr);
+        const veic=m&&m.r.veic?m.r.veic:p.veic;
+        let acao=a.acao;
+        if(quem==="sem veículo") acao="Sem veículo: escalar já considerando isso. "+acao;
+        if(veic&&!veicOk(a.tipo,veic)) acao="A "+veic+" não está na lista das vans que acoplam cadeirinha — confirmar ou trocar. "+acao;
+        add(m?(m.r.sh==="N"?"noite":"dia"):(p.data&&hora&&(p.tipo==="IN"?p.hVoo:p.hApr)<360?"noite":"dia"),a.tipo,p.codigo+" · "+chkHotelNorm(p.tipo==="OUT"?p.origem:p.destino)+" · "+p.tipo+" "+(p.voo?p.voo+" ":"")+hora+" · "+quem,"\""+a.trecho+"\" ("+p.pax+" pax"+(p.parceiro?", "+p.parceiro:"")+").",acao,"phoenix");
+      }
+    }
+    // linhas da prévia (sem o Phoenix, ou o que o Phoenix não trouxe)
+    for(const r of rows){
+      for(const [k,txt] of [["OUT",r.outtxt],["IN",r.intxt]]){
+        if(!txt) continue;
+        const resto=String(txt).split("\n").map(l=>l.replace(/^.*?TRF (IN|OUT)[^|]*\|[^|]*\|[^/]*/i,"")).join(" // ");
+        const ach=chkObsEspeciais(resto); if(!ach.length) continue;
+        const recsL=String(txt).match(/REC-\d+/g)||[];
+        for(const a of ach){
+          if(recsL.some(c=>vistos.has(c+"|"+a.tipo))) continue;
+          const kk=r.sh+r.linha+k+a.tipo; if(vistos.has(kk)) continue; vistos.add(kk);
+          let acao=a.acao; if(!r.veic) acao="Sem veículo: escalar já considerando isso. "+acao;
+          if(r.veic&&!veicOk(a.tipo,r.veic)) acao="A "+r.veic+" não está na lista das vans que acoplam cadeirinha — confirmar ou trocar. "+acao;
+          add(r.sh==="N"?"noite":"dia",a.tipo,(r.sh==="N"?"Noite":"Dia")+" L"+r.linha+(recsL.length?" · "+recsL.join(", "):"")+" · "+(r.veic?titulo(r.mot)+" ("+r.veic+")":"sem veículo"),"\""+a.trecho+"\".",acao,"prévia");
+        }
+      }
+    }
+    const cont={}; for(const it of itens){ const base="obs|"+it.tipo+"|"+it.ref; cont[base]=(cont[base]||0)+1; it.id=base+"|"+cont[base]; }
+    return itens;
+  }
   // ---- Checagem da prévia: mapa de serviço do Phoenix (Excel/HTML ou JSON) ----
   function chkPhxRec(c,data){
     const pax=String(c.pax||"").split("/").reduce((s,x)=>s+(+x||0),0);
@@ -938,7 +996,7 @@
           const d=Math.abs(x.t-p.hVoo)%1440, dd=Math.min(d,1440-d);
           return p.mot&&x.r.mot===p.mot&&dd<=180&&x.hot.some(h=>chkHotelIgual(h,hotel)); }).map(x=>Object.assign({},x,{vooDif:true}));
       }
-      const m=cands.find(x=>x.r.mot&&x.r.mot===p.mot)||cands.find(x=>x.r.veic)||cands[0];
+      const m=cands.find(x=>x.r.mot&&x.r.mot===p.mot)||cands.find(x=>x.r.veic)||cands[0]; p._m=m||null;
       if(m) usados.add(m.r.sh+m.r.linha+m.kind);
       const tu=turnoDe(p,m);
       if(cancel){ if(m&&m.r.veic) add(tu,"conflito","Cancelado no roteiro",refP(p),"No Phoenix: \""+p.obs.slice(0,140)+"\". Na prévia ainda está em "+linha(m)+".","Tirar da prévia (ou confirmar com o box)."); continue; }
@@ -973,6 +1031,7 @@
   // ---- Checagem da prévia: tela ----
   let CHK={arquivo:"",chave:"",res:null,turno:"dia",aba:"itens",filtro:"todos",mot:"",resp:{}};
   const CHK_CAT={
+    obs:{nome:"Obs. especiais",cor:"#0b5a54",bg:"#d8f0ec",dica:"acessibilidade, cadeirinha, bagagem, atendimento"},
     conflito:{nome:"Conflitos",cor:"#b42318",bg:"#fde8e7",dica:"não fecha como está"},
     horario:{nome:"Horários",cor:"#8a5300",bg:"#fff2d6",dica:"coleta, margem ou aperto"},
     semveic:{nome:"Sem veículo",cor:"#6b3fa0",bg:"#f0e8fa",dica:"com sugestão de encaixe"},
@@ -1050,7 +1109,7 @@
       const wb=XLSX.read(await f.arrayBuffer());
       const rows=chkLinhas(wb);
       if(!rows.length) throw new Error("Não achei as abas \"Prévia Escala (Noite)\" e \"Prévia Escala (Dia)\" nesse arquivo.");
-      CHK.res=chkAnalisar(rows); CHK.arquivo=f.name; CHK.chave="chkPrevia:"+f.name+":"+f.size; CHK.rows=rows; CHK.phx=null;
+      CHK.res=chkAnalisar(rows); CHK.res.itens=chkItensObs(rows,null).concat(CHK.res.itens); CHK.arquivo=f.name; CHK.chave="chkPrevia:"+f.name+":"+f.size; CHK.rows=rows; CHK.phx=null;
       const fp=(document.getElementById("chkPhx")||{files:[]}).files[0];
       if(fp) chkJuntarPhx(await fp.text(),fp.name);
       try{ CHK.resp=JSON.parse(localStorage.getItem(CHK.chave)||"{}"); }catch(e){ CHK.resp={}; }
@@ -1062,7 +1121,7 @@
     const recs=chkPhxLer(texto);
     if(!recs.length) throw new Error("Não consegui ler o mapa do Phoenix (\""+nome+"\"). Exporte em Excel, HTML ou JSON.");
     const c=chkCompararPhoenix(CHK.rows,recs);
-    CHK.res.itens=CHK.res.itens.filter(i=>i.fonte!=="phoenix").concat(c.itens);
+    CHK.res.itens=chkItensObs(CHK.rows,recs,p=>p._m).concat(CHK.res.itens.filter(i=>i.fonte!=="phoenix"&&i.cat!=="obs"),c.itens);
     CHK.phx={arquivo:nome,total:c.total,dia:c.dia,itens:c.itens.length};
   }
   async function chkAddPhx(){
@@ -1075,8 +1134,8 @@
   function chkSalvar(){ try{ localStorage.setItem(CHK.chave,JSON.stringify(CHK.resp)); }catch(e){} }
   function chkResponder(i,v){ const id=chkVisiveis()[i].id; const r=CHK.resp[id]||{}; r.st=r.st===v?null:v; CHK.resp[id]=r; chkSalvar(); chkDesenhar(); }
   function chkObs(i,txt){ const id=chkVisiveis()[i].id; const r=CHK.resp[id]||{}; r.obs=txt; CHK.resp[id]=r; chkSalvar(); }
-  const CHK_ORDEM=["conflito","horario","semveic","jornada","ganho","conferir"];
-  function chkVisiveis(){ return CHK.res.itens.filter(i=>i.turno===CHK.turno&&(CHK.filtro==="todos"||i.cat===CHK.filtro)).sort((a,b)=>CHK_ORDEM.indexOf(a.cat)-CHK_ORDEM.indexOf(b.cat)); }
+  const CHK_ORDEM=["obs","conflito","horario","semveic","jornada","ganho","conferir"];
+  function chkVisiveis(){ return CHK.res.itens.filter(i=>i.turno===CHK.turno&&(CHK.filtro==="todos"||i.cat===CHK.filtro)).sort((a,b)=>CHK_ORDEM.indexOf(a.cat)-CHK_ORDEM.indexOf(b.cat)||(a.cat==="obs"?CHK_OBS.findIndex(c=>c.tipo===a.tipo)-CHK_OBS.findIndex(c=>c.tipo===b.tipo)+(/sem veículo/.test(b.ref)-/sem veículo/.test(a.ref))*10:0)); }
 
   function chkDesenhar(){
     const m=document.getElementById("mainConteudo"); const R=CHK.res, Z=R.resumo;
