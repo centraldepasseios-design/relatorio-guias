@@ -325,6 +325,7 @@
       {id:"rec-comparador", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg>", nome:"Comparador de escalas"},
       {id:"rec-previa", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6\"/><path d=\"m9 15 2 2 4-4\"/></svg>", nome:"Checagem da prévia"},
       {id:"rec-consulta", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/></svg>", nome:"Consulta de reservas"},
+      {id:"rec-obs", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z\"/><path d=\"M12 8v4\"/><path d=\"M12 16h.01\"/></svg>", nome:"Observações especiais"},
       {id:"recife-fechar", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>", nome:"Fechar escalas"},
     ]},
     porto: {nome:"Operacional Porto", itens:[
@@ -410,6 +411,7 @@
     if(id==="admin-usuarios"){ renderUsuarios(m); return; }
     if(id==="rec-comparador"){ renderComparador(m); return; }
     if(id==="rec-previa"){ renderChecagem(m); return; }
+    if(id==="rec-obs"){ renderObs(m); return; }
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
     if(id==="cen-contatos"){ renderContatos(m); return; }
     if(id==="cen-pagamentos"){ renderPagamentos(m); return; }
@@ -1587,7 +1589,37 @@
 
 
   // ---- Escala do dia (Escala dos guias / Passeios) ----
-  const ESC = { cache:{}, modo:"guias", data:null, tipo:"todos", regiao:"todas", busca:"" };
+  const ESC = { cache:{}, modo:"guias", data:null, tipo:"todos", regiao:"todas", busca:"", turno:"dia" };
+  // ---- turno da noite: das 18:00 até as saídas de 07:00 do dia seguinte, feito pelos motoristas fixos da noite ----
+  const normMot=(s)=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z ]/g," ").replace(/\s+/g," ").trim();
+  function motNoite(){ try{ return JSON.parse(localStorage.getItem("motoristasNoite")||"[]"); }catch(e){ return []; } }
+  function salvarMotNoite(l){ try{ localStorage.setItem("motoristasNoite",JSON.stringify([...new Set(l.map(normMot).filter(Boolean))].sort())); }catch(e){} }
+  const somaDia=(iso,n)=>{ const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
+  const hIni=(l)=>((l.inicio&&l.inicio!=="00:00")?l.inicio:String(l.apresentacao||"")).slice(0,5);
+  // linhas do turno escolhido: Dia = o dia sem a noite; Noite = 18h do dia + madrugada (até 07:00) do dia seguinte
+  function linhasTurno(){
+    const ehN=()=>true; // noite = pelo horário (como a aba Noite da prévia), para todos os motoristas
+    const hoje=(ESC.cache[ESC.data]||{}).linhas||[];
+    if(ESC.turno!=="noite") return hoje.filter(l=>!(ehN(l)&&(hIni(l)>="18:00"||hIni(l)<"07:00")));
+    const amanha=(ESC.cache[somaDia(ESC.data,1)]||{}).linhas||[];
+    return hoje.filter(l=>ehN(l)&&hIni(l)>="18:00").concat(amanha.filter(l=>ehN(l)&&hIni(l)<"07:00").map(l=>({...l,_prox:true})));
+  }
+  const tipoEnvioEscala=()=>ESC.turno==="noite"?"noite":"escala";
+  function editarMotNoite(){
+    const atuais=motNoite();
+    const doDia=[...new Set(((ESC.cache[ESC.data]||{}).linhas||[]).map(l=>normMot(l.motorista)).filter(Boolean))].sort();
+    let fundo=document.getElementById("mnFundo"); if(fundo) fundo.remove();
+    fundo=document.createElement("div"); fundo.id="mnFundo"; fundo.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:flex-start;justify-content:center;padding:60px 12px;overflow:auto";
+    fundo.innerHTML='<div class="card" style="max-width:560px;width:100%"><h3 style="margin-bottom:6px">🌙 Motoristas da noite</h3>'
+      +'<p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Os serviços desses motoristas entre 18:00 e as saídas de 07:00 do dia seguinte vão para a escala da noite.</p>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+(atuais.length?atuais.map(m=>'<span class="chip on">'+esc(titulo(m))+' <a href="#" style="margin-left:4px" onclick="salvarMotNoite(motNoite().filter(x=>x!==\''+m.replace(/'/g,"")+'\'));editarMotNoite();return false">✕</a></span>').join(""):'<span style="font-size:.82rem;color:var(--muted)">Nenhum ainda.</span>')+'</div>'
+      +'<div style="display:flex;gap:8px"><input id="mnNovo" list="mnLista" placeholder="Nome do motorista (como no Phoenix)" style="flex:1;padding:8px 10px;border:1px solid var(--linha);border-radius:9px;font:inherit">'
+      +'<datalist id="mnLista">'+doDia.map(m=>'<option value="'+esc(m)+'">').join("")+'</datalist>'
+      +'<button class="btn" onclick="const v=document.getElementById(\'mnNovo\').value;if(v){salvarMotNoite(motNoite().concat([v]));editarMotNoite();}">Incluir</button></div>'
+      +'<p style="font-size:.74rem;color:var(--muted);margin-top:8px">A lista fica guardada neste navegador.</p>'
+      +'<div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn sec" onclick="document.getElementById(\'mnFundo\').remove();desenharEscala()">Fechar</button></div></div>';
+    document.body.appendChild(fundo);
+  }
   function regiaoServ(nome){
     const n=String(nome||"").toUpperCase(); const p=n.match(/\(([^()]*)\)\s*$/); const o=p?p[1]:n;
     if(o.includes("GALINHAS")) return "porto";
@@ -1602,7 +1634,8 @@
       cab(dataLonga(ESC.data),'<input type="date" id="escData" value="'+ESC.data+'" onchange="ESC.data=this.value;document.getElementById(\'subPg\').textContent=dataLonga(this.value);carregarEscala(true)" aria-label="Dia"><button class="btn sec" onclick="carregarEscala(true)">Atualizar do Phoenix</button><span id="escEnviarTopo"></span>');
       m.innerHTML='<div id="escResumo"></div><div class="filtros">'
         +campoBusca("escBusca","Buscar guia",ESC.busca,"ESC.busca=this.value;desenharEscala()")
-        +'<span style="font-size:.8rem;color:var(--muted)">IN, OUT, transfer e apoio · Porto, Cabo e Recife juntos. Passeios ficam na aba Passeios.</span>'
+        +segmento([["dia","☀️ Dia"],["noite","🌙 Noite"]],ESC.turno,"ESC.turno='$v';renderEscala(document.getElementById('mainConteudo'),'guias')")
+        +'<span style="font-size:.78rem;color:var(--muted)">'+(ESC.turno==="noite"?"18:00 de "+dataBR(ESC.data).slice(0,5)+" até as saídas antes das 07:00 de "+dataBR(somaDia(ESC.data,1)).slice(0,5)+" · ☀️ Dia: das 07:00 às 17:59":"IN, OUT, transfer e apoio · Porto, Cabo e Recife juntos")+'</span>'
         +'<span id="escInfo" style="font-size:.8rem;color:var(--muted);margin-left:auto"></span></div><div id="escConteudo"></div>';
       carregarEscala(false); return;
     }
@@ -1626,6 +1659,14 @@
   async function carregarEscala(forcar){
     const data=ESC.data, info=document.getElementById("escInfo"), box=document.getElementById("escConteudo");
     if(!box) return;
+    // escala da noite: lê também o dia seguinte (madrugada)
+    if(ESC.modo==="guias"&&ESC.turno==="noite"){
+      const prox=somaDia(data,1);
+      if(forcar||!ESC.cache[prox]){
+        try{ const r=await fetch(API_ESCALA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:prox, token:USUARIO.token})});
+          const j=await r.json(); if(sessaoExpirou(j)) return; if(j.ok) ESC.cache[prox]={linhas:j.linhas, hora:new Date()}; }catch(e){}
+      }
+    }
     if(!forcar && ESC.cache[data]){ desenharEscala(); return; }
     box.innerHTML='<div class="card" style="color:var(--muted)">Lendo a escala no Phoenix, um momento...</div>'; info.textContent="";
     try{
@@ -1642,7 +1683,7 @@
     if(envPrecisaCarregar(ESC.data)){ envCarregar(ESC.data).then(desenharEscala); }
     info.textContent="Lido às "+c.hora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
     // escala dos guias: todas as saídas juntas (o guia vê o dia inteiro dele); o filtro de saída fica só nos passeios
-    let L=ESC.modo==="guias"?c.linhas:c.linhas.filter(l=>ESC.regiao==="todas"||regiaoServ(l.servico)===ESC.regiao);
+    let L=ESC.modo==="guias"?linhasTurno():c.linhas.filter(l=>ESC.regiao==="todas"||regiaoServ(l.servico)===ESC.regiao);
     box.innerHTML = ESC.modo==="guias" ? htmlGuias(L) : htmlPasseios(L);
   }
   const TIPO_TXT={IN:"IN",OUT:"OUT",TRANSFER:"TRF",TOUR:"Passeio"};
@@ -1657,16 +1698,19 @@
     const por={}; for(const l of L){ const k=l.guia.toUpperCase(); (por[k]=por[k]||{nome:l.guia,itens:[]}).itens.push(l); }
     const guias=Object.values(por);
     if(!guias.length) return '<div class="em-breve"><div class="ic">🧭</div><h3>Nenhum guia escalado</h3><p>Nada encontrado para esse dia e filtros.</p></div>';
-    const ord=(l)=>(l.apresentacaoVespera||/dia anterior/i.test(l.apresentacao||"")?"0":"1")+String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99")).slice(0,5);
+    // hora que aparece na tela (apresentação; senão o início) e a chave de ordem, separadas:
+    // a véspera (madrugada) vem primeiro, mas na tela aparece só o horário
+    const hrTela=(l)=>String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99")).replace(/\s*\(dia anterior\)/i,"");
+    const ord=(l)=>ordemServ(l);
     for(const g of guias) g.itens.sort((a,b)=>ord(a).localeCompare(ord(b)));
     guias.sort((a,b)=>ord(a.itens[0]).localeCompare(ord(b.itens[0]))||a.nome.localeCompare(b.nome));
     ESC.guiasTela=guias; ESC.abertos=ESC.abertos||{};
     const comTrf=guias.filter(g=>g.itens.some(l=>l.tipo!=="TOUR"||l.auxiliar));
     // cabeçalho: botão de envio; resumo: guias, serviços, enviadas, mudaram depois do envio
     const topo=document.getElementById("escEnviarTopo");
-    if(topo) topo.innerHTML=comTrf.length?'<button class="btn" onclick="enviarEscalaTodos()">Enviar escala para '+comTrf.length+' guia(s)</button>':'';
-    const enviadas=comTrf.filter(g=>envioDe(ESC.data,"escala",g.nome));
-    const mudaram=enviadas.filter(g=>{ const e=envioDe(ESC.data,"escala",g.nome); return e.hash&&e.hash!==assinatura(msgEscala(g,ESC.data)); });
+    if(topo) topo.innerHTML=comTrf.length?'<button class="btn" onclick="enviarEscalaTodos()">'+(ESC.turno==="noite"?"🌙 Enviar noite":"☀️ Enviar dia")+' para '+comTrf.length+' guia(s)</button>':'';
+    const enviadas=comTrf.filter(g=>envioDe(ESC.data,tipoEnvioEscala(),g.nome));
+    const mudaram=enviadas.filter(g=>{ const e=envioDe(ESC.data,tipoEnvioEscala(),g.nome); return e.hash&&e.hash!==assinatura(msgEscala(g,ESC.data)); });
     const rs=document.getElementById("escResumo");
     if(rs) rs.innerHTML='<div class="cards-resumo"><div class="resumo"><div class="num">'+guias.length+'</div><div class="lbl">Guias escalados</div></div><div class="resumo"><div class="num">'+L.length+'</div><div class="lbl">Serviços</div></div><div class="resumo ok"><div class="num">'+enviadas.length+' de '+comTrf.length+'</div><div class="lbl">Escalas enviadas</div></div><div class="resumo'+(mudaram.length?' alerta':'')+'"><div class="num">'+mudaram.length+'</div><div class="lbl">Mudaram depois do envio</div></div></div>';
     let h='<div style="display:flex;justify-content:flex-end;margin:-6px 0 10px"><span class="chip" style="cursor:pointer" onclick="ESC.abertos={};ESC.todosAbertos=!ESC.todosAbertos;desenharEscala()">'+(ESC.todosAbertos?"Recolher todos":"Abrir todos")+'</span></div>';
@@ -1675,19 +1719,19 @@
       const k=g.nome.toUpperCase(); const aberto=ESC.abertos[k]!=null?ESC.abertos[k]:!!ESC.todosAbertos;
       const ini=g.nome.split(" ").slice(0,2).map(p=>p[0]).join("").toUpperCase();
       const tagDe=(l)=>l.tipo==="TOUR"&&l.auxiliar?"Apoio":(l.tipo==="TOUR"?"Passeio":(TIPO_TXT[l.tipo]||l.tipo||""));
-      const resumo=g.itens.map(l=>horaTxt(ord(l))+" "+nomeCurtoServ(l.servico)).join(" → ");
+      const resumo=g.itens.map(l=>horaTxt(hrTela(l))+" "+nomeCurtoServ(l.servico)).join(" → ");
       h+='<div class="card" style="padding:0;margin:0;overflow:hidden">'
         +'<div style="display:flex;align-items:center;gap:14px;padding:12px 18px;flex-wrap:wrap;cursor:pointer" onclick="ESC.abertos[\''+esc(k).replace(/'/g,"")+'\']='+(!aberto)+';desenharEscala()">'
         +'<span style="width:34px;height:34px;border-radius:10px;background:#f1f5f4;display:flex;align-items:center;justify-content:center;color:#3c524d;font-size:.9rem">'+(aberto?"▴":"▾")+'</span>'
         +'<span style="width:38px;height:38px;border-radius:19px;background:var(--verde-claro);color:var(--verde-esc);font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center">'+esc(ini)+'</span>'
-        +'<div style="display:flex;flex-direction:column;min-width:170px"><b style="font-size:1rem;color:var(--tinta)">'+esc(titulo(g.nome))+'</b><span style="font-size:.76rem;color:var(--muted)">'+g.itens.length+' serviço(s) · apresenta às '+horaTxt(ord(g.itens[0]))+'</span></div>'
+        +'<div style="display:flex;flex-direction:column;min-width:170px"><b style="font-size:1rem;color:var(--tinta)">'+esc(titulo(g.nome))+'</b><span style="font-size:.76rem;color:var(--muted)">'+g.itens.length+' serviço(s) · apresenta às '+horaTxt(hrTela(g.itens[0]))+'</span></div>'
         +'<span style="flex:1 1 220px;font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(aberto?"":esc(resumo))+'</span>'
         +'<span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px">'+acoesEscalaGuia(g)+'</span></div>';
       if(aberto){
         h+='<div style="border-top:1px solid var(--linha);background:#fbfcfc;padding:2px 18px 6px 104px">';
         for(const l of g.itens){
           h+='<div style="display:grid;grid-template-columns:78px 78px minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--linha);font-size:.84rem">'
-            +'<div style="display:flex;flex-direction:column"><b style="font-size:1rem;color:var(--verde-esc)">'+horaTxt(ord(l))+'</b>'+(l.apresentacao&&l.inicio&&l.inicio!==l.apresentacao?'<span style="font-size:.7rem;color:var(--muted)">início '+horaTxt(l.inicio)+'</span>':'')+'</div>'
+            +'<div style="display:flex;flex-direction:column"><b style="font-size:1rem;color:var(--verde-esc)">'+horaTxt(hrTela(l))+'</b>'+(l.apresentacao&&l.inicio&&l.inicio!==l.apresentacao?'<span style="font-size:.7rem;color:var(--muted)">início '+horaTxt(l.inicio)+'</span>':'')+'</div>'
             +'<div>'+tagServ(tagDe(l))+'</div>'
             +'<b style="color:var(--tinta)">'+esc(nomeServ(l.servico))+'</b>'
             +'<span style="color:var(--muted)">'+esc(titulo(l.veiculo||"-"))+(l.motorista?' · '+esc(titulo(l.motorista)):'')+(l.pax!=null?' · '+l.pax+' pax':'')+'</span></div>';
@@ -2072,7 +2116,8 @@
   const entraNaEscala=(l)=>l.tipo!=="TOUR"||l.auxiliar;
   // ordem do dia do guia: o que tem apresentação na véspera (madrugada) vem primeiro
   const vespera=(l)=>!!l.apresentacaoVespera||/dia anterior/i.test(l.apresentacao||"");
-  const ordemServ=(l)=>(vespera(l)?"0":"1")+String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99")).slice(0,5);
+  // na noite: 18h-23h59 do dia primeiro; a madrugada do dia seguinte depois (se a apresentação dela for na véspera, entra junto com a noite)
+  const ordemServ=(l)=>(l._prox?(vespera(l)?"1":"2"):(vespera(l)?"0":"1"))+String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"99:99")).slice(0,5);
   // Mensagem curta: a apresentação só no primeiro serviço (depois ele segue com o motorista)
   // e a lista dos serviços com o horário de início. Veículo, motorista e pax ficam no app.
   // Se o motorista mudar no meio do dia, aparece uma nova apresentação naquele serviço.
@@ -2081,12 +2126,16 @@
     const nome=(l)=>(l.tipo==="TOUR"?"Apoio – ":"")+nomePasseio(l.servico);
     const horaIni=(l)=>(l.inicio&&l.inicio!=="00:00")?l.inicio:(l.apresentacao||"").slice(0,5);
     const pri=itens[0];
-    let txt='🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n';
-    if(pri) txt+='⏰ *APRESENTAÇÃO: '+(pri.apresentacao||horaTxt(pri.inicio))+'*\n'+(pri.apresentacaoLocal?'📍 No '+pri.apresentacaoLocal+'\n':'')+'\n';
+    const noite=ESC.turno==="noite";
+    let txt=noite?'🌙 *Escala da noite '+dataBR(data).slice(0,5)+' → '+dataBR(somaDia(data,1)).slice(0,5)+' – '+g.nome.toUpperCase()+'*\n\n'
+      :'🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n';
+    const aprTxt=(l)=>noite?String(l.apresentacao||horaTxt(l.inicio)).replace(/\s*\(dia anterior\)/i,""):(l.apresentacao||horaTxt(l.inicio));
+    if(pri) txt+='⏰ *APRESENTAÇÃO: '+aprTxt(pri)+'*\n'+(pri.apresentacaoLocal?'📍 No '+pri.apresentacaoLocal+'\n':'')+'\n';
     let motAnt=pri?String(pri.motorista||"").trim().toUpperCase():"";
     itens.forEach((l,k)=>{
       const mot=String(l.motorista||"").trim().toUpperCase();
-      if(k>0&&mot&&motAnt&&mot!==motAnt&&l.apresentacao) txt+='\n⏰ *Nova apresentação: '+l.apresentacao+'*'+(l.apresentacaoLocal?' no '+l.apresentacaoLocal:'')+' (outro motorista)\n';
+      if(noite&&l._prox&&k>0&&!(itens[k-1]||{})._prox) txt+='\n— madrugada de '+dataBR(somaDia(data,1)).slice(0,5)+' —\n';
+      if(k>0&&mot&&motAnt&&mot!==motAnt&&l.apresentacao) txt+='⏰ *Nova apresentação: '+aprTxt(l)+'*'+(l.apresentacaoLocal?' no '+l.apresentacaoLocal:'')+' (outro motorista)\n';
       if(mot) motAnt=mot;
       txt+=(k+1)+'. '+(horaIni(l)?horaIni(l)+' · ':'')+nome(l)+'\n';
     });
@@ -2101,7 +2150,7 @@
   // situação do envio da escala (como na prévia): Enviada 07:32 · Mudou desde o envio · Não enviada
   function acoesEscalaGuia(g){
     if(!g.itens.some(entraNaEscala)) return '';
-    const e=envioDe(ESC.data,"escala",g.nome);
+    const e=envioDe(ESC.data,tipoEnvioEscala(),g.nome);
     let pill;
     if(!e) pill='<span class="pill" style="background:#eef1f0;color:#3c524d">Não enviada</span>';
     else if(e.hash&&e.hash!==assinatura(msgEscala(g,ESC.data))) pill='<span class="pill" style="background:#fff1e0;color:#8a4a0c">Mudou desde o envio</span>';
@@ -2111,15 +2160,15 @@
   function botaoEscalaGuia(g){
     if(!g.itens.some(entraNaEscala)) return '';
     const m=msgEscala(g,ESC.data);
-    return statusEnvio(ESC.data,"escala",g.nome,m)+'<button class="btn mini sec" style="padding:3px 9px" title="Enviar escala no WhatsApp" onclick="enviarEscalaGuia(\''+esc(g.nome).replace(/'/g,"\\'")+'\')">📲</button>';
+    return statusEnvio(ESC.data,tipoEnvioEscala(),g.nome,m)+'<button class="btn mini sec" style="padding:3px 9px" title="Enviar escala no WhatsApp" onclick="enviarEscalaGuia(\''+esc(g.nome).replace(/'/g,"\\'")+'\')">📲</button>';
   }
   function enviarEscalaGuia(nome){
     const g=(ESC.guiasTela||[]).find(x=>x.nome===nome); if(!g) return;
-    abrirEnvio("escala",ESC.data,[{guia:g.nome,mensagem:msgEscala(g,ESC.data)}],()=>desenharEscala());
+    abrirEnvio(tipoEnvioEscala(),ESC.data,[{guia:g.nome,mensagem:msgEscala(g,ESC.data)}],()=>desenharEscala());
   }
   function enviarEscalaTodos(){
     const gs=(ESC.guiasTela||[]).filter(g=>g.itens.some(entraNaEscala));
-    abrirEnvio("escala",ESC.data,gs.map(g=>({guia:g.nome,mensagem:msgEscala(g,ESC.data)})),()=>desenharEscala());
+    abrirEnvio(tipoEnvioEscala(),ESC.data,gs.map(g=>({guia:g.nome,mensagem:msgEscala(g,ESC.data)})),()=>desenharEscala());
   }
   function avisarPasseios(passeioId){
     const ps=(PLANO.plano.passeios||[]).filter(p=>passeioId?p.id===passeioId:(PLANO.saida==="todas"||p.saida===PLANO.saida));
@@ -2182,7 +2231,7 @@
         +'<div style="color:var(--muted);font-size:.76rem;margin-top:6px">Quem já recebeu ganha no topo: ⚠️ <b>ESCALA ATUALIZADA</b> + essa mensagem. Quem ainda não recebeu ganha o PDF normal.</div>':'')
       +'</div>':'';
     f.innerHTML='<div class="card" style="max-width:720px;width:100%;margin:0;">'
-      +'<h3 style="margin-bottom:4px;">'+(J.tipo==="escala"?"📲 Enviar escala":J.tipo==="pdf"?"📄 Enviar PDF da escala":"📲 Avisar passeio")+' · '+dataBR(J.data)+'</h3>'
+      +'<h3 style="margin-bottom:4px;">'+(J.tipo==="escala"?"📲 Enviar escala":J.tipo==="noite"?"🌙 Enviar escala da noite":J.tipo==="pdf"?"📄 Enviar PDF da escala":"📲 Avisar passeio")+' · '+dataBR(J.data)+'</h3>'
       +'<p style="font-size:.8rem;color:var(--muted);margin-bottom:8px;">'+J.itens.length+' guia(s)'+(semTel?' · <span style="color:var(--alerta)">'+semTel+' sem telefone</span>':'')+'. As mensagens saem pelo WhatsApp da Z-API, uma a cada 1,5 segundo.</p>'
       +blocoReenvio
       +linhas
@@ -3090,6 +3139,91 @@
   }
 
 
+  // ======================= OPERACIONAL RECIFE: OBSERVAÇÕES ESPECIAIS =======================
+  // Do dia: observações que o box não pode esquecer (criança/cadeirinha, cadeirante, idoso...), por tipo.
+  // Relatório: observações digitadas de forma errada, por quem digitou, no período.
+  const OBS={ aba:"dia", dia:null, cat:"todas", dados:{}, mes:null, rel:{}, busca:"" };
+  const OBS_COR={crianca:["#fde7d3","#8a3b0b"],mobilidade:["#dbe7fb","#1e3a8a"],idoso:["#ece3fb","#5b2a9c"],gestante:["#fbd9e3","#8a1538"],celebracao:["#fff1b8","#7a5600"],alergia:["#fde0dc","#9a2a1c"],bagagem:["#e8ecea","#3c4a46"],vip:["#dcefe9","#0b4f44"]};
+  function renderObs(m){
+    if(!OBS.dia) OBS.dia=consHoje();
+    if(!OBS.mes) OBS.mes=OBS.dia.slice(0,7);
+    cab("Lembretes para o box e observações digitadas com erro","");
+    m.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
+      +'<span class="chip '+(OBS.aba==="dia"?"on":"")+'" onclick="OBS.aba=\'dia\';renderObs(document.getElementById(\'mainConteudo\'))">Do dia</span>'
+      +'<span class="chip '+(OBS.aba==="rel"?"on":"")+'" onclick="OBS.aba=\'rel\';renderObs(document.getElementById(\'mainConteudo\'))">Relatório de observações erradas</span></div>'
+      +(OBS.aba==="dia"
+        ?'<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn sec mini" onclick="obsMudaDia(-1)">‹</button><input type="date" value="'+OBS.dia+'" onchange="OBS.dia=this.value;obsCarregar()" style="padding:8px 10px;border:1px solid var(--linha);border-radius:9px;font:inherit"><button class="btn sec mini" onclick="obsMudaDia(1)">›</button><button class="btn" onclick="obsCarregar(true)">Atualizar do Phoenix</button><span id="obsInfo" style="font-size:.8rem;color:var(--muted)"></span></div>'
+        :'<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:.9rem">Mês</b><input type="month" value="'+OBS.mes+'" onchange="OBS.mes=this.value;obsCarregarRel()" style="padding:8px 10px;border:1px solid var(--linha);border-radius:9px;font:inherit"><button class="btn sec" onclick="delete OBS.rel[OBS.mes];obsCarregarRel()">Atualizar</button><span id="obsInfo" style="font-size:.8rem;color:var(--muted)"></span></div>')
+      +'<div id="obsCorpo"></div>';
+    if(OBS.aba==="dia") obsCarregar(); else obsCarregarRel();
+  }
+  function obsMudaDia(n){ const d=new Date(OBS.dia+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); OBS.dia=d.toISOString().slice(0,10); renderObs(document.getElementById("mainConteudo")); }
+  async function obsCarregar(forcar){
+    const dia=OBS.dia, box=document.getElementById("obsCorpo"); if(!box) return;
+    if(OBS.dados[dia]&&!forcar){ obsDesenhar(); return; }
+    box.innerHTML='<div class="card" style="color:var(--muted)">Lendo as observações das reservas no Phoenix... pode levar até 1 minuto.</div>';
+    try{ const j=await chamarConsulta("obsDia",{data:dia}); OBS.dados[dia]=j; OBS.cats=j.categorias; if(OBS.dia===dia) obsDesenhar(); }
+    catch(e){ if(OBS.dia===dia) box.innerHTML='<div class="card" style="color:var(--alerta)">Não consegui ler: '+esc(e.message)+'</div>'; }
+  }
+  function obsLinha(x,extra){
+    const hora=x.hApr&&x.hApr!=="00:00"?x.hApr:(x.hVoo||"");
+    return '<div style="padding:10px 0;border-top:1px solid var(--linha)">'
+      +'<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><b style="min-width:46px;color:var(--verde-esc)">'+esc(hora||"--:--")+'</b>'
+      +'<b>'+esc(x.servico||"")+'</b><span style="font-size:.8rem;color:var(--muted)">'+esc(x.rec)+' · '+esc(x.cliente||"")+(x.pax?' · '+esc(x.pax):'')+(x.voo?' · voo '+esc(x.voo):'')+'</span></div>'
+      +'<div style="font-size:.86rem;margin:4px 0 0 56px">“'+esc(x.obs)+'”</div>'
+      +'<div style="font-size:.76rem;color:var(--muted);margin:3px 0 0 56px">'+[x.hotel,x.veiculo?("🚐 "+x.veiculo+(x.motorista?" · "+x.motorista:"")):"",x.guia?("🧭 "+x.guia):""].filter(Boolean).map(esc).join(" · ")+'</div>'
+      +(extra||"")+'</div>';
+  }
+  function obsDesenhar(){
+    const box=document.getElementById("obsCorpo"), info=document.getElementById("obsInfo"); const d=OBS.dados[OBS.dia]; if(!box||!d) return;
+    if(info) info.textContent="lido às "+new Date(d.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    const cats=OBS.cats||d.categorias||[]; const nomeCat=(id)=>(cats.find(c=>c.id===id)||{}).nome||id;
+    const cont={}; d.especiais.forEach(x=>x.cats.forEach(c=>cont[c]=(cont[c]||0)+1));
+    let h='<div class="cards-resumo"><div class="resumo"><div class="num">'+d.especiais.length+'</div><div class="lbl">Serviços com observação especial</div></div>'
+      +'<div class="resumo'+(d.erros.length?' alerta':'')+'"><div class="num">'+d.erros.length+'</div><div class="lbl">Observações com problema</div></div></div>';
+    h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="chip '+(OBS.cat==="todas"?"on":"")+'" onclick="OBS.cat=\'todas\';obsDesenhar()">Todas ('+d.especiais.length+')</span>'
+      +cats.filter(c=>cont[c.id]).map(c=>'<span class="chip '+(OBS.cat===c.id?"on":"")+'" onclick="OBS.cat=\''+c.id+'\';obsDesenhar()">'+esc(c.nome)+' ('+cont[c.id]+')</span>').join("")+'</div>';
+    const lista=d.especiais.filter(x=>OBS.cat==="todas"||x.cats.includes(OBS.cat)).slice().sort((a,b)=>String(a.hApr||a.hVoo||"99").localeCompare(String(b.hApr||b.hVoo||"99")));
+    if(!lista.length) h+='<div class="card" style="color:var(--muted)">Nenhuma observação especial neste dia.</div>';
+    else h+='<div class="card" style="padding:6px 18px 10px">'+lista.map(x=>obsLinha(x,'<div style="display:flex;gap:5px;flex-wrap:wrap;margin:6px 0 0 56px">'+x.cats.map(c=>{ const k=OBS_COR[c]||["#eef1f0","#3c524d"]; return '<span style="font-size:.7rem;font-weight:800;background:'+k[0]+';color:'+k[1]+';border-radius:6px;padding:2px 7px">'+esc(nomeCat(c))+'</span>'; }).join("")+'</div>')).join("")+'</div>';
+    if(d.erros.length){
+      h+='<h3 style="font-size:1rem;margin:18px 0 8px">Observações digitadas com problema ('+d.erros.length+')</h3>';
+      h+='<div class="card" style="padding:6px 18px 10px">'+d.erros.map(x=>obsLinha(x,'<div style="margin:6px 0 0 56px;font-size:.8rem"><b style="color:#8a4a0c">'+x.motivos.map(esc).join(" · ")+'</b><br><span style="color:var(--muted)">Digitado por: '+esc(x.criadoPor||x.quem||"não identificado")+'</span></div>')).join("")+'</div>';
+    }
+    box.innerHTML=h;
+  }
+  async function obsCarregarRel(){
+    const mes=OBS.mes, box=document.getElementById("obsCorpo"); if(!box) return;
+    if(OBS.rel[mes]){ obsDesenharRel(); return; }
+    box.innerHTML='<div class="card" style="color:var(--muted)">Carregando o mês...</div>';
+    const ult=new Date(+mes.slice(0,4),+mes.slice(5,7),0).getDate();
+    try{ const j=await chamarConsulta("obsRelatorio",{ini:mes+"-01",fim:mes+"-"+String(ult).padStart(2,"0")}); OBS.rel[mes]=j; if(OBS.mes===mes) obsDesenharRel(); }
+    catch(e){ box.innerHTML='<div class="card" style="color:var(--alerta)">Não consegui carregar: '+esc(e.message)+'</div>'; }
+  }
+  function obsDesenharRel(){
+    const box=document.getElementById("obsCorpo"), info=document.getElementById("obsInfo"); const r=OBS.rel[OBS.mes]; if(!box||!r) return;
+    if(info) info.textContent=r.dias+" dia(s) analisado(s) no mês";
+    const quem=(e)=>e.criadoPor||e.quem||"Não identificado";
+    const por={}; r.erros.forEach(e=>{ const k=quem(e); const x=por[k]=por[k]||{nome:k,total:0,motivos:{},itens:[]}; x.total++; x.itens.push(e); e.motivos.forEach(m=>{ const t=m.replace(/\s*\(.*\)\s*$/,""); x.motivos[t]=(x.motivos[t]||0)+1; }); });
+    const lista=Object.values(por).sort((a,b)=>b.total-a.total);
+    let h='<div class="cards-resumo"><div class="resumo'+(r.erros.length?' alerta':'')+'"><div class="num">'+r.erros.length+'</div><div class="lbl">Observações com problema no mês</div></div><div class="resumo"><div class="num">'+lista.length+'</div><div class="lbl">Pessoas / origens</div></div></div>';
+    if(!lista.length) h+='<div class="card" style="color:var(--muted)">Nenhuma observação com problema registrada neste mês.</div>';
+    else{
+      h+='<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn sec mini" onclick="obsBaixarRel()">Baixar planilha</button></div>';
+      h+=lista.map(x=>'<details class="card" style="padding:12px 18px"><summary style="cursor:pointer;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b style="min-width:200px">'+esc(x.nome)+'</b><span style="font-size:.8rem;font-weight:800;color:#8a4a0c">'+x.total+' observação(ões)</span><span style="font-size:.76rem;color:var(--muted)">'+Object.entries(x.motivos).map(([m,n])=>esc(m)+": "+n).join(" · ")+'</span></summary>'
+        +x.itens.map(e=>obsLinha(e,'<div style="margin:6px 0 0 56px;font-size:.8rem;color:#8a4a0c;font-weight:700">'+esc(dataBR(e.data).slice(0,5))+' · '+e.motivos.map(esc).join(" · ")+'</div>')).join("")+'</details>').join("");
+    }
+    box.innerHTML=h;
+  }
+  function obsBaixarRel(){
+    const r=OBS.rel[OBS.mes]; if(!r) return;
+    const L=[["Data","REC","Cliente","Serviço","Observação","Problema","Digitado por","Vendedor/Origem"]];
+    r.erros.forEach(e=>L.push([dataBR(e.data),e.rec,e.cliente,e.servico,e.obs,e.motivos.join(" | "),e.criadoPor||"",e.quem||""]));
+    const csv="\ufeff"+L.map(l=>l.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(";")).join("\n");
+    baixarArquivo("observacoes_erradas_"+OBS.mes+".csv",new Blob([csv],{type:"text/csv"}));
+  }
+
+
   // ======================= PAGAMENTOS: PILOTO (app do guia) =======================
   const API_PILOTO = "https://us-central1-operacional-luck.cloudfunctions.net/piloto";
   const PIL={ qid:"2026-10-16_2026-10-31", nomes:"LIDIANE, OLIVEIRA, ARTHUR, HENRIQUE FARIAS", dados:null };
@@ -3483,24 +3617,63 @@
       +'<button class="btn mini danger" style="margin-left:auto" onclick="removerInternoDisp(\''+x.id+'\')">Remover</button></div>').join("")+'</div>';
     box.innerHTML=h;
   }
+  // formulário de bloqueio / não convidar: vários guias de uma vez (evento) e dias separados (ex.: 07, 09 e 11)
   function htmlFormDisp(){
     const sv=DSP.form==="servico", lb='display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)', inp='style="height:44px;border:1px solid #cfdcd8;border-radius:12px;padding:0 12px;font-family:inherit;font-size:.92rem"';
-    return '<div class="card" style="border:2px solid var(--verde)"><div style="margin-bottom:12px">'+segmento([["servico","Bloquear para serviço"],["naoConvidar","Não convidar"]],DSP.form,"DSP.form='$v';desenharDisp()")+'</div><h3 style="margin-bottom:4px">'+(sv?"Bloquear guia para um serviço":"Não convidar")+'</h3><p style="font-size:.84rem;color:var(--muted);margin-bottom:14px">'+(sv?"Ele aparece como bloqueado nesses dias. Registro interno da Central.":"Registro interno: o guia não vê. Ao fim do período ele volta a ser convidado.")+'</p>'
+    DSP.fGuias=DSP.fGuias||[]; DSP.fDias=DSP.fDias||[]; DSP.fModo=DSP.fModo||"periodo"; DSP.fv=DSP.fv||{};
+    const val=(k,pad)=>esc(DSP.fv[k]!=null?DSP.fv[k]:(pad||""));
+    const guardar=(k)=>'oninput="DSP.fv.'+k+'=this.value"';
+    const chipsG=DSP.fGuias.map((g,k)=>'<span class="chip on">'+esc(titulo(g))+' <a href="#" style="margin-left:4px" onclick="DSP.fGuias.splice('+k+',1);desenharDisp();return false">✕</a></span>').join("");
+    const chipsD=DSP.fDias.slice().sort().map(d=>'<span class="chip on">'+esc(dataBR(d).slice(0,5))+' <a href="#" style="margin-left:4px" onclick="DSP.fDias=DSP.fDias.filter(x=>x!==\''+d+'\');desenharDisp();return false">✕</a></span>').join("");
+    return '<div class="card" style="border:2px solid var(--verde)"><div style="margin-bottom:12px">'+segmento([["servico","Bloquear para serviço"],["naoConvidar","Não convidar"]],DSP.form,"DSP.form='$v';desenharDisp()")+'</div>'
+      +'<h3 style="margin-bottom:4px">'+(sv?"Bloquear guias para um serviço":"Não convidar")+'</h3><p style="font-size:.84rem;color:var(--muted);margin-bottom:14px">'+(sv?"Os guias aparecem como bloqueados nos dias escolhidos. Dá para incluir vários guias (ex.: um evento) e dias separados.":"Os guias não aparecem como opção para convite no período.")+'</p>'
+      // guias
+      +'<div style="'+lb+';margin-bottom:12px">Guias'+(DSP.fGuias.length?' ('+DSP.fGuias.length+')':'')
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+chipsG
+      +'<input id="dfGuia" list="dspGuias" placeholder="Digite o nome e tecle Enter" '+inp.replace('style="','style="min-width:240px;')+' onkeydown="if(event.key===\'Enter\'){event.preventDefault();dspAddGuia();}">'
+      +'<button class="btn sec mini" onclick="dspAddGuia()">+ Incluir</button></div></div>'
+      // dias
+      +'<div style="margin-bottom:10px">'+segmento([["periodo","Período (de / até)"],["dias","Dias separados"]],DSP.fModo,"DSP.fModo='$v';desenharDisp()")+'</div>'
       +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">'
-      +'<label style="'+lb+'">Guia<input id="dfGuia" list="dspGuias" '+inp+'></label>'
-      +'<label style="'+lb+'">'+(sv?'Dia':'De')+'<input type="date" id="dfIni" value="'+DSP.data+'" '+inp+'></label>'
-      +'<label style="'+lb+'">'+(sv?'Até (se for mais de um dia)':'Até')+'<input type="date" id="dfFim" value="'+(sv?DSP.data:somaDias(DSP.data,14))+'" '+inp+'></label>'
-      +(sv?'<label style="'+lb+'">Horário<input id="dfHor" placeholder="ex.: 10h às 15h" '+inp+'></label><label style="'+lb+'">REC<input id="dfRec" placeholder="ex.: 981234" inputmode="numeric" '+inp+'></label><label style="'+lb+'">Descrição<input id="dfDesc" placeholder="ex.: Evento corporativo" '+inp+'></label><label style="'+lb+'">Quem pediu<input id="dfQuem" placeholder="ex.: Comercial, por e-mail" '+inp+'></label>'
-         :'<label style="'+lb+';grid-column:1/-1">Motivo (só a coordenação vê)<input id="dfMot" '+inp+'></label>')
-      +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="DSP.form=null;desenharDisp()">Cancelar</button><button class="btn" onclick="salvarInternoDisp()">Salvar</button></div></div>';
+      +(DSP.fModo==="dias"
+        ?'<div style="'+lb+';grid-column:1/-1">Dias<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+chipsD+'<input type="date" id="dfDia" value="'+DSP.data+'" '+inp+'><button class="btn sec mini" onclick="dspAddDia()">+ Incluir dia</button></div></div>'
+        :'<label style="'+lb+'">'+(sv?'Dia':'De')+'<input type="date" id="dfIni" value="'+val("ini",DSP.data)+'" '+guardar("ini")+' '+inp+'></label>'
+         +'<label style="'+lb+'">'+(sv?'Até (se for mais de um dia)':'Até')+'<input type="date" id="dfFim" value="'+val("fim",sv?DSP.data:somaDias(DSP.data,14))+'" '+guardar("fim")+' '+inp+'></label>')
+      +(sv?'<label style="'+lb+'">Horário<input id="dfHor" value="'+val("hor")+'" '+guardar("hor")+' placeholder="ex.: 10h às 15h" '+inp+'></label><label style="'+lb+'">REC<input id="dfRec" value="'+val("rec")+'" '+guardar("rec")+' placeholder="ex.: 981234" inputmode="numeric" '+inp+'></label><label style="'+lb+'">Descrição<input id="dfDesc" value="'+val("desc")+'" '+guardar("desc")+' placeholder="ex.: Evento corporativo" '+inp+'></label><label style="'+lb+'">Quem pediu<input id="dfQuem" value="'+val("quem")+'" '+guardar("quem")+' placeholder="ex.: Comercial, por e-mail" '+inp+'></label>'
+         :'<label style="'+lb+';grid-column:1/-1">Motivo (só a coordenação vê)<input id="dfMot" value="'+val("mot")+'" '+guardar("mot")+' '+inp+'></label>')
+      +'</div><div id="dfProg" style="font-size:.82rem;color:var(--muted);margin-top:10px"></div>'
+      +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="dspFecharForm()">Cancelar</button><button class="btn" id="dfSalvar" onclick="salvarInternoDisp()">Salvar</button></div></div>';
+  }
+  function dspFecharForm(){ DSP.form=null; DSP.fGuias=[]; DSP.fDias=[]; DSP.fv={}; desenharDisp(); }
+  function dspAddGuia(){ const e=document.getElementById("dfGuia"); const v=e?e.value.trim():""; if(!v) return;
+    if(!DSP.fGuias.some(g=>g.toUpperCase()===v.toUpperCase())) DSP.fGuias.push(v); desenharDisp(); setTimeout(()=>{ const n=document.getElementById("dfGuia"); if(n) n.focus(); },0); }
+  function dspAddDia(){ const e=document.getElementById("dfDia"); const v=e?e.value:""; if(!v) return; if(!DSP.fDias.includes(v)) DSP.fDias.push(v); desenharDisp(); }
+  // dias separados viram blocos: dias seguidos ficam num registro só (07, 08 e 09 = 07 a 09)
+  function dspBlocos(dias){
+    const d=[...new Set(dias)].sort(), out=[];
+    for(const x of d){ const u=out[out.length-1]; if(u&&somaDias(u[1],1)===x) u[1]=x; else out.push([x,x]); }
+    return out;
   }
   async function salvarInternoDisp(){
     const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():""; };
-    const dados={tipo:DSP.form,guia:v("dfGuia"),inicio:v("dfIni"),fim:v("dfFim")||v("dfIni"),horario:v("dfHor"),rec:v("dfRec").replace(/^REC-?/i,""),descricao:v("dfDesc"),quemPediu:v("dfQuem"),motivo:v("dfMot")};
-    if(!dados.guia){ alert("Informe o guia."); return; }
-    if(dados.tipo==="servico"&&!dados.descricao&&!dados.rec&&!dados.horario){ alert("Para bloquear para um serviço, informe a descrição, a REC ou o horário. Se a ideia é só não convidar, escolha \"Não convidar\" no topo do formulário."); return; }
-    if(dados.fim<dados.inicio){ alert("A data final é antes da inicial."); return; }
-    try{ await chamarDisp("salvarInterno",dados); DSP.form=null; await carregarDisp(); }catch(e){ alert(e.message); }
+    const solto=v("dfGuia"); if(solto&&!DSP.fGuias.some(g=>g.toUpperCase()===solto.toUpperCase())) DSP.fGuias.push(solto);
+    const guias=DSP.fGuias.slice();
+    const base={tipo:DSP.form,horario:v("dfHor"),rec:v("dfRec").replace(/^REC-?/i,""),descricao:v("dfDesc"),quemPediu:v("dfQuem"),motivo:v("dfMot")};
+    if(!guias.length){ alert("Informe pelo menos um guia."); return; }
+    if(base.tipo==="servico"&&!base.descricao&&!base.rec&&!base.horario){ alert("Para bloquear para um serviço, informe a descrição, a REC ou o horário. Se a ideia é só não convidar, escolha \"Não convidar\" no topo do formulário."); return; }
+    let blocos;
+    if(DSP.fModo==="dias"){ const solta=v("dfDia"); const dias=DSP.fDias.length?DSP.fDias:(solta?[solta]:[]); if(!dias.length){ alert("Inclua pelo menos um dia."); return; } blocos=dspBlocos(dias); }
+    else { const ini=v("dfIni"), fim=v("dfFim")||ini; if(!ini){ alert("Informe o dia."); return; } if(fim<ini){ alert("A data final é antes da inicial."); return; } blocos=[[ini,fim]]; }
+    const total=guias.length*blocos.length;
+    if(total>1&&!confirm("Salvar "+total+" registro(s): "+guias.length+" guia(s) × "+blocos.length+" período(s)?")) return;
+    const bt=document.getElementById("dfSalvar"), pr=document.getElementById("dfProg"); if(bt) bt.disabled=true;
+    const erros=[]; let k=0;
+    for(const g of guias) for(const [ini,fim] of blocos){
+      k++; if(pr) pr.textContent="Salvando "+k+" de "+total+"...";
+      try{ await chamarDisp("salvarInterno",{...base,guia:g,inicio:ini,fim}); }catch(e){ erros.push(g+" ("+dataBR(ini).slice(0,5)+"): "+e.message); }
+    }
+    if(erros.length){ alert("Alguns não foram salvos:\n"+erros.join("\n")); if(bt) bt.disabled=false; if(pr) pr.textContent=""; await carregarDisp(); return; }
+    DSP.form=null; DSP.fGuias=[]; DSP.fDias=[]; DSP.fv={}; await carregarDisp();
   }
   async function removerInternoDisp(id){ if(!confirm("Remover este registro?")) return; try{ await chamarDisp("removerInterno",{id}); await carregarDisp(); }catch(e){ alert(e.message); } }
 
