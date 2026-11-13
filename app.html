@@ -75,6 +75,9 @@
 <body>
 <div id="raiz"></div>
 <script>
+// comissão em tempo real no app: desligada por enquanto (entra pela PGG no fechamento). true = volta a mostrar
+const COMISSAO_NO_APP=false;
+
   // link do voo no FlightAware: ele só acha o voo certo com o código da companhia de 3 letras (ICAO).
   // Ex.: G3 1586 -> GLO1586 (Gol). Companhia fora da lista: abre a busca do Google com o voo.
   const ICAO={G3:"GLO",AD:"AZU",LA:"TAM",JJ:"TAM","2Z":"PTB",TP:"TAP",AR:"ARG",CM:"CMP",AA:"AAL",UA:"UAL",DL:"DAL",AF:"AFR",KL:"KLM",IB:"IBE",UX:"AEA",AV:"AVA",H2:"SKU",JA:"JAT",LH:"DLH"};
@@ -132,14 +135,14 @@ function montar(){
   if(!S.dia) S.dia=hoje(); if(!S.relDia) S.relDia=hoje();
   document.getElementById("raiz").innerHTML='<header class="topo"><div class="linha"><div><div class="ola">'+saudacao()+'</div><div class="nome">'+esc(tit(S.nome))+'</div></div><span style="display:flex;gap:8px"><button class="sair" aria-label="Como usar o app" onclick="tutorial(0)">?</button><button class="sair" onclick="if(confirm(\'Sair do app?\'))sair()">Sair</button></span></div><div id="topoExtra" style="max-width:520px;margin:14px auto 0"></div></header>'
     +'<main class="folha" id="conteudo"></main>'
-    +'<nav class="abas">'+[["escala","Escala"],["disp","Disponível"],["rel","Relatório"],["hist","Histórico"],["pag","Pagamento"],["com","Comissão"]].map(([k,t])=>'<button id="ab-'+k+'" onclick="ir(\''+k+'\')">'+svg(k)+t+'</button>').join("")+'</nav>';
+    +'<nav class="abas">'+[["escala","Escala"],["disp","Disponível"],["rel","Relatório"],["hist","Histórico"],["pag","Pagamento"]].concat(COMISSAO_NO_APP?[["com","Comissão"]]:[]).map(([k,t])=>'<button id="ab-'+k+'" onclick="ir(\''+k+'\')">'+svg(k)+t+'</button>').join("")+'</nav>';
   ir(S.aba);
 }
 function ir(aba){ S.aba=aba; document.querySelectorAll("nav.abas button").forEach(b=>b.classList.toggle("on",b.id==="ab-"+aba)); document.getElementById("topoExtra").innerHTML=""; window.scrollTo(0,0);
   ({escala:telaEscala,disp:telaDisp,rel:telaRel,hist:telaHist,pag:telaPag,com:telaCom})[aba](); }
 function pilulas(sel,ini,qtd,acao){ let h='<div class="pilulas">'; for(let k=0;k<qtd;k++){ const d=soma(ini,k); const dt=new Date(d+"T12:00:00"); h+='<button class="pilula'+(d===sel?" on":"")+'" onclick="'+acao+'(\''+d+'\')"><span>'+(d===hoje()?"HOJE":SEM[dt.getDay()])+'</span><b>'+d.slice(8)+'</b></button>'; } return h+'</div>'; }
 async function escalaDo(dia,forcar){ const c=S.cache[dia]; if(c&&!forcar&&Date.now()-c.em<5*60e3) return c.servicos;
-  const j=await api("escala",{data:dia,forcar:!!forcar}); if(!j.ok) throw new Error(j.erro); S.cache[dia]={em:Date.now(),servicos:j.servicos}; return j.servicos; }
+  const j=await api("escala",{data:dia,forcar:!!forcar}); if(!j.ok) throw new Error(j.erro); S.avisoEscala=j.aviso||""; S.cache[dia]={em:Date.now(),servicos:j.servicos}; return j.servicos; }
 
 // ================= ESCALA =================
 async function telaEscala(){
@@ -154,8 +157,10 @@ function desenharEscala(servs){
   const box=document.getElementById("conteudo"); if(S.aba!=="escala") return;
   const ord=(l)=>l.apresentacao||l.inicio||"99:99"; servs=[...servs].sort((a,b)=>ord(a).localeCompare(ord(b)));
   let h='<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><b>'+diaLongo(S.dia)+'</b><div class="peq muted">'+(servs.length?servs.length+' serviço(s)':'Sem serviços')+'</div></div><button class="mini" onclick="telaEscalaForcar()">Atualizar</button></div>';
+  if(S.avisoEscala) h+='<div class="card obs">'+esc(S.avisoEscala)+'</div>';
   if(!servs.length){ box.innerHTML=h+'<div class="vazio">Você não tem serviços nesse dia no Phoenix.</div>'; return; }
-  h+='<div class="card" style="display:flex;align-items:center;gap:12px;background:var(--claro);box-shadow:none"><span style="font-size:26px">📄</span><div style="flex:1"><b>Sua escala em PDF</b><div class="peq muted">A Ordem de Serviço do dia, direto do Phoenix</div></div><button class="mini" id="btnPdf" onclick="abrirPdf()">Abrir</button></div>';
+  // PDF da Ordem de Serviço só quando o dia tem passeio (transfer não precisa)
+  if(servs.some(l=>l.tipo==="TOUR"&&!l.auxiliar)) h+='<div class="card" style="display:flex;align-items:center;gap:12px;background:var(--claro);box-shadow:none"><span style="font-size:26px">📄</span><div style="flex:1"><b>Sua escala em PDF</b><div class="peq muted">A Ordem de Serviço do dia, direto do Phoenix</div></div><button class="mini" id="btnPdf" onclick="abrirPdf()">Abrir</button></div>';
   let anterior=null;
   for(const l of servs){
     const [tag,cor,transfer]=tipoDe(l), rs=l.reservas||[];
@@ -236,6 +241,7 @@ function desenharRel(){
     h+='<h3 class="tit" style="margin:16px 2px 8px">Transfers e apoios</h3>';
     for(const l of transfers){ const [tag,cor]=tipoDe(l), it=S.relItens[l.ro]||(S.relItens[l.ro]={ro:l.ro,servico:l.servico,tipo:l.tipo,status:"fiz"});
       h+='<div class="card" style="border-left:5px solid '+cor+';display:flex;flex-direction:column;gap:10px"><div><span class="tag" style="color:'+cor+'">'+tag+' · '+esc((l.apresentacao||l.inicio||"").slice(0,5))+'</span><div style="font-weight:900;font-size:15px">'+esc(tit(l.servico))+'</div><div class="det">'+esc(tit(l.motorista))+(l.veiculo?' · '+esc(tit(l.veiculo)):'')+(l.pax!=null?' · '+l.pax+' pax':'')+'</div></div>'
+        +relRecs(l,it)
         +'<div class="toggle"><button class="'+(it.status==="fiz"?"on fiz":"")+'" onclick="relSet(\''+l.ro+'\',\'status\',\'fiz\')">Fiz</button><button class="'+(it.status==="noshow"?"on ns":"")+'" onclick="relSet(\''+l.ro+'\',\'status\',\'noshow\')">Não realizado</button></div>'
         +(it.status==="noshow"?'<input type="text" placeholder="Motivo (no show, voo cancelado...)" value="'+esc(it.motivo||"")+'" oninput="S.relItens[\''+l.ro+'\'].motivo=this.value">':'')
         +'<input type="text" inputmode="numeric" placeholder="REC de idioma (se teve)" value="'+esc(it.recIdioma||"")+'" oninput="S.relItens[\''+l.ro+'\'].recIdioma=this.value">'
@@ -255,6 +261,27 @@ function desenharRel(){
   box.innerHTML=h;
 }
 function relSet(ro,k,v){ S.relItens[ro][k]=v; desenharRel(); }
+// IN: lista das reservas da chegada para o guia marcar quem veio com ele; quem não veio, o motivo
+const MOTIVOS_REC=[["noshow","No show"],["box","Mudança do Box"],["voo","Voo alterado"]];
+function relRecs(l,it){
+  if(l.tipo!=="IN") return "";
+  const vistos=new Set(), rs=(l.reservas||[]).filter(r=>r.rec&&!vistos.has(r.rec)&&vistos.add(r.rec));
+  if(!rs.length) return "";
+  if(!Array.isArray(it.recs)) it.recs=rs.map(r=>({rec:r.rec,foi:true,motivo:""}));
+  rs.forEach(r=>{ if(!it.recs.some(x=>x.rec===r.rec)) it.recs.push({rec:r.rec,foi:true,motivo:""}); });
+  const foram=it.recs.filter(x=>x.foi).length;
+  return '<div style="background:var(--claro);border-radius:12px;padding:10px 12px"><div class="peq" style="font-weight:800;margin-bottom:6px">Quem veio com você? ('+foram+' de '+it.recs.length+')</div>'
+    +it.recs.map((x,k)=>{ const r=rs.find(y=>y.rec===x.rec)||{};
+      return '<div style="padding:6px 0;border-top:'+(k?'1px solid var(--linha)':'none')+'"><label style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:flex-start;text-align:left;margin:0;font-weight:400"><input type="checkbox" style="width:20px;height:20px;flex:none;margin:0" '+(x.foi?'checked':'')+' onchange="relRec(\''+l.ro+'\','+k+',\'foi\',this.checked)"><span style="flex:1;text-align:left"><b>REC '+esc(x.rec)+'</b> <span class="peq muted">'+esc(tit(r.cliente||""))+(r.pax?' · '+r.pax+' pax':'')+'</span></span></label>'
+        +(x.foi?'':'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin:6px 0 0 30px">'+MOTIVOS_REC.map(([v,t])=>'<button class="mini" style="'+(x.motivo===v?'background:var(--escuro);color:#fff':'')+'" onclick="relRec(\''+l.ro+'\','+k+',\'motivo\',\''+v+'\')">'+t+'</button>').join("")+'</div>')+'</div>'; }).join("")+'</div>';
+}
+function relRec(ro,k,campo,v){
+  const it=S.relItens[ro], x=it.recs[k]; x[campo]=v; if(campo==="foi"&&v) x.motivo="";
+  // ninguém veio: o serviço fica como não realizado
+  if(it.recs.length&&it.recs.every(r=>!r.foi)){ it.status="noshow"; if(!it.motivo) it.motivo=(MOTIVOS_REC.find(m=>m[0]===it.recs[0].motivo)||["","Ninguém veio"])[1]; }
+  else if(campo==="foi"&&v&&it.status==="noshow") it.status="fiz";
+  desenharRel();
+}
 function intercorrencia(ro,servico){
   const atual=S.relInter.find(x=>x.ro===ro)||{};
   const f=document.createElement("div"); f.className="fundo"; f.id="fundo";
@@ -269,6 +296,8 @@ function intercorrencia(ro,servico){
 async function enviarRel(){
   const b=document.getElementById("btnRel"); b.disabled=true;
   const transfers=S.relServs.filter(l=>tipoDe(l)[2]).map(l=>S.relItens[l.ro]).filter(Boolean);
+  const faltaMotivo=transfers.find(t=>(t.recs||[]).some(r=>!r.foi&&!r.motivo));
+  if(faltaMotivo){ alert("Marque o motivo das reservas que não vieram com você (no show, mudança do Box ou voo alterado)."); b.disabled=false; return; }
   try{ const j=await api("relEnviar",{data:S.relDia,itens:transfers,intercorrencias:S.relInter}); if(!j.ok) throw new Error(j.erro);
     S.relSalvo={itens:transfers,intercorrencias:S.relInter}; alert("Relatório enviado. Obrigado!"); desenharRel();
   }catch(e){ alert("Não consegui enviar: "+e.message); b.disabled=false; }
@@ -285,7 +314,7 @@ async function telaHist(){
   box.innerHTML='<div class="seg" style="margin-bottom:12px">'+[["atual","Quinzena atual"],["anterior","Anterior"],["30","30 dias"]].map(([k,t])=>'<button class="'+(S.histFiltro===k?"on":"")+'" onclick="S.histFiltro=\''+k+'\';telaHist()">'+t+'</button>').join("")+'</div><div class="esqueleto"></div><div class="esqueleto"></div>';
   if(fim<ini){ box.innerHTML=box.innerHTML.replace(/<div class="esqueleto"><\/div>/g,"")+'<div class="vazio">A quinzena começou hoje. Seus serviços aparecem aqui a partir de amanhã.</div>'; return; }
   try{ const j=await api("historico",{inicio:ini,fim}); if(!j.ok) throw new Error(j.erro); if(S.aba!=="hist") return;
-    const R={fiz:["Relatado","#d4f0ec","#0b6e5f"],noshow:["Não realizado","#fde2dc","#a3271a"],passeio:["Passeio","#e3f2ee","#0b6e5f"]};
+    const R={fiz:["Relatado","#d4f0ec","#0b6e5f"],noshow:["Não realizado","#fde2dc","#a3271a"],passeio:["Passeio","#e3f2ee","#0b6e5f"],box:["Apoio ao Box","#e8e1fb","#5b2a9c"]};
     const passeios=j.servicos.filter(s=>s.tipo==="TOUR"&&!s.auxiliar).length;
     let h=box.innerHTML.replace(/<div class="esqueleto"><\/div>/g,"");
     h+='<div class="card" style="display:flex;justify-content:space-around;text-align:center"><div><b style="font-size:22px">'+j.servicos.length+'</b><div class="peq muted">serviços</div></div><div><b style="font-size:22px">'+passeios+'</b><div class="peq muted">passeios</div></div><div><b style="font-size:22px">'+(j.servicos.length-passeios)+'</b><div class="peq muted">transfers e apoios</div></div></div>';
@@ -293,7 +322,7 @@ async function telaHist(){
     const dias=[...new Set(j.servicos.map(s=>s.data))];
     for(const d of dias){ const ls=j.servicos.filter(s=>s.data===d); const dt=new Date(d+"T12:00:00");
       h+='<div class="card" style="padding:6px 16px"><b style="display:block;padding:10px 0 4px">'+SEMX[dt.getDay()]+', '+dd(d)+'</b>'+ls.map(s=>{ const [tag,cor]=tipoDe(s), r=R[s.relato]||["Sem relatório","#fff0dd","#a3501a"];
-        return '<div style="border-top:1px solid var(--linha);padding:10px 0;display:flex;gap:10px;align-items:center"><b style="width:46px">'+esc((s.hora||"").slice(0,5))+'</b><div style="flex:1;min-width:0"><span class="tag" style="color:'+cor+'">'+tag+'</span><div style="font-weight:800;font-size:14px">'+esc(tit(s.servico))+'</div><div class="peq muted">'+esc(tit(s.motorista))+(s.veiculo?' · '+esc(tit(s.veiculo)):'')+'</div></div><span class="chip" style="background:'+r[1]+';color:'+r[2]+'">'+r[0]+'</span></div>'; }).join("")+'</div>'; }
+        return '<div style="border-top:1px solid var(--linha);padding:10px 0;display:flex;gap:10px;align-items:center"><b style="width:46px">'+esc((s.hora||"").slice(0,5))+'</b><div style="flex:1;min-width:0"><span class="tag" style="color:'+cor+'">'+tag+'</span><div style="font-weight:800;font-size:14px">'+esc(tit(s.servico))+'</div><div class="peq muted">'+(s.tipo==="BOX"?(s.valor!=null?brl(s.valor):""):esc(tit(s.motorista))+(s.veiculo?' · '+esc(tit(s.veiculo)):''))+'</div></div><span class="chip" style="background:'+r[1]+';color:'+r[2]+'">'+r[0]+'</span></div>'; }).join("")+'</div>'; }
     if(j.incompleto) h+='<div class="card peq muted">Alguns dias ainda estão sendo carregados do Phoenix. Volte daqui a pouco.</div>';
     box.innerHTML=h;
   }catch(e){ box.innerHTML+='<div class="card erro">'+esc(e.message)+'</div>'; }
@@ -309,11 +338,11 @@ async function telaPag(){
 }
 function desenharParcial(){
   const j=S.parcial, box=document.getElementById("pagParcial"); if(!box) return;
-  const com=j.comissao&&j.comissao.comissao||0;
+  const com=COMISSAO_NO_APP?(j.comissao&&j.comissao.comissao||0):0;
   let h='<div class="card" style="background:var(--escuro);color:#fff"><div class="tag" style="color:#a6dcc2">QUINZENA ATUAL · '+dd(j.periodo[0])+' A '+dd(j.periodo[1])+'</div><div style="font-size:32px;font-weight:900;letter-spacing:-.5px;margin:4px 0">'+brl(j.total+com)+'</div>'
-    +'<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px;color:#d2e6dc;margin:6px 0"><span>Serviços ('+j.linhas.length+' até '+dd(j.ate)+')</span><b style="color:#fff">'+brl(j.total)+'</b><span>Comissão até agora'+(j.comissao&&j.comissao.qtd?' ('+j.comissao.qtd+' venda'+(j.comissao.qtd>1?'s':'')+')':'')+'</span><b style="color:#86e6b8">'+brl(com)+'</b></div>'
-    +'<div class="peq" style="color:#a9c7bb">Prévia: a comissão conta as vendas já pagas e conciliadas no Phoenix (atualiza a cada 2 horas). O valor final da nota sai no fechamento.</div>'
-    +'<button class="mini" style="margin-top:10px;background:rgba(255,255,255,.12);color:#86e6b8;border:none" onclick="ir(\'com\')">Ver a comissão venda por venda →</button></div>';
+    +'<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px;color:#d2e6dc;margin:6px 0"><span>Serviços ('+j.linhas.length+' até '+dd(j.ate)+')</span><b style="color:#fff">'+brl(j.total)+'</b><span>Comissão</span><b style="color:#86e6b8">'+(COMISSAO_NO_APP?brl(com):'no fechamento')+'</b></div>'
+    +'<div class="peq" style="color:#a9c7bb">'+(COMISSAO_NO_APP?'Prévia: a comissão conta as vendas já pagas e conciliadas no Phoenix. O valor final da nota sai no fechamento.':'Prévia só dos serviços. A comissão entra no fechamento, quando o financeiro enviar a PGG e a Central liberar o valor.')+'</div>'
+    +(COMISSAO_NO_APP?'<button class="mini" style="margin-top:10px;background:rgba(255,255,255,.12);color:#86e6b8;border:none" onclick="ir(\'com\')">Ver a comissão venda por venda →</button>':'')+'</div>';
   if(j.semTarifario) h+='<div class="card obs">Os valores ainda não aparecem porque o tarifário está sendo atualizado pela Central.</div>';
   const dias=[...new Set(j.linhas.map(l=>l.data))].sort().reverse();
   if(!dias.length) h+='<div class="vazio">Nenhum serviço na quinzena até ontem.</div>';
