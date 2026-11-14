@@ -3821,12 +3821,12 @@
   function detRepetido(det,rot){ const d=normP(det); return !d||d===normP(rot)||["INDISPONIVEL","COM RESTRICAO","DISPONIVEL O DIA TODO","DISPONIVEL"].includes(d); }
   // coluna "Última escala": data em destaque e há quantos dias (laranja a partir de 15 dias)
   function ultCol(nome){
-    // data do último serviço em que o guia foi escalado (inclui os já escalados para os próximos dias)
-    const u=ultimaDe(nome); const data=u.proxima||u.ultima;
+    // data do último serviço já realizado (até hoje); serviços escalados para os próximos dias não contam
+    const u=ultimaDe(nome); const hj=hojeISO(); const data=u.ultima&&u.ultima<=hj?u.ultima:null;
     const cab='<span style="font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Último serviço</span>';
     if(!data) return '<div style="width:120px;display:flex;flex-direction:column">'+cab+'<span style="font-size:.82rem;color:var(--muted)">nenhum em 60 dias</span></div>';
     const dias=Math.round((new Date(hojeISO()+"T12:00:00")-new Date(data+"T12:00:00"))/864e5);
-    const rel=dias===0?'hoje':dias===1?'ontem':dias===-1?'amanhã':dias>1?'há '+dias+' dias':'em '+(-dias)+' dias';
+    const rel=dias===0?'hoje':dias===1?'ontem':'há '+dias+' dias';
     return '<div style="width:120px;display:flex;flex-direction:column">'+cab
       +'<span style="font-size:.95rem;font-weight:800;color:'+(dias>=15?'#b45309':'var(--tinta)')+'">'+dataBR(data).slice(0,5)+' <span style="font-size:.74rem;font-weight:600">'+rel+'</span></span></div>';
   }
