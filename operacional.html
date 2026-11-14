@@ -1916,7 +1916,7 @@
     const rotSaida=PLANO.saida==="todas"?"":PLANO.saida==="porto"?" de Porto":" de Recife";
     // botões de envio no cabeçalho, como na prévia
     const topoP=document.getElementById("planoAcoesTopo");
-    if(topoP) topoP.innerHTML=(comPdf?'<button class="btn sec" onclick="enviarPdfPasseios(null)">Enviar PDF da escala'+(podeGuia()?rotSaida:" de Porto")+'</button>':'')
+    if(topoP) topoP.innerHTML=(comPdf?'<button class="btn sec" onclick="imprimirPdfPasseios()">🖨️ Imprimir todas as escalas'+(podeGuia()?rotSaida:" de Porto")+'</button><button class="btn sec" onclick="enviarPdfPasseios(null)">Enviar PDF da escala'+(podeGuia()?rotSaida:" de Porto")+'</button>':'')
       +(podeGuia()&&comGuia?'<button class="btn" onclick="avisarPasseios(null)">Avisar guias'+(PLANO.saida==="todas"?"":rotSaida)+'</button>':'');
     let h=bannerAvisos
       +'<div class="cards-resumo"><div class="resumo"><div class="num">'+lista.length+'</div><div class="lbl">Passeios</div></div><div class="resumo"><div class="num">'+carros+'</div><div class="lbl">Carros</div></div><div class="resumo '+(semGuia?"alerta":"ok")+'"><div class="num">'+semGuia+'</div><div class="lbl">Sem guia</div></div>'
@@ -2208,6 +2208,45 @@
     for(const p of ps) for(const c of p.carros) if(c.guia) guias[normGuia(c.guia)]=c.guia;
     const itens=Object.values(guias).map(g=>({guia:g,mensagem:"📄 PDF da Ordem de Serviço do Guia de "+dataBR(PLANO.data)+", gerado na hora pelo Phoenix."+RODAPE}));
     abrirEnvio("pdf",PLANO.data,itens,()=>desenharPlano());
+  }
+
+  // junta o PDF da Ordem de Serviço de todos os guias dos passeios num arquivo só, para imprimir
+  const API_PDFESC="https://us-central1-operacional-luck.cloudfunctions.net/pdfescalas";
+  function carregarPdfLib(){ return window.PDFLib?Promise.resolve():new Promise((ok,erro)=>{ const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"; sc.onload=ok; sc.onerror=()=>erro(new Error("não consegui carregar o juntador de PDF")); document.head.appendChild(sc); }); }
+  async function imprimirPdfPasseios(){
+    const ps=(PLANO.plano.passeios||[]).filter(p=>podePdf(p)&&(PLANO.saida==="todas"||p.saida===PLANO.saida));
+    const guias=[], vistos=new Set();
+    for(const p of ps) for(const c of p.carros) if(c.guia&&!vistos.has(normGuia(c.guia))){ vistos.add(normGuia(c.guia)); guias.push(c.guia); }
+    if(!guias.length){ alert("Nenhum carro com guia para imprimir."); return; }
+    const jan=window.open("","_blank"); // abre já no clique (o navegador bloqueia janela aberta depois)
+    if(jan) jan.document.write('<p style="font-family:sans-serif;padding:20px">Gerando as escalas no Phoenix... pode levar alguns minutos.</p>');
+    const fundo=document.createElement("div"); fundo.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:999";
+    fundo.innerHTML='<div class="card" style="max-width:420px;width:90%"><b>🖨️ Escalas de '+dataBR(PLANO.data)+'</b><div id="pdfProg" style="margin-top:10px;color:var(--muted)">Preparando...</div></div>';
+    document.body.appendChild(fundo);
+    const prog=(t)=>{ const e=document.getElementById("pdfProg"); if(e) e.innerHTML=t; };
+    const partes=[], erros=[];
+    try{
+      await carregarPdfLib();
+      for(let k=0;k<guias.length;k+=3){
+        const lote=guias.slice(k,k+3); prog("Gerando no Phoenix: "+Math.min(k+3,guias.length)+" de "+guias.length+" guias...");
+        try{ const r=await fetch(API_PDFESC,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:USUARIO.token,data:PLANO.data,guias:lote})});
+          const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro);
+          j.itens.forEach(it=>it.base64?partes.push(it):erros.push(titulo(it.guia)+": "+it.erro)); }
+        catch(e){ lote.forEach(g=>erros.push(titulo(g)+": "+e.message)); }
+      }
+      if(!partes.length) throw new Error("nenhuma escala foi gerada"+(erros.length?" ("+erros[0]+")":""));
+      prog("Juntando "+partes.length+" escalas num arquivo só...");
+      const doc=await PDFLib.PDFDocument.create();
+      for(const it of partes){ const src=await PDFLib.PDFDocument.load(Uint8Array.from(atob(it.base64),c=>c.charCodeAt(0)),{ignoreEncryption:true}); (await doc.copyPages(src,src.getPageIndices())).forEach(pg=>doc.addPage(pg)); }
+      const url=URL.createObjectURL(new Blob([await doc.save()],{type:"application/pdf"}));
+      if(jan&&!jan.closed) jan.location.href=url;
+      fundo.querySelector(".card").innerHTML='<b>🖨️ Escalas de '+dataBR(PLANO.data)+'</b><p style="margin:10px 0">'+partes.length+' escala(s) num arquivo só. Abra e use Imprimir (Ctrl+P).</p>'
+        +(erros.length?'<p style="color:var(--alerta);font-size:.85rem">Não consegui gerar: '+erros.map(esc).join("; ")+'</p>':'')
+        +'<div style="display:flex;gap:8px;justify-content:flex-end"><a class="btn" href="'+url+'" target="_blank">Abrir PDF</a><a class="btn sec" href="'+url+'" download="escalas_passeios_'+PLANO.data+'.pdf">Baixar</a><button class="btn sec" onclick="this.closest(\'div[style*=fixed]\').remove()">Fechar</button></div>';
+    }catch(e){
+      if(jan&&!jan.closed) jan.close();
+      fundo.querySelector(".card").innerHTML='<b>Não consegui gerar as escalas</b><p>'+esc(e.message)+'</p><div style="text-align:right"><button class="btn sec" onclick="this.closest(\'div[style*=fixed]\').remove()">Fechar</button></div>';
+    }
   }
 
   function enviarPdfGuia(guia){
