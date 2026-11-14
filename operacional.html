@@ -3821,6 +3821,10 @@
       const [d,i,ct,ab]=await Promise.all([chamarDisp("disponibilidade",{inicio:DSP.data,fim:somaDias(DSP.data,6)}),chamarDisp("internos",{}),chamarEnvios("contatos",{}).catch(()=>null),
         chamarApoioBox("periodo",{ini:somaDias(hojeISO(),-60),fim:somaDias(DSP.data,30)}).catch(()=>null)]);
       const sl=await chamarSol("periodo",{ini:somaDias(hojeISO(),-60),fim:somaDias(DSP.data,30)}).catch(()=>null);
+      // passeios montados na aba Passeios (o guia já colocado num carro fica "em passeio" naquele dia)
+      const dias7=[0,1,2,3,4,5,6].map(n=>somaDias(DSP.data,n));
+      const planos=await Promise.all(dias7.map(dd=>fetch(API_PLANO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"ler",token:USUARIO.token,data:dd,origem:"central"})}).then(r=>r.json()).catch(()=>null)));
+      DSP.passeios={}; planos.forEach((j,k)=>{ if(!j||!j.ok||!j.plano) return; (j.plano.passeios||[]).forEach(p=>(p.carros||[]).forEach(c=>{ if(c.guia){ const key=dias7[k]+"|"+normP(oficialDe(c.guia)); if(!DSP.passeios[key]) DSP.passeios[key]=nomeServ(p.nome); } })); });
       DSP.dados=d; DSP.internos=i.itens||[]; DSP.ultOficial=null; DSP.abx=(ab&&ab.itens)||[];
       // pedidos de guia (evento, famtour, navio) contam como apoio: bloqueiam o dia e entram no último serviço
       ((sl&&sl.itens)||[]).forEach(x=>DSP.abx.push({data:x.data,guia:x.guia,inicio:x.inicio,rotulo:(SOL_TIPOS[x.tipo]||"Pedido")+" · "+x.descricao+" "+x.inicio+(x.fim?"–"+x.fim:"")}));
@@ -3838,6 +3842,7 @@
     const sv=DSP.internos.find(x=>x.tipo==="servico"&&cobre(x)); if(sv) return {s:"b",det:(sv.descricao||"Serviço")+(sv.rec?" · REC-"+sv.rec:"")+(sv.horario?" · "+sv.horario:""),x:sv};
     const ab=(DSP.abx||[]).find(x=>x.data===dia&&normP(oficialDe(x.guia))===G);
     if(ab) return {s:"b",det:ab.rotulo||("Apoio ao Box "+ab.inicio+" ("+(ab.tipo==="half"?"Half":"Full")+")")};
+    const pa=(DSP.passeios||{})[dia+"|"+G]; if(pa) return {s:"p",det:"Passeio: "+pa};
     const bl=(DSP.dados.bloqueios||[]).find(cobre); if(bl) return bl.tipo==="passeio"?{s:"p",det:"Escalado em passeio"+(bl.motivo?": "+bl.motivo:"")}:{s:"b",det:"Bloqueio do painel"+(bl.motivo?": "+bl.motivo:"")};
     const ds=(DSP.dados.disp||[]).find(x=>x.data===dia&&normP(oficialDe(x.guia))===G);
     if(ds&&ds.status==="nao") return {s:"i",det:ds.obs||"Indisponível",em:ds.em};
