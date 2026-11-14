@@ -1614,7 +1614,9 @@
   const hIni=(l)=>((l.inicio&&l.inicio!=="00:00")?l.inicio:String(l.apresentacao||"")).slice(0,5);
   // linhas do turno escolhido: Dia = o dia sem a noite; Noite = 18h do dia + madrugada (até 07:00) do dia seguinte
   function linhasTurno(){
-    const ehN=()=>true; // noite = pelo horário (como a aba Noite da prévia), para todos os motoristas
+    // noite = pelo horário (como a aba Noite da prévia); apoio é sempre do dia, mesmo saindo de madrugada
+    const ehApoio=(l)=>!!l.auxiliar||(l.tipo==="TOUR")||/APOIO/i.test(l.servico||"");
+    const ehN=(l)=>!ehApoio(l);
     const hoje=(ESC.cache[ESC.data]||{}).linhas||[];
     if(ESC.turno!=="noite") return hoje.filter(l=>!(ehN(l)&&(hIni(l)>="18:00"||hIni(l)<"07:00")));
     const amanha=(ESC.cache[somaDia(ESC.data,1)]||{}).linhas||[];
