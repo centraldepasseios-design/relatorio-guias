@@ -3897,7 +3897,9 @@
         +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k])).join("")+'</div></div>'; };
     // seções um embaixo da outra: Porto, Estagiários, Recife (e quem não está em nenhuma lista)
     const usados=new Set();
-    const secoes=DSP_GRUPOS.map(([t,lista])=>{ const set=new Set(lista.map(n=>normP(oficialDe(n)))); const ls=vis.filter(l=>set.has(normP(l.nome))); ls.forEach(l=>usados.add(l.nome)); return [t,ls]; });
+    // dentro de cada grupo, a ordem é fixa, a mesma do painel (não muda com o status)
+    const secoes=DSP_GRUPOS.map(([t,lista])=>{ const pos=new Map(); lista.forEach((n,k)=>{ const c=normP(oficialDe(n)); if(!pos.has(c)) pos.set(c,k); });
+      const ls=vis.filter(l=>pos.has(normP(l.nome))).sort((a,c)=>pos.get(normP(a.nome))-pos.get(normP(c.nome))); ls.forEach(l=>usados.add(l.nome)); return [t,ls]; });
     secoes.push(["Outros",vis.filter(l=>!usados.has(l.nome))]);
     h+=secoes.filter(([,ls])=>ls.length).map(([t,ls])=>'<h3 style="font-size:1.05rem;font-weight:800;margin:18px 0 10px;color:var(--tinta)">'+t+' <span style="font-size:.82rem;font-weight:600;color:var(--muted)">('+ls.length+' guias)</span></h3><div style="display:flex;flex-direction:column;gap:8px">'+ls.map(linhaDisp).join("")+'</div>').join("");
     const servs=DSP.internos.filter(x=>(DSP.filtro==="b"?x.tipo==="servico":DSP.filtro==="n"?x.tipo==="naoConvidar":DSP.filtro==="todos")&&(!b||normP(x.guia).includes(b))).filter(x=>x.fim>=hojeISO()).sort((a,c)=>a.inicio.localeCompare(c.inicio));
