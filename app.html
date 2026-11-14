@@ -88,7 +88,7 @@ const COMISSAO_NO_APP=false;
   }
 
 const API="https://us-central1-operacional-luck.cloudfunctions.net/app";
-const S={t:localStorage.getItem("ag_t"),nome:localStorage.getItem("ag_nome"),pag:localStorage.getItem("ag_pag"),aba:"escala",dia:null,relDia:null,histFiltro:"atual",cache:{}};
+const S={t:localStorage.getItem("ag_t"),nome:localStorage.getItem("ag_nome"),pag:localStorage.getItem("ag_pag"),aba:"escala",dia:null,relDia:null,histFiltro:"atual",cache:{},conf:{}};
 const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const brl=(v)=>"R$ "+Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const hoje=()=>{const d=new Date(Date.now()-3*3600e3);return d.toISOString().slice(0,10);};
@@ -133,7 +133,7 @@ async function entrar(){
 function saudacao(){ const h=new Date().getHours(); return h<12?"Bom dia,":h<18?"Boa tarde,":"Boa noite,"; }
 function montar(){
   if(!S.dia) S.dia=hoje(); if(!S.relDia) S.relDia=hoje();
-  document.getElementById("raiz").innerHTML='<header class="topo"><div class="linha"><div><div class="ola">'+saudacao()+'</div><div class="nome">'+esc(tit(S.nome))+'</div></div><span style="display:flex;gap:8px"><button class="sair" aria-label="Como usar o app" onclick="tutorial(0)">?</button><button class="sair" onclick="if(confirm(\'Sair do app?\'))sair()">Sair</button></span></div><div id="topoExtra" style="max-width:520px;margin:14px auto 0"></div></header>'
+  document.getElementById("raiz").innerHTML='<header class="topo"><div class="linha"><div><div class="ola">'+saudacao()+'</div><div class="nome">'+esc(tit(S.nome))+'</div></div><span style="display:flex;gap:8px"><a class="sair" href="https://centraldepasseios-design.github.io/cartilha-guias/" target="_blank" rel="noopener" aria-label="Cartilha do guia" style="white-space:nowrap;padding:9px 11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📘 Cartilha</a><button class="sair" aria-label="Como usar o app" onclick="tutorial(0)">?</button><button class="sair" onclick="if(confirm(\'Sair do app?\'))sair()">Sair</button></span></div><div id="topoExtra" style="max-width:520px;margin:14px auto 0"></div></header>'
     +'<main class="folha" id="conteudo"></main>'
     +'<nav class="abas">'+[["escala","Escala"],["disp","Disponível"],["rel","Relatório"],["hist","Histórico"],["pag","Pagamento"]].concat(COMISSAO_NO_APP?[["com","Comissão"]]:[]).map(([k,t])=>'<button id="ab-'+k+'" onclick="ir(\''+k+'\')">'+svg(k)+t+'</button>').join("")+'</nav>';
   ir(S.aba);
@@ -151,13 +151,15 @@ async function telaEscala(){
   box.innerHTML='<div class="card" style="display:flex;justify-content:space-between;align-items:center"><b>'+diaLongo(S.dia)+'</b><button class="mini" onclick="telaEscalaForcar()">Atualizar</button></div><div class="esqueleto"></div><div class="esqueleto"></div>';
   try{ desenharEscala(await escalaDo(S.dia)); }catch(e){ box.innerHTML+='<div class="card erro">Não consegui carregar a escala: '+esc(e.message)+'</div>'; }
 }
-function mudarDia(d){ S.dia=d; telaEscala(); }
+function mudarDia(d){ S.dia=d; S.confEditar=false; S.confRecusar=false; telaEscala(); }
 async function telaEscalaForcar(){ try{ desenharEscala(await escalaDo(S.dia,true)); }catch(e){ alert(e.message); } }
 function desenharEscala(servs){
   const box=document.getElementById("conteudo"); if(S.aba!=="escala") return;
   const ord=(l)=>l.apresentacao||l.inicio||"99:99"; servs=[...servs].sort((a,b)=>ord(a).localeCompare(ord(b)));
   let h='<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><b>'+diaLongo(S.dia)+'</b><div class="peq muted">'+(servs.length?servs.length+' serviço(s)':'Sem serviços')+'</div></div><button class="mini" onclick="telaEscalaForcar()">Atualizar</button></div>';
   if(S.avisoEscala) h+='<div class="card obs">'+esc(S.avisoEscala)+'</div>';
+  const pedeConf=(S.dia===hoje()||S.dia===soma(hoje(),1))&&servs.some(l=>tipoDe(l)[2]);
+  if(pedeConf) h+='<div id="confBox">'+confHtml()+'</div>';
   if(!servs.length){ box.innerHTML=h+'<div class="vazio">Você não tem serviços nesse dia no Phoenix.</div>'; return; }
   // PDF da Ordem de Serviço só quando o dia tem passeio (transfer não precisa)
   if(servs.some(l=>l.tipo==="TOUR"&&!l.auxiliar)) h+='<div class="card" style="display:flex;align-items:center;gap:12px;background:var(--claro);box-shadow:none"><span style="font-size:26px">📄</span><div style="flex:1"><b>Sua escala em PDF</b><div class="peq muted">A Ordem de Serviço do dia, direto do Phoenix</div></div><button class="mini" id="btnPdf" onclick="abrirPdf()">Abrir</button></div>';
@@ -188,6 +190,32 @@ function desenharEscala(servs){
     anterior=l;
   }
   box.innerHTML=h;
+}
+// ---- confirmação da escala (hoje e amanhã): Aceito / Não posso ----
+function confHtml(){
+  const c=S.conf[S.dia];
+  if(c===undefined){ setTimeout(carregarConf,0); return '<div class="card" style="min-height:60px"><span class="peq muted">Carregando confirmação…</span></div>'; }
+  if(c&&!S.confEditar){
+    const ok=c.resposta==="aceito", hr=new Date(c.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    return '<div class="card" style="display:flex;align-items:center;gap:12px;background:'+(ok?'#d4f0ec':'#fde2dc')+';box-shadow:none"><span style="font-size:24px">'+(ok?'✅':'❌')+'</span><div style="flex:1;min-width:0"><b style="color:'+(ok?'#0b6e5f':'#a3271a')+'">'+(ok?'Você aceitou esta escala':'Você avisou que não pode')+'</b><div class="peq muted">às '+hr+(c.motivo?' · '+esc(c.motivo):'')+'</div></div><button class="mini" onclick="S.confEditar=true;confRedesenhar()">Mudar</button></div>';
+  }
+  return '<div class="card" style="border:2px solid var(--verde)"><b>Confirme sua escala</b><div class="peq muted" style="margin:2px 0 10px">Confira os serviços abaixo e responda para a Central.</div>'
+    +(S.confRecusar?'<input type="text" id="confMotivo" placeholder="Motivo (ex.: consulta médica às 9h)" style="display:block;width:100%;box-sizing:border-box;height:46px;border:1px solid var(--linha);border-radius:12px;padding:0 12px;font:inherit;margin-bottom:10px">'
+      +'<div style="display:flex;gap:8px"><button class="mini" style="flex:1;height:44px" onclick="S.confRecusar=false;confRedesenhar()">Voltar</button><button class="btn" style="flex:2;margin:0;background:#a3271a" onclick="confMarcar(\'recuso\')">Enviar</button></div>'
+      :'<div style="display:flex;gap:8px"><button class="btn" style="flex:1;margin:0" onclick="confMarcar(\'aceito\')">✓ Aceito</button><button class="mini" style="flex:1;height:48px;color:#a3271a;font-weight:900" onclick="S.confRecusar=true;confRedesenhar()">Não posso</button></div>')
+    +'<div id="confErro" class="erro"></div></div>';
+}
+function confRedesenhar(){ const b=document.getElementById("confBox"); if(b) b.innerHTML=confHtml(); }
+async function carregarConf(){ const d=S.dia; if(S.confCarregando===d) return; S.confCarregando=d;
+  try{ const j=await api("confVer",{data:d}); S.conf[d]=j.ok?(j.confirmacao||null):null; }catch(e){ S.conf[d]=null; } finally{ S.confCarregando=null; }
+  if(S.dia===d) confRedesenhar(); }
+async function confMarcar(resposta){
+  const m=document.getElementById("confMotivo"), motivo=m?m.value.trim():"", er=document.getElementById("confErro");
+  if(resposta==="recuso"&&!motivo){ er.textContent="Escreva o motivo."; return; }
+  document.querySelectorAll("#confBox button").forEach(b=>b.disabled=true);
+  try{ const j=await api("confMarcar",{data:S.dia,resposta,motivo}); if(!j.ok) throw new Error(j.erro);
+    S.conf[S.dia]=j.confirmacao; S.confEditar=false; S.confRecusar=false; confRedesenhar();
+  }catch(e){ document.querySelectorAll("#confBox button").forEach(b=>b.disabled=false); er.textContent=e.message; }
 }
 async function abrirPdf(){
   const b=document.getElementById("btnPdf"); b.disabled=true; b.textContent="Gerando...";
@@ -272,15 +300,35 @@ const MOTIVOS_REC=[["noshow","No show"],["box","Mudança do Box"],["voo","Voo al
 function relRecs(l,it){
   if(l.tipo!=="IN") return "";
   const vistos=new Set(), rs=(l.reservas||[]).filter(r=>r.rec&&!vistos.has(r.rec)&&vistos.add(r.rec));
-  if(!rs.length) return "";
   if(!Array.isArray(it.recs)) it.recs=rs.map(r=>({rec:r.rec,foi:true,motivo:""}));
   rs.forEach(r=>{ if(!it.recs.some(x=>x.rec===r.rec)) it.recs.push({rec:r.rec,foi:true,motivo:""}); });
   const foram=it.recs.filter(x=>x.foi).length;
   return '<div style="background:var(--claro);border-radius:12px;padding:10px 12px"><div class="peq" style="font-weight:800;margin-bottom:6px">Quem veio com você? ('+foram+' de '+it.recs.length+')</div>'
     +it.recs.map((x,k)=>{ const r=rs.find(y=>y.rec===x.rec)||{};
+      if(x.extra) return '<div style="padding:6px 0;border-top:'+(k?'1px solid var(--linha)':'none')+'"><div style="display:flex;gap:10px;align-items:center"><span style="width:20px;text-align:center;flex:none">＋</span><span style="flex:1;text-align:left"><b>REC-'+esc(x.rec)+'</b> <span class="peq muted">'+esc(tit(x.cliente||""))+'</span> <span class="tag" style="color:var(--chegada)">de última hora</span></span><button class="mini" aria-label="Tirar" onclick="S.relItens[\''+l.ro+'\'].recs.splice('+k+',1);desenharRel()">✕</button></div>'
+        +'<div style="display:flex;gap:8px;align-items:center;margin:6px 0 0 30px"><span class="peq muted" style="white-space:nowrap">Vendeu R$</span><input type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" value="'+(x.venda!=null?esc(x.venda):'')+'" oninput="relRecVenda(\''+l.ro+'\','+k+',this.value)" style="width:110px;height:38px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit;background:#fff"></div></div>';
       return '<div style="padding:6px 0;border-top:'+(k?'1px solid var(--linha)':'none')+'"><label style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:flex-start;text-align:left;margin:0;font-weight:400"><input type="checkbox" style="width:20px;height:20px;flex:none;margin:0" '+(x.foi?'checked':'')+' onchange="relRec(\''+l.ro+'\','+k+',\'foi\',this.checked)"><span style="flex:1;text-align:left"><b>REC-'+esc(String(x.rec).replace(/^REC-?/i,""))+'</b> <span class="peq muted">'+esc(tit(r.cliente||""))+(r.pax?' · '+r.pax+' pax':'')+'</span></span></label>'
         +(x.foi?'<div style="display:flex;gap:8px;align-items:center;margin:6px 0 0 30px"><span class="peq muted" style="white-space:nowrap">Vendeu R$</span><input type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" value="'+(x.venda!=null?esc(x.venda):'')+'" oninput="relRecVenda(\''+l.ro+'\','+k+',this.value)" style="width:110px;height:38px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit;background:#fff"></div>':'')
-        +(x.foi?'':'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin:6px 0 0 30px">'+MOTIVOS_REC.map(([v,t])=>'<button class="mini" style="'+(x.motivo===v?'background:var(--escuro);color:#fff':'')+'" onclick="relRec(\''+l.ro+'\','+k+',\'motivo\',\''+v+'\')">'+t+'</button>').join("")+'</div>')+'</div>'; }).join("")+'</div>';
+        +(x.foi?'':'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin:6px 0 0 30px">'+MOTIVOS_REC.map(([v,t])=>'<button class="mini" style="'+(x.motivo===v?'background:var(--escuro);color:#fff':'')+'" onclick="relRec(\''+l.ro+'\','+k+',\'motivo\',\''+v+'\')">'+t+'</button>').join("")+'</div>')+'</div>'; }).join("")+'<button class="mini" style="margin-top:8px;width:100%;height:40px" onclick="recExtra(\''+l.ro+'\')">＋ Veio uma REC que não está aqui</button></div>';
+}
+// REC que entrou de última hora na chegada (o Box juntou e ainda não está no Phoenix)
+function recExtra(ro){
+  const f=document.createElement("div"); f.className="fundo"; f.id="fundo";
+  f.innerHTML='<div class="folha-baixo"><b style="font-size:18px">REC de última hora</b><div class="peq muted">Passageiro que veio com você nessa chegada, mas não está na lista (ex.: o Box juntou na hora).</div>'
+    +'<label>Número da REC<input id="reN" inputmode="numeric" placeholder="ex.: 983599"></label>'
+    +'<label>Nome do cliente<input id="reC" placeholder="ex.: Iana Cerqueira"></label>'
+    +'<label>Vendeu para essa REC (R$)<input id="reV" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></label>'
+    +'<div id="reErro" class="erro"></div><div style="display:flex;gap:8px;margin-top:14px"><button class="btn sec" style="flex:1" onclick="document.getElementById(\'fundo\').remove()">Cancelar</button><button class="btn" style="flex:2" id="reOk">Adicionar</button></div></div>';
+  document.body.appendChild(f);
+  document.getElementById("reOk").onclick=()=>{
+    const rec=document.getElementById("reN").value.replace(/\D/g,""), cli=document.getElementById("reC").value.trim(), v=parseFloat(String(document.getElementById("reV").value).replace(",","."));
+    const it=S.relItens[ro];
+    if(rec.length<4){ document.getElementById("reErro").textContent="Coloque o número da REC."; return; }
+    if((it.recs||[]).some(x=>String(x.rec).replace(/\D/g,"")===rec)){ document.getElementById("reErro").textContent="Essa REC já está na lista."; return; }
+    it.recs=(it.recs||[]).concat([{rec,cliente:cli,foi:true,extra:true,motivo:"",venda:v>0?v:null}]);
+    if(it.status==="noshow") it.status="fiz";
+    f.remove(); desenharRel();
+  };
 }
 // venda por REC: não redesenha a tela (para não perder o foco do campo); só atualiza o total
 function relRecVenda(ro,k,v){ const n=parseFloat(String(v).replace(",",".")); S.relItens[ro].recs[k].venda=(v===""||!(n>=0))?null:n; const t=document.getElementById("relTotVendas"); if(t) t.textContent=brl(relTotalVendas()); }

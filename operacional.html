@@ -2117,7 +2117,8 @@
 
   // ---- Envio pelo WhatsApp (escala dos guias / aviso dos passeios) + contatos ----
   const API_ENVIOS = "https://us-central1-operacional-luck.cloudfunctions.net/envios";
-  const ENV={ contatos:null, enviados:{}, carregando:{} };
+  const ENV={ contatos:null, enviados:{}, carregando:{}, conf:{} };
+  const API_CONF = "https://us-central1-operacional-luck.cloudfunctions.net/confirmacoes";
   const RODAPE="\n\n_Sujeito a mudanças._";
   const normGuia=(s)=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[-–]?\s*GUIA\s*$/,"").replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
   function assinatura(s){ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36); }
@@ -2132,11 +2133,24 @@
       const [c,e]=await Promise.all([ENV.contatos?null:chamarEnvios("contatos",{}), chamarEnvios("enviados",{data})]);
       if(c&&c.ok){ ENV.contatos=c.contatos; preencherGuias(); }
       if(e&&e.ok) ENV.enviados[data]=e.envios;
+      try{ const r=await fetch(API_CONF,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:USUARIO.token,data})}); const j=await r.json(); if(j.ok) ENV.conf[data]=j.itens; }catch(_){}
     }finally{ ENV.carregando[data]=false; }
   }
   function contatoDe(nome){
     const n=normGuia(nome);
     return (ENV.contatos||[]).find(c=>normGuia(c.nome)===n||(c.apelidos||[]).some(a=>normGuia(a)===n))||null;
+  }
+  // confirmação do guia no app novo (Aceito / Não posso)
+  function confDe(data,guia){
+    const n=normGuia(guia), c=contatoDe(guia), nc=c?normGuia(c.nome):"";
+    return (ENV.conf[data]||[]).find(x=>{ const g=normGuia(x.guia); return g===n||(nc&&g===nc)||(x.apelidos||[]).some(a=>normGuia(a)===n); })||null;
+  }
+  function pillConf(data,guia,enviada){
+    const c=confDe(data,guia);
+    if(!c) return enviada?'<span class="pill" style="background:#fff7e0;color:#8a6a0c" title="O guia ainda não respondeu no app">Sem resposta</span>':'';
+    const hr=new Date(c.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    return c.resposta==="aceito"?'<span class="pill" style="background:#d4f0ec;color:#0b6e5f">✓ Aceitou '+hr+'</span>'
+      :'<span class="pill" style="background:#fde2dc;color:#a3271a" title="'+esc(c.motivo||"")+'">✗ Recusou: '+esc((c.motivo||"").slice(0,40))+'</span>';
   }
   function envioDe(data,tipo,guia){ return (ENV.enviados[data]||[]).find(e=>e.tipo===tipo&&normGuia(e.guia)===normGuia(guia))||null; }
   function statusEnvio(data,tipo,guia,mensagem){
@@ -2170,7 +2184,7 @@
       if(noite&&l._prox&&k>0&&!(itens[k-1]||{})._prox) txt+='\n— madrugada de '+dataBR(somaDia(data,1)).slice(0,5)+' —\n';
       txt+=(horaIni(l)?horaIni(l)+' · ':'')+nome(l)+(mot?' · Mot. '+titulo(mot):'')+'\n';
     });
-    return txt.trimEnd()+'\n\nVoo, veículo e pax no app.'+RODAPE;
+    return txt.trimEnd()+'\n\n✅ Confirme no app (voo, veículo e pax também estão lá):\nhttps://centraldepasseios-design.github.io/relatorio-guias/app.html'+RODAPE;
   }
   function msgPasseio(guia, carros, data){
     const quando=data===amanhaISO()?"Amanhã, "+dataBR(data):"Dia "+dataBR(data);
@@ -2186,7 +2200,7 @@
     if(!e) pill='<span class="pill" style="background:#eef1f0;color:#3c524d">Não enviada</span>';
     else if(e.hash&&e.hash!==assinatura(msgEscala(g,ESC.data))) pill='<span class="pill" style="background:#fff1e0;color:#8a4a0c">Mudou desde o envio</span>';
     else pill='<span class="pill" style="background:#e3f2ee;color:#0b4f44">Enviada '+new Date(e.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+'</span>';
-    return pill+'<button class="btn mini sec" onclick="enviarEscalaGuia(\''+esc(g.nome).replace(/'/g,"\\'")+'\')">Enviar</button>';
+    return pill+pillConf(ESC.data,g.nome,!!e)+'<button class="btn mini sec" onclick="enviarEscalaGuia(\''+esc(g.nome).replace(/'/g,"\\'")+'\')">Enviar</button>';
   }
   function botaoEscalaGuia(g){
     if(!g.itens.some(entraNaEscala)) return '';
@@ -3019,14 +3033,14 @@
     const N=normP(g.nome);
     const rels=g.solto?d.soltos.filter(r=>normP(r.guia)===N):(d.relDe[g.nome]||[]);
     const esc2=(d.guias.find(x=>normP(x.nome)===N)||{linhas:[]}).linhas.slice().sort((a,b)=>a.hora.localeCompare(b.hora));
-    const ITENS_CONHECIDOS=["servico","naoRealizado","motivo","motorista","recIdioma","_usado"];
+    const ITENS_CONHECIDOS=["servico","naoRealizado","motivo","motorista","recIdioma","recExtra","_usado"];
     const itensRel=rels.flatMap(r=>r.itens||[]);
     const colR=itensRel.length?itensRel.map(i=>{
       const extra=Object.entries(i).filter(([k,v])=>!ITENS_CONHECIDOS.includes(k)&&v!=null&&v!==""&&typeof v!=="object"&&String(v).length<120).map(([k,v])=>esc(k)+": "+esc(v)).join(" · ");
       return '<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>'+esc(relServico(i.servico))+'</b> '
         +(i.naoRealizado?'<span style="color:#8a4a0c;font-weight:700">não realizado</span>':'<span style="color:var(--ok);font-weight:700">feito</span>')
         +(i.motorista?' · motorista '+esc(i.motorista):'')+(i.recIdioma?' · idioma REC '+esc(i.recIdioma):'')
-        +(i.motivo?'<div style="color:var(--muted)">Motivo: '+esc(i.motivo)+'</div>':'')+(extra?'<div style="color:var(--muted);font-size:.74rem">'+extra+'</div>':'')+'</div>';
+        +(i.motivo?'<div style="color:var(--muted)">Motivo: '+esc(i.motivo)+'</div>':'')+(i.recExtra?'<div style="color:#1f5fbf;font-weight:700">＋ Veio de última hora: '+esc(i.recExtra)+' (conferir/trocar no Phoenix)</div>':'')+(extra?'<div style="color:var(--muted);font-size:.74rem">'+extra+'</div>':'')+'</div>';
     }).join(""):'<p style="color:var(--muted)">'+(rels.length?"Relatório sem serviços marcados.":"Sem relatório neste dia.")+'</p>';
     const colP=esc2.length?esc2.map(l=>'<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>'+esc(l.hora||"--:--")+'</b> '+esc(l.servico)
       +'<div style="color:var(--muted);font-size:.74rem">'+esc(l.ro)+(l.veiculo?' · '+esc(l.veiculo):'')+(l.motorista?' · '+esc(l.motorista):'')+'</div></div>').join(""):'<p style="color:var(--muted)">Sem escala no Phoenix neste dia.</p>';
