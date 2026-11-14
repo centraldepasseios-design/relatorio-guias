@@ -227,6 +227,7 @@ async function telaRel(){
     const [servs,rel,vend]=await Promise.all([escalaDo(S.relDia),api("relVer",{data:S.relDia}),api("vendas",{data:S.relDia})]);
     S.relServs=servs; S.relSalvo=(rel&&rel.relatorio)||null; S.relVendas=vend; S.relItens={}; S.relInter=(S.relSalvo&&S.relSalvo.intercorrencias)||[];
     (S.relSalvo&&S.relSalvo.itens||[]).forEach(i=>S.relItens[i.ro]=i);
+    S.relVendaDia=S.relSalvo&&S.relSalvo.vendaDia!=null?S.relSalvo.vendaDia:""; S.relPos=(S.relSalvo&&S.relSalvo.posVendas)||[];
     desenharRel();
   }catch(e){ box.innerHTML='<div class="card erro">'+esc(e.message)+'</div>'; }
 }
@@ -256,8 +257,13 @@ function desenharRel(){
   }
   // vendas do dia (Phoenix)
   const v=S.relVendas||{};
-  h+='<h3 class="tit" style="margin:16px 2px 8px">Suas vendas do dia</h3><div class="card">'+(v.pendente?'<span class="peq muted">Em breve: aqui vão aparecer as vendas que você lançou no Phoenix neste dia.</span>':(v.vendas&&v.vendas.length?'<div class="peq" style="display:flex;justify-content:space-between;padding:0 0 6px"><b>'+v.vendas.length+' venda(s)</b><b>'+brl(v.vendas.reduce((s,x)=>s+(x.valor||0),0))+'</b></div>':'')+(v.vendas&&v.vendas.length?v.vendas.map(x=>'<div class="peq" style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--linha)"><span>'+esc(x.descricao)+'</span><b>'+brl(x.valor)+'</b></div>').join(""):'<span class="peq muted">Nenhuma venda lançada neste dia (pagas, atualizado a cada 2 horas).</span>'))+'</div>';
-  if(servs.length) h+='<button class="btn" id="btnRel" onclick="enviarRel()">'+(S.relSalvo?'Enviar correção':'Enviar relatório')+'</button>';
+  h+='<h3 class="tit" style="margin:16px 2px 8px">Suas vendas do dia</h3><div class="card">'+(v.pendente?'<span class="peq muted">Em breve: aqui vão aparecer as vendas que você lançou no Phoenix neste dia.</span>':(v.vendas&&v.vendas.length?'<div class="peq" style="display:flex;justify-content:space-between;padding:0 0 6px"><b>'+v.vendas.length+' venda(s)</b><b>'+brl(v.vendas.reduce((s,x)=>s+(x.valor||0),0))+'</b></div>':'')+(v.vendas&&v.vendas.length?v.vendas.map(x=>'<div class="peq" style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--linha)"><span>'+esc(x.descricao)+'</span><b>'+brl(x.valor)+'</b></div>').join(""):'<span class="peq muted">Nenhuma venda lançada neste dia (pagas, atualizado a cada 2 horas).</span>'))
+    +'<div style="border-top:1px solid var(--linha);margin-top:10px;padding-top:10px"><label style="margin:0">Outras vendas do dia, sem REC acima (R$)<input type="number" inputmode="decimal" min="0" step="0.01" placeholder="ex.: 850,00" style="display:block;width:100%;box-sizing:border-box;height:48px;border:1px solid var(--linha);border-radius:12px;padding:0 14px;font:inherit;font-size:15px;margin-top:6px;background:#fff" value="'+esc(S.relVendaDia)+'" oninput="S.relVendaDia=this.value;const t=document.getElementById(\'relTotVendas\');if(t)t.textContent=brl(relTotalVendas())"></label><div style="display:flex;justify-content:space-between;margin-top:10px;font-weight:900"><span>Total vendido no dia</span><span id="relTotVendas">'+brl(relTotalVendas())+'</span></div></div>'
+    +'<div style="border-top:1px solid var(--linha);margin-top:10px;padding-top:10px"><b class="peq">Pós-venda</b><div class="peq muted" style="margin:2px 0 8px">Vendeu hoje para um cliente de outro dia (ex.: não fechou na chegada)? Registre aqui.</div>'
+    +(S.relPos||[]).map((p,k)=>'<div class="peq" style="display:flex;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--linha)"><span style="flex:1;min-width:0">'+(p.rec?'<b>REC-'+esc(p.rec)+'</b> · ':'')+esc(tit(p.cliente||""))+(p.dataServico?' · atendido em '+dd(p.dataServico):'')+(p.obs?'<br><span class="muted">'+esc(p.obs)+'</span>':'')+'</span><b>'+brl(p.valor)+'</b><button class="mini" onclick="S.relPos.splice('+k+',1);desenharRel()">✕</button></div>').join("")
+    +'<button class="mini" style="margin-top:6px" onclick="posVenda()">＋ Pós-venda</button></div></div>';
+  // mesmo sem serviço no dia (folga), dá para enviar a venda do dia e o pós-venda
+  h+='<button class="btn" id="btnRel" onclick="enviarRel()">'+(S.relSalvo?'Enviar correção':'Enviar relatório')+'</button>';
   box.innerHTML=h;
 }
 function relSet(ro,k,v){ S.relItens[ro][k]=v; desenharRel(); }
@@ -272,15 +278,36 @@ function relRecs(l,it){
   const foram=it.recs.filter(x=>x.foi).length;
   return '<div style="background:var(--claro);border-radius:12px;padding:10px 12px"><div class="peq" style="font-weight:800;margin-bottom:6px">Quem veio com você? ('+foram+' de '+it.recs.length+')</div>'
     +it.recs.map((x,k)=>{ const r=rs.find(y=>y.rec===x.rec)||{};
-      return '<div style="padding:6px 0;border-top:'+(k?'1px solid var(--linha)':'none')+'"><label style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:flex-start;text-align:left;margin:0;font-weight:400"><input type="checkbox" style="width:20px;height:20px;flex:none;margin:0" '+(x.foi?'checked':'')+' onchange="relRec(\''+l.ro+'\','+k+',\'foi\',this.checked)"><span style="flex:1;text-align:left"><b>REC '+esc(x.rec)+'</b> <span class="peq muted">'+esc(tit(r.cliente||""))+(r.pax?' · '+r.pax+' pax':'')+'</span></span></label>'
+      return '<div style="padding:6px 0;border-top:'+(k?'1px solid var(--linha)':'none')+'"><label style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:flex-start;text-align:left;margin:0;font-weight:400"><input type="checkbox" style="width:20px;height:20px;flex:none;margin:0" '+(x.foi?'checked':'')+' onchange="relRec(\''+l.ro+'\','+k+',\'foi\',this.checked)"><span style="flex:1;text-align:left"><b>REC-'+esc(String(x.rec).replace(/^REC-?/i,""))+'</b> <span class="peq muted">'+esc(tit(r.cliente||""))+(r.pax?' · '+r.pax+' pax':'')+'</span></span></label>'
+        +(x.foi?'<div style="display:flex;gap:8px;align-items:center;margin:6px 0 0 30px"><span class="peq muted" style="white-space:nowrap">Vendeu R$</span><input type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" value="'+(x.venda!=null?esc(x.venda):'')+'" oninput="relRecVenda(\''+l.ro+'\','+k+',this.value)" style="width:110px;height:38px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit;background:#fff"></div>':'')
         +(x.foi?'':'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin:6px 0 0 30px">'+MOTIVOS_REC.map(([v,t])=>'<button class="mini" style="'+(x.motivo===v?'background:var(--escuro);color:#fff':'')+'" onclick="relRec(\''+l.ro+'\','+k+',\'motivo\',\''+v+'\')">'+t+'</button>').join("")+'</div>')+'</div>'; }).join("")+'</div>';
 }
+// venda por REC: não redesenha a tela (para não perder o foco do campo); só atualiza o total
+function relRecVenda(ro,k,v){ const n=parseFloat(String(v).replace(",",".")); S.relItens[ro].recs[k].venda=(v===""||!(n>=0))?null:n; const t=document.getElementById("relTotVendas"); if(t) t.textContent=brl(relTotalVendas()); }
+function relVendasRecs(){ return Object.values(S.relItens||{}).flatMap(it=>(it.recs||[]).filter(r=>r.foi&&r.venda>0)); }
+function relTotalVendas(){ const outras=parseFloat(String(S.relVendaDia==null?"":S.relVendaDia).replace(",","."))||0;
+  return relVendasRecs().reduce((s,r)=>s+r.venda,0)+outras+(S.relPos||[]).reduce((s,p)=>s+(p.valor||0),0); }
 function relRec(ro,k,campo,v){
   const it=S.relItens[ro], x=it.recs[k]; x[campo]=v; if(campo==="foi"&&v) x.motivo="";
   // ninguém veio: o serviço fica como não realizado
   if(it.recs.length&&it.recs.every(r=>!r.foi)){ it.status="noshow"; if(!it.motivo) it.motivo=(MOTIVOS_REC.find(m=>m[0]===it.recs[0].motivo)||["","Ninguém veio"])[1]; }
   else if(campo==="foi"&&v&&it.status==="noshow") it.status="fiz";
   desenharRel();
+}
+function posVenda(){
+  const f=document.createElement("div"); f.className="fundo"; f.id="fundo";
+  f.innerHTML='<div class="folha-baixo"><b style="font-size:18px">Pós-venda</b><div class="peq muted">Venda feita hoje para um cliente que você atendeu em outro dia.</div>'
+    +'<label>REC do cliente<input id="pvRec" inputmode="numeric" placeholder="ex.: 983599"></label>'
+    +'<label>Nome do cliente<input id="pvCli" placeholder="ex.: Iana Cerqueira"></label>'
+    +'<label>Dia em que você atendeu (ex.: a chegada)<input id="pvData" type="date" style="display:block;width:100%;box-sizing:border-box;height:48px;border:1px solid var(--linha);border-radius:12px;padding:0 14px;font:inherit;font-size:15px;margin-top:6px;background:#fff" value="'+soma(S.relDia,-1)+'"></label>'
+    +'<label>Valor vendido (R$)<input id="pvValor" type="number" inputmode="decimal" min="0" step="0.01" style="display:block;width:100%;box-sizing:border-box;height:48px;border:1px solid var(--linha);border-radius:12px;padding:0 14px;font:inherit;font-size:15px;margin-top:6px;background:#fff"></label>'
+    +'<label>O que vendeu (opcional)<input id="pvObs" placeholder="ex.: Maragogi + Carneiros"></label>'
+    +'<button class="btn" id="pvOk">Incluir</button><button class="btn sec" onclick="document.getElementById(\'fundo\').remove()">Cancelar</button></div>';
+  document.body.appendChild(f);
+  document.getElementById("pvOk").onclick=()=>{ const g=(id)=>document.getElementById(id).value.trim();
+    const valor=parseFloat(String(g("pvValor")).replace(",",".")); if(!(valor>0)){ alert("Informe o valor vendido."); return; }
+    if(!g("pvRec")&&!g("pvCli")){ alert("Informe a REC ou o nome do cliente."); return; }
+    S.relPos=(S.relPos||[]).concat([{rec:g("pvRec").replace(/\D/g,""),cliente:g("pvCli"),dataServico:g("pvData"),valor,obs:g("pvObs")}]); f.remove(); desenharRel(); };
 }
 function intercorrencia(ro,servico){
   const atual=S.relInter.find(x=>x.ro===ro)||{};
@@ -298,8 +325,9 @@ async function enviarRel(){
   const transfers=S.relServs.filter(l=>tipoDe(l)[2]).map(l=>S.relItens[l.ro]).filter(Boolean);
   const faltaMotivo=transfers.find(t=>(t.recs||[]).some(r=>!r.foi&&!r.motivo));
   if(faltaMotivo){ alert("Marque o motivo das reservas que não vieram com você (no show, mudança do Box ou voo alterado)."); b.disabled=false; return; }
-  try{ const j=await api("relEnviar",{data:S.relDia,itens:transfers,intercorrencias:S.relInter}); if(!j.ok) throw new Error(j.erro);
-    S.relSalvo={itens:transfers,intercorrencias:S.relInter}; alert("Relatório enviado. Obrigado!"); desenharRel();
+  const vendaDia=String(S.relVendaDia==null?"":S.relVendaDia).trim()===""?null:parseFloat(String(S.relVendaDia).replace(",","."));
+  try{ const j=await api("relEnviar",{data:S.relDia,itens:transfers,intercorrencias:S.relInter,vendaDia,posVendas:S.relPos||[]}); if(!j.ok) throw new Error(j.erro);
+    S.relSalvo={itens:transfers,intercorrencias:S.relInter,vendaDia,posVendas:S.relPos||[]}; alert("Relatório enviado. Obrigado!"); desenharRel();
   }catch(e){ alert("Não consegui enviar: "+e.message); b.disabled=false; }
 }
 
@@ -314,7 +342,7 @@ async function telaHist(){
   box.innerHTML='<div class="seg" style="margin-bottom:12px">'+[["atual","Quinzena atual"],["anterior","Anterior"],["30","30 dias"]].map(([k,t])=>'<button class="'+(S.histFiltro===k?"on":"")+'" onclick="S.histFiltro=\''+k+'\';telaHist()">'+t+'</button>').join("")+'</div><div class="esqueleto"></div><div class="esqueleto"></div>';
   if(fim<ini){ box.innerHTML=box.innerHTML.replace(/<div class="esqueleto"><\/div>/g,"")+'<div class="vazio">A quinzena começou hoje. Seus serviços aparecem aqui a partir de amanhã.</div>'; return; }
   try{ const j=await api("historico",{inicio:ini,fim}); if(!j.ok) throw new Error(j.erro); if(S.aba!=="hist") return;
-    const R={fiz:["Relatado","#d4f0ec","#0b6e5f"],noshow:["Não realizado","#fde2dc","#a3271a"],passeio:["Passeio","#e3f2ee","#0b6e5f"],box:["Apoio ao Box","#e8e1fb","#5b2a9c"]};
+    const R={fiz:["Relatado","#d4f0ec","#0b6e5f"],noshow:["Não realizado","#fde2dc","#a3271a"],passeio:["Passeio","#e3f2ee","#0b6e5f"],box:["Apoio ao Box","#e8e1fb","#5b2a9c"],sol:["Evento / navio","#e1ecfb","#1e3a8a"]};
     const passeios=j.servicos.filter(s=>s.tipo==="TOUR"&&!s.auxiliar).length;
     let h=box.innerHTML.replace(/<div class="esqueleto"><\/div>/g,"");
     h+='<div class="card" style="display:flex;justify-content:space-around;text-align:center"><div><b style="font-size:22px">'+j.servicos.length+'</b><div class="peq muted">serviços</div></div><div><b style="font-size:22px">'+passeios+'</b><div class="peq muted">passeios</div></div><div><b style="font-size:22px">'+(j.servicos.length-passeios)+'</b><div class="peq muted">transfers e apoios</div></div></div>';
