@@ -353,6 +353,7 @@
       {id:"cen-reclam", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>", nome:"Reclamações"},
       {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z\"/><path d=\"M9 4v14M15 6v14\"/></svg>", nome:"Passeios"},
       {id:"cen-solic", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"m16 11 2 2 4-4\"/></svg>", nome:"Solicitações"},
+      {id:"cen-transf", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18M3 15h18M9 3v18M15 3v18\"/></svg>", nome:"Transferistas"},
       {id:"cen-relatorio", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 3v16a2 2 0 0 0 2 2h16\"/><path d=\"M18 17V9M13 17V5M8 17v-3\"/></svg>", nome:"Relatório"},
       {id:"central-fechar", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>", nome:"Fechar escalas"},
     ]},
@@ -427,6 +428,7 @@
     if(id==="box-apoio"){ renderApoioBox(m); return; }
     if(id==="sol-pedidos"){ renderSol(m); return; }
     if(id==="cen-solic"){ renderCenSolic(m); return; }
+    if(id==="cen-transf"){ renderTransf(m); return; }
     if(id==="box-fechar"){ renderFechar(m, "recife"); return; } // o Box fecha IN, OUT, transfer e apoios (regra que era do Recife)
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
     if(id==="cen-contatos"){ renderContatos(m); return; }
@@ -3517,6 +3519,68 @@
       return '<button onclick="cenSolIr(\''+x+'\')" style="flex:none;min-width:74px;padding:8px 10px;border-radius:12px;border:1px solid '+(on?'var(--verde)':'var(--linha)')+';background:'+(on?'var(--verde)':'var(--card,#fff)')+';color:'+(on?'#fff':'var(--tinta)')+';font:inherit;cursor:pointer;text-align:center">'
         +'<div style="font-size:.7rem;font-weight:800;text-transform:uppercase;opacity:.8">'+["dom","seg","ter","qua","qui","sex","sáb"][new Date(x+"T12:00:00").getDay()]+' '+x.slice(8,10)+'</div>'
         +'<div style="font-size:.78rem;font-weight:800;margin-top:2px;color:'+(on?'#fff':(f.sem?'#b45309':'var(--muted)'))+'">'+(f.tot?(f.sem?f.sem+' sem guia':'✓ '+f.tot):'—')+'</div></button>'; }).join("");
+  }
+
+
+  // ======================= CENTRAL: TRANSFERISTAS =======================
+  // Grupos A e B se alternam toda segunda. Os 2 que mais venderam na semana têm direito a 5 Maragogi; os outros, 3.
+  const API_TRANSF="https://us-central1-operacional-luck.cloudfunctions.net/transferistas";
+  const TRF={ semana:null, d:null, editando:false };
+  const TRF_COR={"Maragogi":["#dcefe9","#0b5c50"],"Carneiros":["#dbe7fb","#1e3a8a"],"São José":["#fde7d3","#8a3b0b"],"Folga":["#eef1f0","#5d7570"]};
+  const TRF_SEQ=["","Maragogi","Carneiros","São José","Folga"];
+  async function chamarTransf(acao,dados){
+    const r=await fetch(API_TRANSF,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,semana:TRF.semana,...dados})});
+    const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
+  }
+  function trfSegunda(iso){ const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7)); return d.toISOString().slice(0,10); }
+  function renderTransf(m){
+    if(!TRF.semana) TRF.semana=trfSegunda(consHoje());
+    cab("Rodízio dos grupos A e B e dias de Maragogi","");
+    m.innerHTML='<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn sec mini" onclick="trfSem(-7)">‹</button><b id="trfTit" style="font-size:.95rem"></b><button class="btn sec mini" onclick="trfSem(7)">›</button><span style="flex:1"></span><button class="btn sec" onclick="TRF.editando=!TRF.editando;trfDesenhar()">Editar grupos</button></div><div id="trfCorpo"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
+    trfCarregar();
+  }
+  function trfSem(n){ const d=new Date(TRF.semana+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); TRF.semana=d.toISOString().slice(0,10); TRF.d=null; renderTransf(document.getElementById("mainConteudo")); }
+  async function trfCarregar(){ try{ TRF.d=await chamarTransf("ler",{}); trfDesenhar(); }catch(e){ const b=document.getElementById("trfCorpo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; } }
+  function trfDias(){ return [0,1,2,3,4,5,6].map(n=>{ const d=new Date(TRF.semana+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }); }
+  function trfDesenhar(){
+    const box=document.getElementById("trfCorpo"), D=TRF.d; if(!box||!D) return;
+    const dias=trfDias(), fim=dias[6];
+    const t=document.getElementById("trfTit"); if(t) t.textContent="Semana "+dataBR(dias[0]).slice(0,5)+" a "+dataBR(fim).slice(0,5)+" · Grupo "+D.grupo;
+    let h="";
+    if(TRF.editando){
+      const inp=(g,k)=>'<input id="trf'+g+k+'" value="'+esc((D.grupos[g]||[])[k]||"")+'" placeholder="Nome '+(k+1)+'" style="height:40px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit">';
+      h+='<div class="card"><b>Grupos</b><p style="font-size:.82rem;color:var(--muted);margin:4px 0 12px">Os grupos se alternam toda segunda-feira. Diga qual grupo trabalha na semana que está aberta e o sistema calcula as outras.</p>'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">'
+        +["A","B"].map(g=>'<div><b style="font-size:.85rem">Grupo '+g+'</b><div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">'+[0,1,2,3].map(k=>inp(g,k)).join("")+'</div></div>').join("")+'</div>'
+        +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:.88rem">Nesta semana ('+dataBR(dias[0]).slice(0,5)+') trabalha o <select id="trfRefG" style="height:36px;border:1px solid var(--linha);border-radius:8px;font:inherit"><option'+(D.grupo==="A"?" selected":"")+'>A</option><option'+(D.grupo==="B"?" selected":"")+'>B</option></select>'
+        +'<span style="flex:1"></span><button class="btn sec" onclick="TRF.editando=false;trfDesenhar()">Cancelar</button><button class="btn" onclick="trfSalvarGrupos()">Salvar grupos</button></div></div>';
+    }
+    const pessoas=(D.grupos[D.grupo]||[]);
+    if(!pessoas.length){ box.innerHTML=h+'<div class="card" style="color:var(--muted)">Cadastre as pessoas dos grupos A e B em <b>Editar grupos</b>.</div>'; return; }
+    // contadores
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px">'+pessoas.map(n=>{
+      const top=D.top.includes(n), dir=top?5:3, feitos=dias.filter(d=>((D.dias[n]||{})[d])==="Maragogi").length;
+      const est=feitos>dir?["+"+(feitos-dir)+" além do direito","#b45309"]:feitos===dir?["quitado","#0e7a68"]:["faltam "+(dir-feitos),"var(--muted)"];
+      return '<div class="card" style="margin:0;padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><b>'+esc(n)+'</b><label style="font-size:.72rem;display:flex;gap:4px;align-items:center;cursor:pointer" title="Um dos 2 que mais venderam: direito a 5 Maragogi"><input type="checkbox" '+(top?"checked":"")+' onchange="trfTop(\''+esc(n)+'\',this.checked)"> top vendas</label></div>'
+        +'<div style="font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums">'+feitos+' / '+dir+'</div><div style="font-size:.78rem;font-weight:700;color:'+est[1]+'">'+est[0]+'</div></div>'; }).join("")+'</div>';
+    // grade
+    const nomesDia=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
+    h+='<div class="card" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:640px"><thead><tr><th></th>'+dias.map((d,k)=>'<th style="font-size:.78rem;color:var(--muted);padding:6px">'+nomesDia[k]+' '+d.slice(8,10)+'</th>').join("")+'</tr></thead><tbody>'
+      +pessoas.map(n=>'<tr><td style="font-weight:700;padding:8px 6px;white-space:nowrap">'+esc(n)+'</td>'+dias.map(d=>{ const v=(D.dias[n]||{})[d]||"", c=TRF_COR[v]||["transparent","var(--muted)"];
+        return '<td style="padding:4px"><button onclick="trfCiclo(\''+esc(n)+'\',\''+d+'\')" style="width:100%;min-height:34px;border-radius:9px;border:1px '+(v?'solid transparent':'dashed var(--linha)')+';background:'+c[0]+';color:'+c[1]+';font:inherit;font-size:.8rem;font-weight:700;cursor:pointer">'+(v||"—")+'</button></td>'; }).join("")+'</tr>').join("")
+      +'</tbody></table><p style="font-size:.76rem;color:var(--muted);margin:10px 0 0">Clique no dia para trocar: Maragogi → Carneiros → São José → Folga → vazio. Marque "top vendas" nos 2 que mais venderam (direito a 5 Maragogi; os outros, 3).</p></div>';
+    box.innerHTML=h;
+  }
+  async function trfCiclo(nome,data){
+    const D=TRF.d, atual=(D.dias[nome]||{})[data]||"", prox=TRF_SEQ[(TRF_SEQ.indexOf(atual)+1)%TRF_SEQ.length];
+    (D.dias[nome]=D.dias[nome]||{})[data]=prox; if(!prox) delete D.dias[nome][data]; trfDesenhar(); // mostra na hora
+    try{ TRF.d=await chamarTransf("dia",{nome,data,local:prox}); trfDesenhar(); }catch(e){ alert(e.message); trfCarregar(); }
+  }
+  async function trfTop(nome,valor){ try{ TRF.d=await chamarTransf("top",{nome,valor}); trfDesenhar(); }catch(e){ alert(e.message); trfCarregar(); } }
+  async function trfSalvarGrupos(){
+    const g=(x)=>[0,1,2,3].map(k=>{ const e=document.getElementById("trf"+x+k); return e?e.value.trim():""; }).filter(Boolean);
+    try{ TRF.d=await chamarTransf("salvarConfig",{grupos:{A:g("A"),B:g("B")},refSemana:TRF.semana,refGrupo:document.getElementById("trfRefG").value}); TRF.editando=false; trfDesenhar(); }
+    catch(e){ alert(e.message); }
   }
 
 
