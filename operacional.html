@@ -3842,7 +3842,7 @@
     const sv=DSP.internos.find(x=>x.tipo==="servico"&&cobre(x)); if(sv) return {s:"b",det:(sv.descricao||"Serviço")+(sv.rec?" · REC-"+sv.rec:"")+(sv.horario?" · "+sv.horario:""),x:sv};
     const ab=(DSP.abx||[]).find(x=>x.data===dia&&normP(oficialDe(x.guia))===G);
     if(ab) return {s:"b",det:ab.rotulo||("Apoio ao Box "+ab.inicio+" ("+(ab.tipo==="half"?"Half":"Full")+")")};
-    const pa=(DSP.passeios||{})[dia+"|"+G]; if(pa) return {s:"p",det:"Passeio: "+pa};
+    const pa=(DSP.passeios||{})[dia+"|"+G]; if(pa) return {s:"p",det:pa};
     const bl=(DSP.dados.bloqueios||[]).find(cobre); if(bl) return bl.tipo==="passeio"?{s:"p",det:"Escalado em passeio"+(bl.motivo?": "+bl.motivo:"")}:{s:"b",det:"Bloqueio do painel"+(bl.motivo?": "+bl.motivo:"")};
     const ds=(DSP.dados.disp||[]).find(x=>x.data===dia&&normP(oficialDe(x.guia))===G);
     if(ds&&ds.status==="nao") return {s:"i",det:ds.obs||"Indisponível",em:ds.em};
@@ -3855,7 +3855,10 @@
       if(v.ultima&&(!x.ultima||v.ultima>x.ultima)) x.ultima=v.ultima; if(v.proxima&&(!x.proxima||v.proxima<x.proxima)) x.proxima=v.proxima; }
       const hj=hojeISO();
       for(const a of (DSP.abx||[])){ const o=normP(oficialDe(a.guia)), x=DSP.ultOficial[o]=DSP.ultOficial[o]||{};
-        if(a.data<=hj){ if(!x.ultima||a.data>x.ultima) x.ultima=a.data; } else if(!x.proxima||a.data<x.proxima) x.proxima=a.data; } }
+        if(a.data<=hj){ if(!x.ultima||a.data>x.ultima) x.ultima=a.data; } else if(!x.proxima||a.data<x.proxima) x.proxima=a.data; }
+      // carros montados na aba Passeios
+      for(const k of Object.keys(DSP.passeios||{})){ const [dd,o]=k.split("|"), x=DSP.ultOficial[o]=DSP.ultOficial[o]||{};
+        if(dd<=hj){ if(!x.ultima||dd>x.ultima) x.ultima=dd; } else if(!x.proxima||dd<x.proxima) x.proxima=dd; } }
     return DSP.ultOficial[normP(oficialDe(nome))]||{};
   }
   function ultTxt(nome){ const u=ultimaDe(nome); if(!u.ultima&&!u.proxima) return '<span style="font-size:.72rem;color:var(--muted)">sem escala nos últimos 60 dias</span>';
@@ -3865,12 +3868,13 @@
   function detRepetido(det,rot){ const d=normP(det); return !d||d===normP(rot)||["INDISPONIVEL","COM RESTRICAO","DISPONIVEL O DIA TODO","DISPONIVEL"].includes(d); }
   // coluna "Última escala": data em destaque e há quantos dias (laranja a partir de 15 dias)
   function ultCol(nome){
-    // data do último serviço já realizado (até hoje); serviços escalados para os próximos dias não contam
-    const u=ultimaDe(nome); const hj=hojeISO(); const data=u.ultima&&u.ultima<=hj?u.ultima:null;
+    // último serviço até amanhã (o dia que está sendo escalado); serviços de depois de amanhã em diante não contam
+    const u=ultimaDe(nome); const hj=hojeISO(), am=somaDias(hj,1);
+    const data=u.proxima&&u.proxima<=am?u.proxima:(u.ultima&&u.ultima<=hj?u.ultima:null);
     const cab='<span style="font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Último serviço</span>';
     if(!data) return '<div style="width:120px;display:flex;flex-direction:column">'+cab+'<span style="font-size:.82rem;color:var(--muted)">nenhum em 60 dias</span></div>';
     const dias=Math.round((new Date(hojeISO()+"T12:00:00")-new Date(data+"T12:00:00"))/864e5);
-    const rel=dias===0?'hoje':dias===1?'ontem':'há '+dias+' dias';
+    const rel=dias===0?'hoje':dias===1?'ontem':dias===-1?'amanhã':'há '+dias+' dias';
     return '<div style="width:120px;display:flex;flex-direction:column">'+cab
       +'<span style="font-size:.95rem;font-weight:800;color:'+(dias>=15?'#b45309':'var(--tinta)')+'">'+dataBR(data).slice(0,5)+' <span style="font-size:.74rem;font-weight:600">'+rel+'</span></span></div>';
   }
