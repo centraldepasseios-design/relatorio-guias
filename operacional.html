@@ -2165,12 +2165,9 @@
       :'🗓️ *Escala de '+dataBR(data)+' – '+g.nome.toUpperCase()+'*\n\n';
     const aprTxt=(l)=>noite?String(l.apresentacao||horaTxt(l.inicio)).replace(/\s*\(dia anterior\)/i,""):(l.apresentacao||horaTxt(l.inicio));
     if(pri) txt+='⏰ *APRESENTAÇÃO: '+aprTxt(pri)+'*\n'+(pri.apresentacaoLocal?'📍 No '+pri.apresentacaoLocal+'\n':'')+'\n';
-    let motAnt=pri?String(pri.motorista||"").trim().toUpperCase():"";
     itens.forEach((l,k)=>{
       const mot=String(l.motorista||"").trim().toUpperCase();
       if(noite&&l._prox&&k>0&&!(itens[k-1]||{})._prox) txt+='\n— madrugada de '+dataBR(somaDia(data,1)).slice(0,5)+' —\n';
-      if(k>0&&mot&&motAnt&&mot!==motAnt&&l.apresentacao) txt+='⏰ *Nova apresentação: '+aprTxt(l)+'*'+(l.apresentacaoLocal?' no '+l.apresentacaoLocal:'')+' (outro motorista)\n';
-      if(mot) motAnt=mot;
       txt+=(horaIni(l)?horaIni(l)+' · ':'')+nome(l)+(mot?' · Mot. '+titulo(mot):'')+'\n';
     });
     return txt.trimEnd()+'\n\nVoo, veículo e pax no app.'+RODAPE;
