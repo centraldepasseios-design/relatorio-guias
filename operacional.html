@@ -352,6 +352,7 @@
       {id:"cen-disp", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><path d=\"m9 11 3 3L22 4\"/></svg>", nome:"Disponibilidade"},
       {id:"cen-reclam", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>", nome:"Reclamações"},
       {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z\"/><path d=\"M9 4v14M15 6v14\"/></svg>", nome:"Passeios"},
+      {id:"cen-solic", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"m16 11 2 2 4-4\"/></svg>", nome:"Solicitações"},
       {id:"cen-relatorio", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 3v16a2 2 0 0 0 2 2h16\"/><path d=\"M18 17V9M13 17V5M8 17v-3\"/></svg>", nome:"Relatório"},
       {id:"central-fechar", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>", nome:"Fechar escalas"},
     ]},
@@ -377,8 +378,7 @@
       d.onclick=()=>abrir("inicio","Início","",d); bloco.appendChild(d); sb.appendChild(bloco); }
     // admin vê todas as áreas; a Central também vê o Box (é ela que coloca o guia no Apoio ao Box)
     let areasMenu=USUARIO.admin?Object.keys(ABAS):[...(USUARIO.areas||[])];
-    if(areasMenu.includes("central")&&!areasMenu.includes("box")) areasMenu.push("box");
-    if(areasMenu.includes("central")&&!areasMenu.includes("solic")) areasMenu.push("solic");
+
     for(const chave of areasMenu){
       const area=ABAS[chave]; if(!area) continue;
       const bloco=document.createElement("div"); bloco.className="sb-area";
@@ -426,6 +426,7 @@
     if(id==="rec-obs"||id==="box-obs"){ renderObs(m); return; }
     if(id==="box-apoio"){ renderApoioBox(m); return; }
     if(id==="sol-pedidos"){ renderSol(m); return; }
+    if(id==="cen-solic"){ renderCenSolic(m); return; }
     if(id==="box-fechar"){ renderFechar(m, "recife"); return; } // o Box fecha IN, OUT, transfer e apoios (regra que era do Recife)
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
     if(id==="cen-contatos"){ renderContatos(m); return; }
@@ -3247,14 +3248,16 @@
   // Com guia, o apoio entra sozinho no histórico e no pagamento do guia.
   const API_APOIOBOX="https://us-central1-operacional-luck.cloudfunctions.net/apoiobox";
   const ABX={ dia:null, apoios:[], valores:null, carregando:false };
-  const abxCentral=()=>USUARIO.admin||(USUARIO.areas||[]).includes("central");
+  const ehCentral=()=>USUARIO.admin||(USUARIO.areas||[]).includes("central");
+  const abxCentral=()=>!!ABX.naCentral&&ehCentral(); // guia e valor só na aba Solicitações da Central
   async function chamarApoioBox(acao,dados){
     const r=await fetch(API_APOIOBOX,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:ABX.dia,...dados})});
     const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
   }
   function renderApoioBox(m){
+    ABX.naCentral=false;
     if(!ABX.dia){ const d=new Date(consHoje()+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+1); ABX.dia=d.toISOString().slice(0,10); }
-    cab(abxCentral()?"O Box pede os apoios; a Central coloca o guia":"Peça aqui os apoios do dia; a Central coloca o guia","");
+    cab("Peça aqui os apoios do dia; a Central coloca o guia","");
     const inp='style="height:42px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit"';
     m.innerHTML='<datalist id="listaGuias"></datalist>'
       +'<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn sec mini" onclick="abxDia(-1)">‹</button><input type="date" value="'+ABX.dia+'" onchange="ABX.dia=this.value;abxCarregar()" '+inp+'><button class="btn sec mini" onclick="abxDia(1)">›</button><span id="abxInfo" style="font-size:.8rem;color:var(--muted)"></span></div>'
@@ -3283,9 +3286,11 @@
   function abxDesenhar(){
     const box=document.getElementById("abxLista"); if(!box) return; const A=ABX.apoios, cen=abxCentral();
     const sem=A.filter(a=>!a.guia).length, total=A.reduce((s,a)=>s+abxValor(a),0);
-    let h='<div class="cards-resumo"><div class="resumo"><div class="num">'+A.length+'</div><div class="lbl">Apoios no dia</div></div><div class="resumo'+(sem?' alerta':'')+'"><div class="num">'+sem+'</div><div class="lbl">Sem guia</div></div>'+(cen?'<div class="resumo"><div class="num">R$ '+total.toLocaleString("pt-BR")+'</div><div class="lbl">Valor dos apoios</div></div>':'')+'</div>';
+    if(ABX.naCentral) cenSolFaixa();
+    let h=ABX.naCentral?'':'<div class="cards-resumo"><div class="resumo"><div class="num">'+A.length+'</div><div class="lbl">Apoios no dia</div></div><div class="resumo'+(sem?' alerta':'')+'"><div class="num">'+sem+'</div><div class="lbl">Sem guia</div></div>'+(cen?'<div class="resumo"><div class="num">R$ '+total.toLocaleString("pt-BR")+'</div><div class="lbl">Valor dos apoios</div></div>':'')+'</div>';
+    if(ABX.naCentral) h='';
     if(cen&&A.some(a=>a.guia)) h+='<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn" onclick="abxAvisarTodos()">📲 Avisar guias</button></div>';
-    if(!A.length){ box.innerHTML=h+'<div class="card" style="color:var(--muted)">Nenhum apoio pedido para '+dataBR(ABX.dia)+'.</div>'; return; }
+    if(!A.length){ box.innerHTML=h+'<div class="card" style="color:var(--muted)">Nenhum apoio ao Box pedido para '+dataBR(ABX.dia)+'.</div>'; return; }
     h+='<div class="card" style="padding:6px 18px 10px">'+A.map((a,k)=>'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 0;border-top:'+(k?'1px solid var(--linha)':'none')+'">'
       +'<b style="font-size:1.05rem;min-width:52px;color:var(--verde-esc)">'+esc(a.inicio)+'</b>'
       +'<span class="tag '+(a.tipo==="half"?"t-van":"t-bus")+'">'+(a.tipo==="half"?"HALF":"FULL")+'</span>'+(a.idioma?'<span class="tag i-esp">IDIOMA</span>':'')
@@ -3342,8 +3347,8 @@
   }
   function renderSol(m){
     if(!SOL.dia){ const d=new Date(consHoje()+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+1); SOL.dia=d.toISOString().slice(0,10); }
-    const cen=USUARIO.admin||(USUARIO.areas||[]).includes("central");
-    cab(cen?"Pedidos de guia para evento, famtour e navio: coloque o guia e o valor":"Peça aqui os guias para evento, famtour e navio; a Central escolhe os guias","");
+    SOL.naCentral=false; const cen=false;
+    cab("Peça aqui os guias para evento, famtour e navio; a Central escolhe os guias","");
     const inp='style="height:42px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit;width:100%;box-sizing:border-box"';
     const lb=(t,campo,larg)=>'<label style="display:flex;flex-direction:column;gap:4px;font-size:.78rem;font-weight:700;color:var(--muted);'+(larg?'grid-column:1/-1':'')+'">'+t+campo+'</label>';
     m.innerHTML='<datalist id="listaGuias"></datalist>'
@@ -3377,11 +3382,13 @@
     catch(e){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; }
   }
   function solDesenhar(){
-    const box=document.getElementById("solLista"); if(!box) return; const P=SOL.pedidos, cen=SOL.central;
+    const box=document.getElementById("solLista"); if(!box) return; const P=SOL.pedidos, cen=!!SOL.naCentral&&SOL.central;
     const vagas=P.reduce((s,p)=>s+p.vagas.length,0), sem=P.reduce((s,p)=>s+p.vagas.filter(v=>!v.guia).length,0);
-    let h='<div class="cards-resumo"><div class="resumo"><div class="num">'+P.length+'</div><div class="lbl">Pedidos no dia</div></div><div class="resumo"><div class="num">'+vagas+'</div><div class="lbl">Guias pedidos</div></div><div class="resumo'+(sem?' alerta':'')+'"><div class="num">'+sem+'</div><div class="lbl">Sem guia</div></div></div>';
+    if(SOL.naCentral) cenSolFaixa();
+    let h=SOL.naCentral?'':'<div class="cards-resumo"><div class="resumo"><div class="num">'+P.length+'</div><div class="lbl">Pedidos no dia</div></div><div class="resumo"><div class="num">'+vagas+'</div><div class="lbl">Guias pedidos</div></div><div class="resumo'+(sem?' alerta':'')+'"><div class="num">'+sem+'</div><div class="lbl">Sem guia</div></div></div>';
+    if(SOL.naCentral) h='';
     if(cen&&P.some(p=>p.vagas.some(v=>v.guia))) h+='<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn" onclick="solAvisarTodos()">📲 Avisar guias</button></div>';
-    if(!P.length){ box.innerHTML=h+'<div class="card" style="color:var(--muted)">Nenhum pedido para '+dataBR(SOL.dia)+'.</div>'; return; }
+    if(!P.length){ box.innerHTML=h+'<div class="card" style="color:var(--muted)">Nenhum pedido de evento, famtour ou navio para '+dataBR(SOL.dia)+'.</div>'; return; }
     h+=P.map(p=>'<div class="card">'
       +'<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem;color:var(--verde-esc)">'+esc(p.inicio)+(p.fim?'–'+esc(p.fim):'')+'</b><span class="tag t-bus">'+esc((SOL_TIPOS[p.tipo]||"Outro").toUpperCase())+'</span><b style="font-size:1rem">'+esc(p.descricao)+'</b>'+(p.idioma?'<span class="tag i-esp">'+esc(p.idioma.toUpperCase())+'</span>':'')+'<span style="flex:1"></span>'
       +'<button class="btn mini sec" title="Menos um guia" onclick="solVagas(\''+p.id+'\','+(p.vagas.length-1)+')">−</button><span style="font-size:.82rem;font-weight:700">'+p.vagas.length+' guia(s)</span><button class="btn mini sec" title="Mais um guia" onclick="solVagas(\''+p.id+'\','+(p.vagas.length+1)+')">＋</button><button class="btn mini danger" title="Remover pedido" onclick="solRemover(\''+p.id+'\')">✕</button></div>'
@@ -3418,6 +3425,44 @@
     abrirEnvio("passeio",SOL.dia,[{guia:v.guia,mensagem:solMsg(p,v)}],async()=>{ try{ const j=await chamarSol("avisado",{pares:[[pid,vid]]}); SOL.pedidos=j.pedidos; }catch(e){} solDesenhar(); }); }
   function solAvisarTodos(){ const L=[]; SOL.pedidos.forEach(p=>p.vagas.forEach(v=>{ if(v.guia) L.push([p,v]); })); if(!L.length){ alert("Nenhum guia colocado para avisar."); return; }
     abrirEnvio("passeio",SOL.dia,L.map(([p,v])=>({guia:v.guia,mensagem:solMsg(p,v)})),async()=>{ try{ const j=await chamarSol("avisado",{pares:L.map(([p,v])=>[p.id,v.id])}); SOL.pedidos=j.pedidos; }catch(e){} solDesenhar(); }); }
+
+
+  // ======================= CENTRAL: SOLICITAÇÕES (Apoio ao Box + eventos, famtour, navio) =======================
+  // Os setores pedem nas áreas deles; aqui a Central vê tudo do dia, coloca guia (e valor) e avisa.
+  const CSL={ dia:null, faixa:{} };
+  function renderCenSolic(m){
+    if(!CSL.dia){ const d=new Date(consHoje()+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+1); CSL.dia=d.toISOString().slice(0,10); }
+    ABX.dia=SOL.dia=CSL.dia; ABX.naCentral=SOL.naCentral=true;
+    cab("Pedidos do Box e dos setores: coloque o guia e avise","");
+    m.innerHTML='<datalist id="listaGuias"></datalist>'
+      +'<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn sec mini" onclick="cenSolDia(-1)">‹</button><input type="date" value="'+CSL.dia+'" onchange="cenSolIr(this.value)" style="height:42px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit"><button class="btn sec mini" onclick="cenSolDia(1)">›</button></div>'
+      +'<div id="cslFaixa" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px"></div>'
+      +'<h3 style="font-size:1rem;margin:4px 0 10px">Apoio ao Box</h3><div id="abxLista"></div>'
+      +'<h3 style="font-size:1rem;margin:22px 0 10px">Eventos, famtour e navio</h3><div id="solLista"></div>';
+    abxCarregar(); solCarregar(); cenSolPeriodo();
+    if(!PLANO.catalogoGuias) carregarCatalogo().catch(()=>{}); else preencherGuias();
+    if(typeof envCarregar==="function"&&!ENV.contatos) envCarregar(CSL.dia).then(()=>preencherGuias()).catch(()=>{});
+  }
+  function cenSolIr(d){ CSL.dia=d; renderCenSolic(document.getElementById("mainConteudo")); }
+  function cenSolDia(n){ const d=new Date(CSL.dia+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); cenSolIr(d.toISOString().slice(0,10)); }
+  // próximos 10 dias: quantos pedidos e quantos ainda sem guia
+  async function cenSolPeriodo(){
+    const ini=consHoje(), d=new Date(ini+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+10); const fim=d.toISOString().slice(0,10);
+    const [a,b]=await Promise.all([chamarApoioBox("periodo",{ini,fim,todos:true}).catch(()=>null),chamarSol("periodo",{ini,fim,todos:true}).catch(()=>null)]);
+    const F={}; [...((a&&a.itens)||[]),...((b&&b.itens)||[])].forEach(x=>{ const f=F[x.data]=F[x.data]||{tot:0,sem:0}; f.tot++; if(!x.guia) f.sem++; });
+    CSL.faixa=F; cenSolFaixa();
+  }
+  function cenSolFaixa(){
+    const el=document.getElementById("cslFaixa"); if(!el) return;
+    // o dia aberto conta pelo que está na tela (atualiza na hora ao colocar um guia)
+    if(ABX.dia===CSL.dia&&SOL.dia===CSL.dia&&(ABX.apoios||SOL.pedidos)){ const vs=[...(ABX.apoios||[]).map(a=>a.guia),...(SOL.pedidos||[]).flatMap(p=>p.vagas.map(v=>v.guia))];
+      CSL.faixa[CSL.dia]={tot:vs.length,sem:vs.filter(g=>!g).length}; }
+    const dias=[]; const d=new Date(consHoje()+"T12:00:00Z"); for(let k=0;k<=10;k++){ dias.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+1); }
+    el.innerHTML=dias.map(x=>{ const f=CSL.faixa[x]||{tot:0,sem:0}, on=x===CSL.dia;
+      return '<button onclick="cenSolIr(\''+x+'\')" style="flex:none;min-width:74px;padding:8px 10px;border-radius:12px;border:1px solid '+(on?'var(--verde)':'var(--linha)')+';background:'+(on?'var(--verde)':'var(--card,#fff)')+';color:'+(on?'#fff':'var(--tinta)')+';font:inherit;cursor:pointer;text-align:center">'
+        +'<div style="font-size:.7rem;font-weight:800;text-transform:uppercase;opacity:.8">'+["dom","seg","ter","qua","qui","sex","sáb"][new Date(x+"T12:00:00").getDay()]+' '+x.slice(8,10)+'</div>'
+        +'<div style="font-size:.78rem;font-weight:800;margin-top:2px;color:'+(on?'#fff':(f.sem?'#b45309':'var(--muted)'))+'">'+(f.tot?(f.sem?f.sem+' sem guia':'✓ '+f.tot):'—')+'</div></button>'; }).join("");
+  }
 
 
   // ======================= PAGAMENTOS: PILOTO (app do guia) =======================
