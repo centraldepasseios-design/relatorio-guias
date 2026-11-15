@@ -3607,7 +3607,7 @@
             +(x?'<span>'+rmjDestino(x)+'</span> <span style="font-size:.72rem;color:var(--muted)">'+esc(x.por)+' '+rmjHora(x.em)+'</span>'
               +(x.motivo==="outro guia"||x.motivo==="no show"?' '+(x.phoenix?'':rmjRobo(x))+'<label style="font-size:.78rem;margin-left:6px"><input type="checkbox" '+(x.phoenix?'checked':'')+' onchange="rmjPhoenix(\''+rmjChave(r.rec)+'\',this.checked)"> '+(x.motivo==="no show"?'desalocado':'trocado')+' no Phoenix'+(x.phoenixPor==="robô"?' (robô)':'')+'</label>':'')
               +' <button class="btn mini sec" onclick="rmjDesfazer(\''+rmjChave(r.rec)+'\')">Desfazer</button>'
-              :'<select onchange="rmjMarcar(this,\''+esc(s.ro)+'\',\''+esc(r.rec)+'\')" style="padding:6px 8px;border:1px solid var(--linha);border-radius:8px;max-width:240px">'+ops+'</select>')
+              :'<select onchange="rmjMarcar(this,'+(D.servicos||[]).indexOf(s)+',\''+esc(r.rec)+'\')" style="padding:6px 8px;border:1px solid var(--linha);border-radius:8px;max-width:240px">'+ops+'</select>')
             +'</td></tr>';
         }).join("")
         +(vieram.length?'<tr><td colspan="3" style="font-size:.82rem;color:#1f5fbf">＋ Recebeu de outro serviço: '+vieram.map(x=>'REC-'+esc(String(x.rec).replace(/^REC-?/i,""))+' '+esc(titulo(x.cliente||""))+' (de '+esc(titulo(x.de))+')').join(", ")+'</td></tr>':'')
@@ -3616,14 +3616,14 @@
     if((D.servicos||[]).length&&!servs.length) h+='<div class="card" style="color:var(--muted)">Nada encontrado para "'+esc(RMJ.busca)+'".</div>';
     box.innerHTML=h;
   }
-  async function rmjMarcar(sel,ro,rec){
+  async function rmjMarcar(sel,i,rec){
     const v=sel.value; if(!v) return;
-    const s=(RMJ.d.servicos||[]).find(x=>x.ro===ro)||{}, r=(s.reservas||[]).find(x=>x.rec===rec)||{};
+    const s=(RMJ.d.servicos||[])[i]||{}, ro=s.ro||"", r=(s.reservas||[]).find(x=>x.rec===rec)||{};
     let motivo="outro guia", para="";
     if(v.startsWith("m:")) motivo=v.slice(2);
     else { para=v.slice(2); if(para==="?"){ para=(prompt("Nome do guia com quem a REC foi:")||"").trim(); if(!para){ sel.value=""; return; } } }
     sel.disabled=true;
-    try{ const j=await chamarReman("marcar",{rec,cliente:r.cliente||"",pax:r.pax||"",ro,servico:(String(s.inicio||"").slice(0,5)+" "+(s.servico||"")).trim(),de:s.guia||"",para,motivo}); RMJ.d.recs=j.recs; rmjDesenhar(); }
+    try{ const j=await chamarReman("marcar",{rec,cliente:r.cliente||"",pax:r.pax||"",ro,sk:s.sk||"",servico:(String(s.inicio||"").slice(0,5)+" "+(s.servico||"")).trim(),de:s.guia||"",para,motivo}); RMJ.d.recs=j.recs; rmjDesenhar(); }
     catch(e){ alert(e.message); sel.disabled=false; sel.value=""; }
   }
   // robô do Phoenix (por enquanto só NO SHOW: observação + desalocar)
