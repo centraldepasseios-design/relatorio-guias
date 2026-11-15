@@ -2325,7 +2325,8 @@
   }
   async function vincularContato(i,id){
     if(!id) return;
-    const it=ENV.janela.itens[i];
+    const it=ENV.janela.itens[i], c=(ENV.contatos||[]).find(x=>x.id===id);
+    if(!confirm('"'+it.guia+'" e '+(c?c.nome:"esse contato")+' são a MESMA pessoa?\n\nSe confirmar, tudo de '+it.guia+' (escala, avisos, app e pagamento) vai para o WhatsApp e o cadastro de '+(c?c.nome:"esse contato")+'.\n\nSe for outra pessoa, cancele e cadastre um contato novo em Contatos.')){ desenharEnvio(); return; }
     const j=await chamarEnvios("vincular",{id,nomePhoenix:it.guia});
     if(!j.ok){ alert(j.erro||"Erro"); return; }
     ENV.contatos=j.contatos; desenharEnvio();
@@ -2370,17 +2371,18 @@
     document.getElementById("contInfo").textContent=L.length+" contato(s)";
     const e=CONT.editando;
     let h='';
-    if(e) h+='<div class="card" style="border:2px solid var(--verde);display:flex;gap:10px;flex-wrap:wrap;align-items:center;"><b>'+(e.id?"Editar":"Novo")+' contato</b><input id="cNome" value="'+esc(e.nome)+'" placeholder="Nome (como no Phoenix, ex.: ARTHUR)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;text-transform:uppercase"><input id="cTel" value="'+esc(e.telefone)+'" placeholder="DDD + número" style="width:160px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px"><button class="btn sec" onclick="CONT.editando=null;desenharContatos()">Cancelar</button>'+(e.id?'<button class="btn danger" onclick="removerContato(\''+esc(e.id)+'\',\''+esc(e.nome).replace(/'/g,"\\'")+'\')">Remover contato</button>':'')+'<button class="btn" onclick="salvarContato()">Salvar</button></div>';
+    if(e) h+='<div class="card" style="border:2px solid var(--verde);display:flex;gap:10px;flex-wrap:wrap;align-items:center;"><b>'+(e.id?"Editar":"Novo")+' contato</b><input id="cNome" value="'+esc(e.nome)+'" placeholder="Nome (como no Phoenix, ex.: ARTHUR)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;text-transform:uppercase"><input id="cTel" value="'+esc(e.telefone)+'" placeholder="DDD + número" style="width:160px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px"><input id="cApel" value="'+esc((e.apelidos||[]).join(", "))+'" placeholder="Também aparece como (separe por vírgula)" title="Outros nomes desse mesmo guia no Phoenix ou no app antigo. Deixe vazio se não tiver." style="flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;text-transform:uppercase"><button class="btn sec" onclick="CONT.editando=null;desenharContatos()">Cancelar</button>'+(e.id?'<button class="btn danger" onclick="removerContato(\''+esc(e.id)+'\',\''+esc(e.nome).replace(/'/g,"\\'")+'\')">Remover contato</button>':'')+'<button class="btn" onclick="salvarContato()">Salvar</button></div>';
     const fone=(t)=>esc(String(t).replace(/^(\d{2})(\d{5})(\d{4})$/,"($1) $2-$3"));
     h+='<div class="card" style="padding:0;overflow-x:auto"><table class="tabela" style="min-width:640px"><thead><tr><th>GUIA</th><th>WHATSAPP</th><th>NO PHOENIX TAMBÉM APARECE COMO</th><th></th></tr></thead><tbody>'
       +vis.map(c=>'<tr><td style="font-weight:800;color:var(--tinta)">'+esc(c.nome)+'</td><td>'+fone(c.telefone)+'</td><td style="color:var(--muted)">'+((c.apelidos||[]).length?c.apelidos.map(esc).join(", "):"—")+'</td>'
-        +'<td style="text-align:right;white-space:nowrap"><button class="btn mini sec" onclick="CONT.editando={id:\''+esc(c.id)+'\',nome:\''+esc(c.nome).replace(/'/g,"\\'")+'\',telefone:\''+esc(c.telefone)+'\'};desenharContatos()">Editar</button></td></tr>').join("")
+        +'<td style="text-align:right;white-space:nowrap"><button class="btn mini sec" onclick="CONT.editando={id:\''+esc(c.id)+'\',nome:\''+esc(c.nome).replace(/'/g,"\\'")+'\',telefone:\''+esc(c.telefone)+'\',apelidos:(ENV.contatos.find(x=>x.id===\''+esc(c.id)+'\')||{}).apelidos||[]};desenharContatos()">Editar</button></td></tr>').join("")
       +'</tbody></table></div>';
     box.innerHTML=h;
   }
   async function salvarContato(){
     const e=CONT.editando; if(!e) return;
-    const j=await chamarEnvios("salvarContato",{id:e.id,nome:document.getElementById("cNome").value,telefone:document.getElementById("cTel").value});
+    const ap=document.getElementById("cApel").value.split(",").map(s=>s.trim()).filter(Boolean);
+    const j=await chamarEnvios("salvarContato",{id:e.id,nome:document.getElementById("cNome").value,telefone:document.getElementById("cTel").value,apelidos:ap});
     if(!j.ok){ alert(j.erro||"Erro"); return; }
     ENV.contatos=j.contatos; CONT.editando=null; desenharContatos();
   }

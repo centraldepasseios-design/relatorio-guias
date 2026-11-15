@@ -119,11 +119,20 @@ async function telaLogin(){
   try{ const j=await api("nomes",{}); if(j.ok) document.getElementById("lgLista").innerHTML=j.nomes.map(n=>'<option value="'+esc(n)+'">').join(""); }catch(e){}
 }
 async function entrar(){
-  const nome=document.getElementById("lgNome").value.trim(), senha=document.getElementById("lgSenha").value, b=document.getElementById("lgBtn"), er=document.getElementById("lgErro");
+  let nome=document.getElementById("lgNome").value.trim(); const senha=document.getElementById("lgSenha").value, b=document.getElementById("lgBtn"), er=document.getElementById("lgErro");
   if(!nome||!senha){ er.textContent="Preencha nome e senha."; return; }
+  // digitou só parte do nome (ex.: "rafa"): usa o da lista se só um bater
+  const sa=s=>String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
+  const lista=[...document.querySelectorAll("#lgLista option")].map(o=>o.value);
+  if(lista.length&&!lista.some(n=>sa(n)===sa(nome))){
+    const ps=sa(nome).split(/\s+/);
+    const bate=lista.filter(n=>{ const w=sa(n).split(/\s+/); return ps.every(p=>w.some(x=>x.startsWith(p))); });
+    if(bate.length===1){ nome=bate[0]; document.getElementById("lgNome").value=nome; }
+    else if(bate.length>1){ er.textContent="Toque no seu nome na lista: "+bate.slice(0,4).join(", ")+(bate.length>4?"…":""); return; }
+  }
   b.disabled=true; er.textContent="";
   try{ const j=await api("entrar",{nome,senha}); if(!j.ok) throw new Error(j.erro);
-    S.t=j.appToken; S.nome=nome.toUpperCase(); S.pag=j.token||"";
+    S.t=j.appToken; S.nome=String(j.nome||nome).toUpperCase(); S.pag=j.token||"";
     localStorage.setItem("ag_t",S.t); localStorage.setItem("ag_nome",S.nome); localStorage.setItem("ag_pag",S.pag); montar();
     if(!localStorage.getItem("ag_tut_v1")) tutorial(0);
   }catch(e){ er.textContent=e.message||"Não foi possível entrar."; b.disabled=false; }
