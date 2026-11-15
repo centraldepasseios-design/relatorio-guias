@@ -330,6 +330,8 @@
     box: {nome:"Box", itens:[
       {id:"box-fechar", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>", nome:"Fechar escalas"},
       {id:"box-apoio", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2\"/><path d=\"M19 8v6\"/><path d=\"M22 11h-6\"/></svg>", nome:"Apoio ao Box"},
+      {id:"box-voos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 16l20-6-3-3-6 2-6-5-2 1 4 6-5 2-2-2-2 1z\"/></svg>", nome:"Voos e atrasos"},
+      {id:"box-reman", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7 4v16M7 20l-4-4M7 20l4-4M17 20V4M17 4l-4 4M17 4l4 4\"/></svg>", nome:"Remanejamento"},
       {id:"box-obs", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z\"/><path d=\"M12 8v4\"/><path d=\"M12 16h.01\"/></svg>", nome:"Observações especiais"},
       {id:"box-consulta", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/></svg>", nome:"Consulta de reservas"},
     ]},
@@ -354,6 +356,8 @@
       {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z\"/><path d=\"M9 4v14M15 6v14\"/></svg>", nome:"Passeios"},
       {id:"cen-solic", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"m16 11 2 2 4-4\"/></svg>", nome:"Solicitações"},
       {id:"cen-transf", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18M3 15h18M9 3v18M15 3v18\"/></svg>", nome:"Transferistas"},
+      {id:"cen-reman", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7 4v16M7 20l-4-4M7 20l4-4M17 20V4M17 4l-4 4M17 4l4 4\"/></svg>", nome:"Remanejamento do Box"},
+      {id:"cen-voos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 16l20-6-3-3-6 2-6-5-2 1 4 6-5 2-2-2-2 1z\"/></svg>", nome:"Voos e atrasos (Box)"},
       {id:"cen-relatorio", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 3v16a2 2 0 0 0 2 2h16\"/><path d=\"M18 17V9M13 17V5M8 17v-3\"/></svg>", nome:"Relatório"},
       {id:"central-fechar", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>", nome:"Fechar escalas"},
     ]},
@@ -429,6 +433,8 @@
     if(id==="sol-pedidos"){ renderSol(m); return; }
     if(id==="cen-solic"){ renderCenSolic(m); return; }
     if(id==="cen-transf"){ renderTransf(m); return; }
+    if(id==="box-reman"||id==="cen-reman"){ renderReman(m); return; }
+    if(id==="box-voos"||id==="cen-voos"){ renderVoos(m); return; }
     if(id==="box-fechar"){ renderFechar(m, "recife"); return; } // o Box fecha IN, OUT, transfer e apoios (regra que era do Recife)
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
     if(id==="cen-contatos"){ renderContatos(m); return; }
@@ -3541,6 +3547,238 @@
   const TRF={ semana:null, d:null, editando:false };
   const TRF_COR={"Maragogi":["#dcefe9","#0b5c50"],"Carneiros":["#dbe7fb","#1e3a8a"],"São José":["#fde7d3","#8a3b0b"],"Folga":["#eef1f0","#5d7570"]};
   const TRF_SEQ=["","Maragogi","Carneiros","São José","Folga"];
+
+  // ================= REMANEJAMENTO DO BOX (fase 1: registro, sem mexer no Phoenix) =================
+  const API_REMAN="https://us-central1-operacional-luck.cloudfunctions.net/remanejamento";
+  const RMJ={ data:null, d:null, busca:"", carregando:false };
+  async function chamarReman(acao,dados){
+    const r=await fetch(API_REMAN,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:RMJ.data,...dados})});
+    const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
+  }
+  const rmjChave=(rec)=>String(rec||"").toUpperCase().replace(/[^A-Z0-9.-]/g,"").replace(/\./g,"_");
+  function renderReman(m){
+    if(!RMJ.data) RMJ.data=consHoje();
+    cab("Com qual guia cada REC foi de verdade · para trocar no Phoenix depois","");
+    const am=(()=>{ const d=new Date(consHoje()+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+1); return d.toISOString().slice(0,10); })();
+    m.innerHTML='<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      +segmento([[consHoje(),"Hoje"],[am,"Amanhã"]],RMJ.data,"RMJ.data='$v';RMJ.d=null;renderReman(document.getElementById('mainConteudo'))")
+      +'<input type="date" value="'+RMJ.data+'" onchange="RMJ.data=this.value;RMJ.d=null;renderReman(document.getElementById(\'mainConteudo\'))" style="padding:7px 10px;border:1px solid var(--linha);border-radius:8px">'
+      +'<input id="rmjBusca" placeholder="Buscar guia, REC ou cliente" value="'+esc(RMJ.busca)+'" oninput="RMJ.busca=this.value;rmjDesenhar()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--linha);border-radius:8px">'
+      +'<button class="btn sec mini" onclick="RMJ.d=null;rmjCarregar()">Atualizar</button></div><div id="rmjCorpo"><div class="card" style="color:var(--muted)">Carregando a escala…</div></div>';
+    if(RMJ.d) rmjDesenhar(); else rmjCarregar();
+  }
+  async function rmjCarregar(){
+    try{ RMJ.d=await chamarReman("ler",{}); rmjDesenhar(); }
+    catch(e){ const b=document.getElementById("rmjCorpo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; }
+  }
+  function rmjGuias(){ return [...new Set((RMJ.d.servicos||[]).map(s=>String(s.guia||"").toUpperCase()).filter(g=>g&&!/NENHUM/.test(g)))].sort(); }
+  function rmjHora(ts){ return ts?new Date(ts).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""; }
+  function rmjDestino(x){ return x.motivo==="outro guia"?'→ <b>'+esc(titulo(x.para))+'</b>':(x.motivo==="no show"?'No show':x.motivo==="voo alterado"?'Voo alterado':'Outro: '+esc(x.obs||"")); }
+  function rmjDesenhar(){
+    const box=document.getElementById("rmjCorpo"), D=RMJ.d; if(!box||!D) return;
+    const recs=D.recs||{}, lista=Object.values(recs), pend=lista.filter(x=>!x.phoenix&&x.motivo==="outro guia");
+    const B=normGuia(RMJ.busca), Bd=RMJ.busca.replace(/\D/g,"");
+    const servs=(D.servicos||[]).filter(s=>!B&&!Bd||normGuia(s.guia).includes(B)&&B||s.reservas.some(r=>(Bd&&String(r.rec).includes(Bd))||(B&&normGuia(r.cliente).includes(B)))||lista.some(x=>x.ro===s.ro&&B&&normGuia(x.para).includes(B)));
+    const totRec=(D.servicos||[]).reduce((s,x)=>s+x.reservas.length,0);
+    let h='<div class="cards-resumo">'
+      +'<div class="resumo"><div class="num">'+(D.servicos||[]).length+'</div><div class="lbl">Serviços (IN/OUT/transfer)</div></div>'
+      +'<div class="resumo"><div class="num">'+lista.length+' <span style="font-size:.9rem;color:var(--muted)">de '+totRec+'</span></div><div class="lbl">RECs remanejadas</div></div>'
+      +'<div class="resumo'+(pend.length?' alerta':' ok')+'"><div class="num">'+pend.length+'</div><div class="lbl">Faltam trocar no Phoenix</div></div></div>';
+    if(D.atualizada) h+='<div style="font-size:.78rem;color:var(--muted);margin:-4px 0 10px">Escala do Phoenix de '+rmjHora(D.atualizada)+' (atualiza sozinha a cada 30 min)</div>';
+    if(pend.length) h+='<div class="card" style="border-left:4px solid #c2410c"><b>Faltam trocar no Phoenix</b><div style="font-size:.82rem;color:var(--muted);margin-bottom:8px">Troque o guia dessas RECs no Phoenix e marque aqui.</div>'
+      +pend.sort((a,b)=>a.em-b.em).map(x=>'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--linha)"><b>REC-'+esc(String(x.rec).replace(/^REC-?/i,""))+'</b><span style="color:var(--muted)">'+esc(titulo(x.cliente||""))+'</span><span>'+esc(titulo(x.de))+' '+rmjDestino(x)+'</span><span style="font-size:.75rem;color:var(--muted)">'+esc(x.servico||"")+' · por '+esc(x.por)+' às '+rmjHora(x.em)+'</span><span style="flex:1"></span><button class="btn mini" onclick="rmjPhoenix(\''+rmjChave(x.rec)+'\',true)">✓ Troquei no Phoenix</button></div>').join("")+'</div>';
+    if(!(D.servicos||[]).length) h+='<div class="card" style="color:var(--muted)">Sem escala guardada para esse dia ainda (a escala de hoje e de amanhã é atualizada a cada 30 min).</div>';
+    const guias=rmjGuias();
+    for(const s of servs){
+      const cor=s.tipo==="IN"?"#1f5fbf":s.tipo==="OUT"?"#b4521b":"#0e7a68";
+      const vieram=lista.filter(x=>x.motivo==="outro guia"&&normGuia(x.para)===normGuia(s.guia)&&x.ro!==s.ro);
+      h+='<div class="card" style="border-left:4px solid '+cor+';padding:14px 16px">'
+        +'<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem">'+esc(String(s.inicio||s.apresentacao).slice(0,5))+'</b><span class="pill" style="background:'+cor+'1a;color:'+cor+'">'+esc(s.tipo||"TRF")+'</span><b>'+esc(s.servico)+'</b><span style="color:var(--muted);font-size:.85rem">Guia escalado: <b style="color:var(--tinta)">'+esc(titulo(s.guia)||"sem guia")+'</b>'+(s.motorista?' · Mot. '+esc(titulo(s.motorista)):'')+(s.veiculo?' · '+esc(s.veiculo):'')+'</span></div>'
+        +'<table class="tabela" style="margin-top:8px"><tbody>'
+        +s.reservas.map(r=>{
+          const x=recs[rmjChave(r.rec)];
+          const vooH=[r.voo&&(r.voo+(r.horaVoo?' '+r.horaVoo:'')),r.hotel].filter(Boolean).join(' · ');
+          const ops='<option value="">✓ Com '+esc(titulo(s.guia)||"o guia escalado")+'</option><option value="m:no show">No show</option><option value="m:voo alterado">Voo alterado</option><optgroup label="Foi com outro guia">'+guias.filter(g=>normGuia(g)!==normGuia(s.guia)).map(g=>'<option value="g:'+esc(g)+'">'+esc(titulo(g))+'</option>').join("")+'<option value="g:?">Outro guia (digitar)…</option></optgroup>';
+          return '<tr style="'+(x?'background:#fff7ed':'')+'"><td style="white-space:nowrap"><b>REC-'+esc(String(r.rec).replace(/^REC-?/i,""))+'</b></td><td>'+esc(titulo(r.cliente||""))+(r.pax?' <span style="color:var(--muted)">· '+esc(r.pax)+' pax</span>':'')+'<div style="font-size:.75rem;color:var(--muted)">'+esc(vooH)+(r.idioma?' · 🌐 '+esc(r.idioma):'')+'</div></td><td style="text-align:right;white-space:nowrap">'
+            +(x?'<span>'+rmjDestino(x)+'</span> <span style="font-size:.72rem;color:var(--muted)">'+esc(x.por)+' '+rmjHora(x.em)+'</span>'
+              +(x.motivo==="outro guia"?' <label style="font-size:.78rem;margin-left:6px"><input type="checkbox" '+(x.phoenix?'checked':'')+' onchange="rmjPhoenix(\''+rmjChave(r.rec)+'\',this.checked)"> trocado no Phoenix</label>':'')
+              +' <button class="btn mini sec" onclick="rmjDesfazer(\''+rmjChave(r.rec)+'\')">Desfazer</button>'
+              :'<select onchange="rmjMarcar(this,\''+esc(s.ro)+'\',\''+esc(r.rec)+'\')" style="padding:6px 8px;border:1px solid var(--linha);border-radius:8px;max-width:240px">'+ops+'</select>')
+            +'</td></tr>';
+        }).join("")
+        +(vieram.length?'<tr><td colspan="3" style="font-size:.82rem;color:#1f5fbf">＋ Recebeu de outro serviço: '+vieram.map(x=>'REC-'+esc(String(x.rec).replace(/^REC-?/i,""))+' '+esc(titulo(x.cliente||""))+' (de '+esc(titulo(x.de))+')').join(", ")+'</td></tr>':'')
+        +'</tbody></table></div>';
+    }
+    if((D.servicos||[]).length&&!servs.length) h+='<div class="card" style="color:var(--muted)">Nada encontrado para "'+esc(RMJ.busca)+'".</div>';
+    box.innerHTML=h;
+  }
+  async function rmjMarcar(sel,ro,rec){
+    const v=sel.value; if(!v) return;
+    const s=(RMJ.d.servicos||[]).find(x=>x.ro===ro)||{}, r=(s.reservas||[]).find(x=>x.rec===rec)||{};
+    let motivo="outro guia", para="";
+    if(v.startsWith("m:")) motivo=v.slice(2);
+    else { para=v.slice(2); if(para==="?"){ para=(prompt("Nome do guia com quem a REC foi:")||"").trim(); if(!para){ sel.value=""; return; } } }
+    sel.disabled=true;
+    try{ const j=await chamarReman("marcar",{rec,cliente:r.cliente||"",pax:r.pax||"",ro,servico:(String(s.inicio||"").slice(0,5)+" "+(s.servico||"")).trim(),de:s.guia||"",para,motivo}); RMJ.d.recs=j.recs; rmjDesenhar(); }
+    catch(e){ alert(e.message); sel.disabled=false; sel.value=""; }
+  }
+  async function rmjDesfazer(k){ const x=(RMJ.d.recs||{})[k]; if(!x) return;
+    try{ const j=await chamarReman("desfazer",{rec:x.rec}); RMJ.d.recs=j.recs; rmjDesenhar(); }catch(e){ alert(e.message); } }
+  async function rmjPhoenix(k,feito){ const x=(RMJ.d.recs||{})[k]; if(!x) return;
+    try{ const j=await chamarReman("phoenix",{rec:x.rec,feito}); RMJ.d.recs=j.recs; rmjDesenhar(); }catch(e){ alert(e.message); } }
+
+
+  // ================= VOOS E ATRASOS (Box): atraso informado à mão → conflitos e sugestão de guia/motorista livre =================
+  const VOO={ data:null, d:null, folga:30, linha:"motorista" };
+  // deslocamento aproximado entre as bases (min) — AJUSTAR com o Box
+  const VOO_DESLOC={ "RE|PT":70, "RE|CB":40, "RE|MG":130, "PT|CB":35, "PT|MG":80, "CB|MG":110 };
+  const VOO_ICAO={G3:"GLO",AD:"AZU",LA:"TAM",JJ:"TAM","2Z":"PTB",TP:"TAP",AR:"ARG",CM:"CMP",AA:"AAL",UA:"UAL",AF:"AFR",KL:"KLM",IB:"IBE",UX:"AEA",LH:"DLH"};
+  function vooLink(v){ const m=String(v||"").toUpperCase().replace(/[\s-]/g,"").match(/^([A-Z0-9]{2})(\d{1,4})$/); return m&&VOO_ICAO[m[1]]?"https://flightaware.com/live/flight/"+VOO_ICAO[m[1]]+m[2]:"https://www.google.com/search?q=voo+"+encodeURIComponent(v||""); }
+  const vMin=(h)=>{ const m=String(h||"").match(/(\d{1,2}):(\d{2})/); return m?(+m[1])*60+(+m[2]):null; };
+  const vHora=(n)=>{ n=((n%1440)+1440)%1440; return String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0"); };
+  function vRegiao(s){ const S=String(s||"").toUpperCase();
+    if(/MARAGOGI|MILAGRES|PATACHO/.test(S)) return "MG";
+    if(/PORTO DE GALINHAS|\(PORTO\)|CARNEIROS|MURO ALTO|CUP[EÉ]|SERRAMBI|IPOJUCA|TAMANDAR|MARACA[IÍ]PE/.test(S)) return "PT";
+    if(/\bCABO\b|GAIBU|CALHETAS|PAIVA|ITAPUAMA/.test(S)) return "CB";
+    return "RE"; }
+  function vDesloc(a,b){ if(!a||!b||a===b) return 0; return VOO_DESLOC[a+"|"+b]||VOO_DESLOC[b+"|"+a]||60; }
+  const vNomeReg={RE:"Recife",PT:"Porto",CB:"Cabo",MG:"Maragogi"};
+  // monta os serviços do dia com início/fim (já com atraso e trocas aplicados)
+  function vServicos(){
+    const D=VOO.d, at=D.atrasos||{}, tr=D.trocas||{};
+    return (D.todos||[]).filter(s=>!/GARAGEM/i.test(s.servico)).map(s=>{
+      const reg=vRegiao(s.servico), t=s.tipo;
+      const ini=vMin(s.inicio), fim=vMin(s.fim);
+      let a=ini==null?null:ini, f=fim!=null&&fim>=(a||0)?fim:(a!=null?a+90:null);
+      const iniMot=vMin(s.aprPhoenix)!=null&&vMin(s.aprPhoenix)<=(a||9999)?vMin(s.aprPhoenix):a;
+      const iniGuia=vMin(s.apresentacao)!=null&&vMin(s.apresentacao)<=(a||9999)?vMin(s.apresentacao):a;
+      // atraso: voo do serviço com hora nova informada
+      let delta=0, vooAt=null;
+      for(const v of s.voos||[]){ const [cod,h]=v.split("|"); const x=at[String(cod).toUpperCase().replace(/\s+/g,"")]; if(x&&vMin(h)!=null){ const dd=vMin(x.hora)-vMin(h); if(Math.abs(dd)>Math.abs(delta)){ delta=dd; vooAt={voo:cod,previsto:h,hora:x.hora}; } } }
+      const desloca=t==="IN"&&delta;
+      const o={...s, reg, regIni:t==="IN"?"RE":reg, regFim:t==="OUT"?"RE":reg,
+        a:a!=null&&desloca?a+delta:a, f:f!=null&&desloca?f+delta:f,
+        aMot:iniMot!=null&&desloca?iniMot+delta:iniMot, aGuia:iniGuia!=null&&desloca?iniGuia+delta:iniGuia, delta:desloca?delta:0, vooAt,
+        f0:f, aMot0:iniMot, aGuia0:iniGuia};
+      const tm=tr["motorista_"+s.ro], tg=tr["guia_"+s.ro];
+      if(tm) o.motorista=tm.para; if(tg) o.guia=tg.para;
+      return o;
+    }).filter(o=>o.a!=null);
+  }
+  // frota (relação dos carros 2026): nº de ordem -> tipo, lotação, vencimento da vistoria, habilitado ANTT (viagem interestadual)
+  const FROTA={"1831":{"t":"Ônibus","l":44,"v":"2027-03-16","antt":true,"p":"PCK2413"},"1834":{"t":"Ônibus","l":44,"v":"2027-03-19","antt":false,"p":"PDA3145"},"1845":{"t":"Ônibus","l":44,"v":"2027-03-12","antt":true,"p":"PCK2473"},"1846":{"t":"Ônibus","l":44,"v":"2027-03-03","antt":true,"p":"PCK2543"},"1847":{"t":"Ônibus","l":44,"v":"2027-03-12","antt":true,"p":"PCK6H13"},"1848":{"t":"Ônibus","l":44,"v":"2027-03-18","antt":true,"p":"PDI1174"},"1909":{"t":"Ônibus","l":48,"v":"2027-03-03","antt":true,"p":"PCU6738"},"1912":{"t":"Ônibus","l":48,"v":"2027-03-13","antt":true,"p":"PCU6768"},"2432":{"t":"Ônibus","l":46,"v":"2026-08-28","antt":true,"p":"SOG5J40"},"2435":{"t":"Ônibus","l":46,"v":"2026-08-27","antt":true,"p":"SOG5J70"},"2462":{"t":"Ônibus","l":46,"v":"2026-08-26","antt":true,"p":"SOG5J90"},"2563":{"t":"Ônibus","l":46,"v":"2026-09-18","antt":true,"p":"SOH5E64"},"2672":{"t":"Ônibus","l":44,"v":"2026-11-19","antt":true,"p":"UHL8E20"},"2673":{"t":"Ônibus","l":40,"v":"2027-01-23","antt":true,"p":"UHO8B12"},"2675":{"t":"Ônibus","l":40,"v":"2027-07-10","antt":true,"p":"UHZ3C12"},"2676":{"t":"Ônibus","l":40,"v":"2027-07-10","antt":true,"p":"UHZ3C02"},"2677":{"t":"Ônibus","l":40,"v":"2027-07-10","antt":true,"p":"UHZ3B92"},"2678":{"t":"Ônibus","l":44,"v":"2027-07-01","antt":true,"p":"UHY2B16"},"2679":{"t":"Ônibus","l":44,"v":"2027-10-01","antt":true,"p":"UHY1J96"},"2680":{"t":"Ônibus","l":44,"v":"2027-07-23","antt":true,"p":"UHZ8A69"},"1849":{"t":"Micro","l":30,"v":"2027-03-10","antt":true,"p":"PCS7C68"},"1905":{"t":"Micro","l":30,"v":"2027-03-05","antt":true,"p":"PDA6268"},"1957":{"t":"Micro","l":30,"v":"2027-03-04","antt":true,"p":"PCY7028"},"1958":{"t":"Micro","l":30,"v":"2027-03-12","antt":true,"p":"PCY7048"},"1959":{"t":"Micro","l":30,"v":"2027-03-12","antt":true,"p":"PDA6288"},"1960":{"t":"Micro","l":30,"v":"2027-03-16","antt":true,"p":"PDA6298"},"1961":{"t":"Micro","l":30,"v":"2026-04-24","antt":true,"p":"PDA6248"},"2314":{"t":"Micro","l":30,"v":"2027-03-13","antt":true,"p":"RZW8C95"},"2423":{"t":"Micro","l":30,"v":"2027-03-10","antt":true,"p":"SNX5F98"},"2424":{"t":"Micro","l":30,"v":"2027-03-05","antt":true,"p":"SNX6C08"},"2428":{"t":"Micro","l":30,"v":"2027-03-12","antt":true,"p":"SNX1J44"},"2429":{"t":"Micro","l":30,"v":"2027-03-03","antt":true,"p":"SNX6D18"},"2642":{"t":"Micro","l":34,"v":"2026-11-11","antt":true,"p":"UHJ9E67"},"2643":{"t":"Micro","l":34,"v":"2026-12-04","antt":true,"p":"UHL9G38"},"2644":{"t":"Micro","l":34,"v":"2026-11-24","antt":false,"p":"UHL8F20"},"2664":{"t":"Micro","l":34,"v":"2026-12-04","antt":true,"p":"UHL9H18"},"2667":{"t":"Micro","l":34,"v":"","antt":true,"p":"UHL9H88"},"2681":{"t":"Micro","l":30,"v":"2027-07-10","antt":true,"p":"UHZ3B62"},"2682":{"t":"Micro","l":30,"v":"2027-07-10","antt":true,"p":"UHZ3B82"},"2683":{"t":"Micro","l":30,"v":"2027-07-10","antt":true,"p":"UHZ3B42"},"1830":{"t":"Van","l":16,"v":"2026-04-05","antt":true,"p":"PCN2858"},"1850":{"t":"Van","l":16,"v":"2026-04-05","antt":false,"p":"PCN0388"},"1851":{"t":"Van","l":16,"v":"2027-03-24","antt":false,"p":"PCG3813"},"1853":{"t":"Van","l":16,"v":"2027-03-23","antt":true,"p":"PCG0383"},"1855":{"t":"Van","l":16,"v":"2026-04-22","antt":false,"p":"PCY0023"},"1856":{"t":"Van","l":16,"v":"2026-04-22","antt":true,"p":"PCX9543"},"2206":{"t":"Van","l":15,"v":"2026-08-28","antt":true,"p":"RZP0A15"},"2207":{"t":"Van","l":14,"v":"2026-08-26","antt":true,"p":"RZP3J92"},"2208":{"t":"Van","l":18,"v":"2026-09-04","antt":false,"p":"RZP8H62"},"2210":{"t":"Van","l":16,"v":"2026-10-08","antt":false,"p":"RZP8I12"},"2211":{"t":"Van","l":16,"v":"2026-08-27","antt":false,"p":"RZP8H32"},"2315":{"t":"Van","l":14,"v":"2026-10-15","antt":true,"p":"SNQ8C79"},"2317":{"t":"Van","l":14,"v":"2026-11-10","antt":false,"p":"SNQ6I43"},"2320":{"t":"Van","l":14,"v":"2026-10-24","antt":true,"p":"SNQ8C89"},"2321":{"t":"Van","l":14,"v":"2026-10-10","antt":true,"p":"SNQ8D09"},"2418":{"t":"Van","l":12,"v":"2026-09-26","antt":true,"p":"SOG8C94"},"2419":{"t":"Van","l":12,"v":"2026-09-30","antt":true,"p":"SOG8B24"},"2422":{"t":"Van","l":12,"v":"2026-10-28","antt":true,"p":"SNR2I85"},"2425":{"t":"Van","l":12,"v":"2027-02-24","antt":true,"p":"SNR3A95"},"2426":{"t":"Van","l":12,"v":"2026-10-24","antt":true,"p":"SNR3D15"},"2427":{"t":"Van","l":12,"v":"2026-11-06","antt":false,"p":"SNR3C05"},"2436":{"t":"Van","l":12,"v":"2026-09-26","antt":true,"p":"SOG8A84"},"2438":{"t":"Van","l":12,"v":"2026-09-29","antt":false,"p":"SOG8B74"},"2465":{"t":"Van","l":12,"v":"2026-10-02","antt":false,"p":"SOG8C04"},"2466":{"t":"Van","l":12,"v":"2027-02-20","antt":false,"p":"SOG8C34"},"2616":{"t":"Van","l":17,"v":"2027-06-09","antt":true,"p":"UHX5I01"},"2633":{"t":"Van","l":17,"v":"2027-06-09","antt":false,"p":"UHX5J61"},"2668":{"t":"Van","l":18,"v":"2026-10-02","antt":true,"p":"SPB8J71"},"2669":{"t":"Van","l":18,"v":"2026-10-02","antt":true,"p":"SPB8G81"},"2670":{"t":"Van","l":18,"v":"2027-01-19","antt":true,"p":"SPB9B21"},"2684":{"t":"Van","l":17,"v":"2027-06-09","antt":false,"p":"UHX5J51"},"2685":{"t":"Van","l":17,"v":"2027-06-09","antt":true,"p":"UHX5J21"},"2686":{"t":"Van","l":17,"v":"2027-06-09","antt":true,"p":"UHX5J01"},"2687":{"t":"Van","l":17,"v":"2027-06-09","antt":true,"p":"UHX5I81"},"2688":{"t":"Van","l":17,"v":"2027-06-09","antt":true,"p":"UHX5I61"},"2689":{"t":"Van","l":17,"v":"2027-06-09","antt":true,"p":"UHX5I41"},"0F46":{"t":"Van","l":15,"v":"2027-07-15","antt":true,"p":"QYD-0F46"}};
+  function frotaDe(v){ const S=String(v||"").toUpperCase(); const m=S.match(/\b(\d{4}|0F46)\b/); return m&&FROTA[m[1]]?{n:m[1],...FROTA[m[1]]}:null; }
+  // destino fora de PE precisa de veículo habilitado na ANTT (Maragogi-AL, João Pessoa-PB, Natal/Pipa-RN)
+  const vInterestadual=(s)=>/MARAGOGI|MILAGRES|PATACHO|JO[AÃ]O PESSOA|PIPA|NATAL|MACEI[OÓ]|S[AÃ]O MIGUEL DOS MILAGRES/i.test(String(s||""));
+  function vAgenda(servs,papel){ const m={}; for(const s of servs){ const p=String(s[papel]||"").toUpperCase(); if(!p||/NENHUM/.test(p)||(papel==="guia"&&s.auxiliar&&false)) continue; (m[p]=m[p]||[]).push(s); } for(const k in m) m[k].sort((x,y)=>(papel==="motorista"?x.aMot:x.aGuia)-(papel==="motorista"?y.aMot:y.aGuia)); return m; }
+  const vIni=(s,papel)=>papel==="motorista"?s.aMot:s.aGuia;
+  // conflitos que envolvem um serviço com atraso/adiantamento
+  function vConflitos(servs){
+    const out=[];
+    for(const papel of ["motorista","guia"]){
+      const ag=vAgenda(servs,papel);
+      for(const [p,L] of Object.entries(ag)) for(let i=0;i<L.length-1;i++){
+        const A=L[i], B=L[i+1]; if(!A.delta&&!B.delta) continue;
+        const dsl=vDesloc(A.regFim,B.regIni), precisa=A.f+dsl+VOO.folga, inicioB=vIni(B,papel);
+        // só o que o atraso causou: no horário do Phoenix dava tempo
+        const antes=A.f0+dsl+VOO.folga<=(papel==="motorista"?B.aMot0:B.aGuia0);
+        if(precisa>inicioB&&antes) out.push({papel,pessoa:p,A,B,falta:precisa-inicioB});
+      }
+    }
+    return out.sort((x,y)=>vIni(x.B,x.papel)-vIni(y.B,y.papel));
+  }
+  // quem está livre para assumir o serviço B
+  function vSugestoes(servs,papel,B){
+    const ag=vAgenda(servs,papel), atual=String(B[papel]||"").toUpperCase(), ini=vIni(B,papel), res=[];
+    for(const [p,L] of Object.entries(ag)){
+      if(p===atual) continue;
+      if(L.some(s=>s.ro===B.ro)) continue;
+      const antes=L.filter(s=>s.f<=ini).pop(), depois=L.find(s=>vIni(s,papel)>=B.f);
+      if(L.some(s=>s!==antes&&s!==depois&&!(s.f<=ini||vIni(s,papel)>=B.f))) continue; // sobrepõe
+      const chegaDe=antes?antes.regFim:null, desl=antes?vDesloc(antes.regFim,B.regIni):0;
+      if(antes&&antes.f+desl+VOO.folga>ini) continue;
+      if(depois&&B.f+vDesloc(B.regFim,depois.regIni)+VOO.folga>vIni(depois,papel)) continue;
+      let cap=null, aviso="", fr=null;
+      if(papel==="motorista"){
+        fr=frotaDe((antes||L[0]).veiculo);
+        cap=(fr&&fr.l)||Math.max(0,...L.map(s=>s.capacidade||0))||null;
+        if(cap&&B.pax&&cap<B.pax) continue;
+        if(fr&&!fr.antt&&vInterestadual(B.servico)) continue; // sem ANTT não sai de PE
+        if(fr&&fr.v&&fr.v<VOO.data) aviso=" · ⚠ vistoria vencida "+fr.v.split("-").reverse().join("/");
+      }
+      const livreAte=depois?vHora(vIni(depois,papel)):"fim do dia", livreDe=antes?vHora(antes.f):"começo do dia";
+      const veic=fr?fr.t+" "+fr.n:((antes||L[0]).veiculo||"veículo");
+      res.push({p,desl,cap,veic,texto:"livre "+livreDe+"–"+livreAte+(antes?" · vem de "+vNomeReg[chegaDe]+(desl?" (+"+desl+" min)":" (já está lá)"):" · sem serviço antes")+(cap?" · "+veic+" ("+cap+" lug.)":"")+aviso, score:desl*2+(antes?0:15)+(aviso?40:0)});
+    }
+    return res.sort((x,y)=>x.score-y.score).slice(0,4);
+  }
+  async function chamarVoo(acao,dados){
+    const r=await fetch(API_REMAN,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:VOO.data,...dados})});
+    const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
+  }
+  function renderVoos(m){
+    if(!VOO.data) VOO.data=consHoje();
+    cab("Informe o atraso que viu no FlightAware: o sistema mostra quem não chega no próximo serviço e quem está livre","");
+    const am=(()=>{ const d=new Date(consHoje()+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+1); return d.toISOString().slice(0,10); })();
+    m.innerHTML='<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      +segmento([[consHoje(),"Hoje"],[am,"Amanhã"]],VOO.data,"VOO.data='$v';VOO.d=null;renderVoos(document.getElementById('mainConteudo'))")
+      +'<label style="font-size:.85rem;color:var(--muted)">Folga entre serviços <select onchange="VOO.folga=+this.value;vooDesenhar()" style="padding:6px 8px;border:1px solid var(--linha);border-radius:8px">'+[15,20,30,45,60].map(n=>'<option '+(n===VOO.folga?'selected':'')+' value="'+n+'">'+n+' min</option>').join("")+'</select></label>'
+      +'<span style="flex:1"></span><button class="btn sec mini" onclick="VOO.d=null;vooCarregar()">Atualizar</button></div><div id="vooCorpo"><div class="card" style="color:var(--muted)">Carregando a escala…</div></div>';
+    if(VOO.d) vooDesenhar(); else vooCarregar();
+  }
+  async function vooCarregar(){ try{ VOO.d=await chamarVoo("ler",{todos:true}); vooDesenhar(); }catch(e){ const b=document.getElementById("vooCorpo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; } }
+  function vooDesenhar(){
+    const box=document.getElementById("vooCorpo"), D=VOO.d; if(!box||!D) return;
+    const servs=vServicos(), conf=vConflitos(servs), at=D.atrasos||{}, tr=D.trocas||{};
+    const ins=servs.filter(s=>s.tipo==="IN");
+    const voos={}; for(const s of (D.todos||[]).filter(x=>String(x.tipo).toUpperCase()==="IN")) for(const v of s.voos||[]){ const [cod,h]=v.split("|"); const k=String(cod).toUpperCase().replace(/\s+/g,""); if(!k) continue; (voos[k]=voos[k]||{voo:k,h,servs:[]}).servs.push(servs.find(x=>x.ro===s.ro)||s); }
+    const listaV=Object.values(voos).sort((a,b)=>(vMin(a.h)||0)-(vMin(b.h)||0));
+    const pendT=Object.entries(tr).filter(([k,x])=>!x.phoenix);
+    let h='<div class="cards-resumo"><div class="resumo"><div class="num">'+listaV.length+'</div><div class="lbl">Voos de chegada</div></div>'
+      +'<div class="resumo'+(Object.keys(at).length?' alerta':'')+'"><div class="num">'+Object.keys(at).length+'</div><div class="lbl">Com horário novo informado</div></div>'
+      +'<div class="resumo'+(conf.length?' alerta':' ok')+'"><div class="num">'+conf.length+'</div><div class="lbl">Conflitos para resolver</div></div>'
+      +'<div class="resumo'+(pendT.length?' alerta':' ok')+'"><div class="num">'+pendT.length+'</div><div class="lbl">Trocas a fazer no Phoenix</div></div></div>';
+    if(pendT.length) h+='<div class="card" style="border-left:4px solid #c2410c"><b>Trocas a fazer no Phoenix</b>'+pendT.map(([k,x])=>'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--linha)"><span class="pill" style="background:#eef3f1">'+(x.papel==="guia"?"Guia":"Motorista")+'</span><b>'+esc(x.servico)+'</b><span>'+esc(titulo(x.de))+' → <b>'+esc(titulo(x.para))+'</b></span><span style="font-size:.75rem;color:var(--muted)">'+esc(x.motivo||"")+' · '+esc(x.por)+' '+rmjHora(x.em)+'</span><span style="flex:1"></span><button class="btn mini" onclick="vooPhoenix(\''+esc(x.papel)+'\',\''+esc(x.ro)+'\')">✓ Troquei no Phoenix</button><button class="btn mini sec" onclick="vooDesfazer(\''+esc(x.papel)+'\',\''+esc(x.ro)+'\')">Desfazer</button></div>').join("")+'</div>';
+    // conflitos
+    for(const c of conf){
+      const B=c.B, A=c.A, sug=vSugestoes(servs,c.papel,B), lbl=c.papel==="motorista"?"Motorista":"Guia";
+      const motivo=(A.vooAt?A.vooAt.voo+" "+(A.delta>0?"+":"")+A.delta+" min":B.vooAt?B.vooAt.voo+" "+(B.delta>0?"+":"")+B.delta+" min":"");
+      h+='<div class="card" style="border:2px solid #e8a093"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="pill" style="background:#fde2dc;color:#a3271a">'+lbl.toUpperCase()+'</span><b style="font-size:1.02rem">'+esc(titulo(c.pessoa))+' não chega no '+esc(B.servico)+' ('+vHora(vIni(B,c.papel))+')</b><span style="color:var(--muted);font-size:.85rem">faltam '+c.falta+' min</span></div>'
+        +'<div style="font-size:.85rem;color:var(--muted);margin:4px 0 8px">'+esc(A.servico)+' termina ~'+vHora(A.f)+(A.delta?' (com '+esc(motivo)+')':'')+' em '+vNomeReg[A.regFim]+' → '+esc(B.servico)+' começa '+vHora(vIni(B,c.papel))+' em '+vNomeReg[B.regIni]+(vDesloc(A.regFim,B.regIni)?' · estrada ~'+vDesloc(A.regFim,B.regIni)+' min':'')+(B.pax?' · '+B.pax+' pax':'')+'</div>'
+        +(sug.length?sug.map((x,i)=>'<div style="display:flex;gap:10px;align-items:center;padding:9px 12px;border-radius:10px;margin-top:6px;border:'+(i?'1px solid var(--linha)':'2px solid var(--verde);background:#f2faf7')+'"><div style="flex:1"><b>Passar para '+esc(titulo(x.p))+'</b><div style="font-size:.78rem;color:var(--muted)">'+esc(x.texto)+'</div></div><button class="btn mini'+(i?' sec':'')+'" onclick="vooTrocar(\''+c.papel+'\',\''+esc(B.ro)+'\',\''+esc(x.p).replace(/'/g,"")+'\',\''+esc(motivo)+'\')">'+(i?'Usar':'Aceitar')+'</button></div>').join("")
+          :'<div style="font-size:.85rem;color:#a3501a">Ninguém livre na escala nesse horário. Escolha abaixo ou chame alguém de fora da escala.</div>')
+        +'<div style="margin-top:8px;font-size:.82rem">Outro '+lbl.toLowerCase()+': <input list="vooPessoas_'+c.papel+'" placeholder="digite o nome" onchange="if(this.value.trim())vooTrocar(\''+c.papel+'\',\''+esc(B.ro)+'\',this.value.trim(),\''+esc(motivo)+'\')" style="padding:6px 8px;border:1px solid var(--linha);border-radius:8px;width:220px"></div></div>';
+    }
+    if(!conf.length&&Object.keys(at).length) h+='<div class="card" style="border-left:4px solid var(--ok)">✓ Com os horários informados, ninguém fica sem chegar no próximo serviço (folga de '+VOO.folga+' min).</div>';
+    const pessoas=(p)=>[...new Set(servs.map(s=>String(s[p]||"").toUpperCase()).filter(x=>x&&!/NENHUM/.test(x)))].sort();
+    h+='<datalist id="vooPessoas_motorista">'+pessoas("motorista").map(n=>'<option value="'+esc(n)+'">').join("")+'</datalist><datalist id="vooPessoas_guia">'+pessoas("guia").map(n=>'<option value="'+esc(n)+'">').join("")+'</datalist>';
+    // chegadas
+    h+='<div class="card" style="padding:0;overflow-x:auto"><div style="padding:14px 16px 4px"><b>Chegadas do dia</b> <span style="font-size:.8rem;color:var(--muted)">· abra o voo no FlightAware e, se mudou, digite o horário novo em "Chega às"</span></div><table class="tabela" style="min-width:820px"><thead><tr><th>VOO</th><th>PHOENIX</th><th>CHEGA ÀS</th><th>SITUAÇÃO</th><th>SERVIÇO</th><th>GUIA</th><th>MOTORISTA</th></tr></thead><tbody>'
+      +listaV.map(v=>{ const x=at[v.voo], d=x?vMin(x.hora)-vMin(v.h):0;
+        const pill=!x?'<span style="color:var(--muted);font-size:.8rem">—</span>':d>0?'<span class="pill" style="background:#fde2dc;color:#a3271a">+'+d+' min</span>':d<0?'<span class="pill" style="background:#e0ecff;color:#1f5fbf">'+d+' min</span>':'<span class="pill" style="background:#d4f0ec;color:#0b6e5f">no horário</span>';
+        const cf=(p,s)=>conf.some(c=>c.papel===p&&c.pessoa===String(s[p]||"").toUpperCase())?' <span style="color:#a3271a">⚠</span>':'';
+        return '<tr><td><a href="'+vooLink(v.voo)+'" target="_blank" rel="noopener" style="font-weight:800;color:var(--tinta)">'+esc(v.voo)+' ↗</a></td><td>'+esc(v.h||"")+'</td><td><input type="time" value="'+(x?x.hora:"")+'" onchange="vooAtraso(\''+esc(v.voo)+'\',this.value,\''+esc(v.h||"")+'\')" style="padding:4px 6px;border:1px solid var(--linha);border-radius:6px">'+(x?' <button class="btn mini sec" title="Voltar ao horário do Phoenix" onclick="vooAtraso(\''+esc(v.voo)+'\',\'\',\'\')">×</button>':'')+'</td><td>'+pill+'</td>'
+          +'<td>'+v.servs.map(s=>esc(s.servico)+(s.pax?' · '+s.pax+' pax':'')).join("<br>")+'</td><td>'+v.servs.map(s=>esc(titulo(s.guia||"—"))+cf("guia",s)).join("<br>")+'</td><td>'+v.servs.map(s=>esc(titulo(s.motorista||"—"))+cf("motorista",s)).join("<br>")+'</td></tr>'; }).join("")
+      +'</tbody></table></div>';
+    // linha do dia
+    const papel=VOO.linha, ag=vAgenda(servs,papel), I0=240, I1=1440, W=(n)=>Math.max(0,Math.min(100,(n-I0)/(I1-I0)*100));
+    h+='<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><b>Linha do dia</b>'+segmento([["motorista","Motoristas"],["guia","Guias"]],papel,"VOO.linha='$v';vooDesenhar()")+'<span style="font-size:.78rem;color:var(--muted)">vermelho = afetado por atraso · espaço vazio = livre</span></div>'
+      +'<div style="display:grid;grid-template-columns:130px 1fr;gap:5px 10px;align-items:center;font-size:.75rem">'
+      +Object.entries(ag).sort((a,b)=>a[0].localeCompare(b[0])).map(([p,L])=>'<b style="font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(titulo(p))+'</b><div style="position:relative;height:20px;background:#f4f7f6;border-radius:6px">'
+        +L.map(s=>{ const a=vIni(s,papel), cor=s.delta?"#a3271a":s.tipo==="IN"?"#1f5fbf":s.tipo==="OUT"?"#b4521b":"#0e7a68"; return '<i title="'+esc(s.servico+" "+vHora(a)+"–"+vHora(s.f))+'" style="position:absolute;top:2px;height:16px;left:'+W(a)+'%;width:'+Math.max(1.2,W(s.f)-W(a))+'%;background:'+cor+';border-radius:4px;color:#fff;font-style:normal;font-size:10px;padding:1px 4px;white-space:nowrap;overflow:hidden">'+esc(s.tipo||"")+' '+vHora(a)+'</i>'; }).join("")+'</div>').join("")
+      +'<div></div><div style="display:flex;justify-content:space-between;color:var(--muted)">'+["04h","08h","12h","16h","20h","24h"].map(x=>'<span>'+x+'</span>').join("")+'</div></div></div>';
+    h+='<div style="font-size:.75rem;color:var(--muted);margin-top:-4px">Estrada usada no cálculo: Recife–Porto '+VOO_DESLOC["RE|PT"]+' min · Recife–Cabo '+VOO_DESLOC["RE|CB"]+' · Porto–Cabo '+VOO_DESLOC["PT|CB"]+' · Porto–Maragogi '+VOO_DESLOC["PT|MG"]+' · Recife–Maragogi '+VOO_DESLOC["RE|MG"]+'. Só aparece quem está na escala do dia.</div>';
+    box.innerHTML=h;
+  }
+  async function vooAtraso(voo,hora,prev){ try{ const j=await chamarVoo("atraso",{voo,hora,previsto:prev}); Object.assign(VOO.d,{atrasos:j.atrasos,trocas:j.trocas}); vooDesenhar(); }catch(e){ alert(e.message); } }
+  async function vooTrocar(papel,ro,para,motivo){
+    const s=(VOO.d.todos||[]).find(x=>x.ro===ro)||{}, tr=(VOO.d.trocas||{})[papel+"_"+ro];
+    if(!confirm("Passar o "+(s.servico||"serviço")+" para "+para+"?\n\nFica registrado e entra em \"Trocas a fazer no Phoenix\".")) return;
+    try{ const j=await chamarVoo("trocar",{papel,ro,para,servico:(String(s.inicio||"").slice(0,5)+" "+(s.servico||"")).trim(),de:tr?tr.de:(s[papel]||""),motivo:motivo?"atraso "+motivo:""}); Object.assign(VOO.d,{atrasos:j.atrasos,trocas:j.trocas}); vooDesenhar(); }catch(e){ alert(e.message); }
+  }
+  async function vooDesfazer(papel,ro){ try{ const j=await chamarVoo("desfazerTroca",{papel,ro}); Object.assign(VOO.d,{atrasos:j.atrasos,trocas:j.trocas}); vooDesenhar(); }catch(e){ alert(e.message); } }
+  async function vooPhoenix(papel,ro){ try{ const j=await chamarVoo("phoenixTroca",{papel,ro,feito:true}); Object.assign(VOO.d,{atrasos:j.atrasos,trocas:j.trocas}); vooDesenhar(); }catch(e){ alert(e.message); } }
+
   async function chamarTransf(acao,dados){
     const r=await fetch(API_TRANSF,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,semana:TRF.semana,...dados})});
     const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
