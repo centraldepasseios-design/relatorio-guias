@@ -3575,6 +3575,14 @@
     catch(e){ const b=document.getElementById("rmjCorpo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; }
   }
   function rmjGuias(){ return [...new Set((RMJ.d.servicos||[]).map(s=>String(s.guia||"").toUpperCase()).filter(g=>g&&!/NENHUM/.test(g)))].sort(); }
+  // serviço que recebe a REC: do guia novo, mesmo tipo do serviço de origem e horário mais próximo (igual ao robô)
+  function rmjAlvo(x){
+    const S=(RMJ.d&&RMJ.d.servicos)||[], min=(h)=>{ const m=String(h||"").match(/(\d{2}):(\d{2})/); return m?+m[1]*60+ +m[2]:0; };
+    const orig=S.find(s=>x.sk&&s.sk===x.sk)||S.find(s=>x.ro&&s.ro===x.ro&&normGuia(s.guia)===normGuia(x.de))||S.find(s=>normGuia(s.guia)===normGuia(x.de)&&s.reservas.some(r=>r.rec===x.rec));
+    const tipo=orig?orig.tipo:(String(x.servico||"").match(/\b(IN|OUT|TRANSFER)\b/)||[])[1];
+    const hora=orig?min(orig.inicio):min(x.servico);
+    return S.filter(s=>s!==orig&&normGuia(s.guia)===normGuia(x.para)&&(!tipo||s.tipo===tipo)).sort((a,b)=>Math.abs(min(a.inicio)-hora)-Math.abs(min(b.inicio)-hora))[0]||null;
+  }
   function rmjHora(ts){ return ts?new Date(ts).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""; }
   function rmjDestino(x){ return x.motivo==="outro guia"?'→ <b>'+esc(titulo(x.para))+'</b>':(x.motivo==="no show"?'No show':x.motivo==="voo alterado"?'Voo alterado':'Outro: '+esc(x.obs||"")); }
   function rmjDesenhar(){
@@ -3595,7 +3603,7 @@
     const guias=rmjGuias();
     for(const s of servs){
       const cor=s.tipo==="IN"?"#1f5fbf":s.tipo==="OUT"?"#b4521b":"#0e7a68";
-      const vieram=lista.filter(x=>x.motivo==="outro guia"&&normGuia(x.para)===normGuia(s.guia)&&x.ro!==s.ro);
+      const vieram=lista.filter(x=>x.motivo==="outro guia"&&rmjAlvo(x)===s);
       h+='<div class="card" style="border-left:4px solid '+cor+';padding:14px 16px">'
         +'<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem">'+esc(String(s.inicio||s.apresentacao).slice(0,5))+'</b><span class="pill" style="background:'+cor+'1a;color:'+cor+'">'+esc(s.tipo||"TRF")+'</span><b>'+esc(s.servico)+'</b><span style="color:var(--muted);font-size:.85rem">Guia escalado: <b style="color:var(--tinta)">'+esc(titulo(s.guia)||"sem guia")+'</b>'+(s.motorista?' · Mot. '+esc(titulo(s.motorista)):'')+(s.veiculo?' · '+esc(s.veiculo):'')+'</span></div>'
         +'<table class="tabela" style="margin-top:8px"><tbody>'
