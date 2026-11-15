@@ -3550,7 +3550,8 @@
 
   // ================= REMANEJAMENTO DO BOX (fase 1: registro, sem mexer no Phoenix) =================
   const API_REMAN="https://us-central1-operacional-luck.cloudfunctions.net/remanejamento";
-  const RMJ={ data:null, d:null, busca:"", carregando:false };
+  const RMJ={ data:null, d:null, busca:"", carregando:false, semGuia:false };
+  const rmjIdioma=(c)=>{ const k=String(c||"").toLowerCase().slice(0,2); return ({es:"Espanhol",en:"Inglês",fr:"Francês",it:"Italiano",de:"Alemão",pt:"Português",zh:"Chinês",ja:"Japonês",he:"Hebraico",ru:"Russo"})[k]||c; };
   async function chamarReman(acao,dados){
     const r=await fetch(API_REMAN,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:RMJ.data,...dados})});
     const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
@@ -3568,7 +3569,7 @@
     if(RMJ.d) rmjDesenhar(); else rmjCarregar();
   }
   async function rmjCarregar(){
-    try{ RMJ.d=await chamarReman("ler",{}); rmjDesenhar(); }
+    try{ RMJ.d=await chamarReman("ler",{}); rmjDesenhar(); rmjAcompanhar(); }
     catch(e){ const b=document.getElementById("rmjCorpo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; }
   }
   function rmjGuias(){ return [...new Set((RMJ.d.servicos||[]).map(s=>String(s.guia||"").toUpperCase()).filter(g=>g&&!/NENHUM/.test(g)))].sort(); }
@@ -3576,17 +3577,18 @@
   function rmjDestino(x){ return x.motivo==="outro guia"?'→ <b>'+esc(titulo(x.para))+'</b>':(x.motivo==="no show"?'No show':x.motivo==="voo alterado"?'Voo alterado':'Outro: '+esc(x.obs||"")); }
   function rmjDesenhar(){
     const box=document.getElementById("rmjCorpo"), D=RMJ.d; if(!box||!D) return;
-    const recs=D.recs||{}, lista=Object.values(recs), pend=lista.filter(x=>!x.phoenix&&x.motivo==="outro guia");
+    const recs=D.recs||{}, lista=Object.values(recs), pend=lista.filter(x=>!x.phoenix&&(x.motivo==="outro guia"||x.motivo==="no show"));
     const B=normGuia(RMJ.busca), Bd=RMJ.busca.replace(/\D/g,"");
-    const servs=(D.servicos||[]).filter(s=>!B&&!Bd||normGuia(s.guia).includes(B)&&B||s.reservas.some(r=>(Bd&&String(r.rec).includes(Bd))||(B&&normGuia(r.cliente).includes(B)))||lista.some(x=>x.ro===s.ro&&B&&normGuia(x.para).includes(B)));
+    const semG=(D.servicos||[]).filter(s=>!s.guia||/NENHUM/i.test(s.guia)).length;
+    const servs=(D.servicos||[]).filter(s=>RMJ.semGuia||(s.guia&&!/NENHUM/i.test(s.guia))).filter(s=>!B&&!Bd||normGuia(s.guia).includes(B)&&B||s.reservas.some(r=>(Bd&&String(r.rec).includes(Bd))||(B&&normGuia(r.cliente).includes(B)))||lista.some(x=>x.ro===s.ro&&B&&normGuia(x.para).includes(B)));
     const totRec=(D.servicos||[]).reduce((s,x)=>s+x.reservas.length,0);
     let h='<div class="cards-resumo">'
       +'<div class="resumo"><div class="num">'+(D.servicos||[]).length+'</div><div class="lbl">Serviços (IN/OUT/transfer)</div></div>'
       +'<div class="resumo"><div class="num">'+lista.length+' <span style="font-size:.9rem;color:var(--muted)">de '+totRec+'</span></div><div class="lbl">RECs remanejadas</div></div>'
       +'<div class="resumo'+(pend.length?' alerta':' ok')+'"><div class="num">'+pend.length+'</div><div class="lbl">Faltam trocar no Phoenix</div></div></div>';
-    if(D.atualizada) h+='<div style="font-size:.78rem;color:var(--muted);margin:-4px 0 10px">Escala do Phoenix de '+rmjHora(D.atualizada)+' (atualiza sozinha a cada 30 min)</div>';
+    if(D.atualizada) h+='<div style="font-size:.78rem;color:var(--muted);margin:-4px 0 10px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">Escala do Phoenix de '+rmjHora(D.atualizada)+' (atualiza sozinha a cada 30 min)'+(semG?'<label style="color:var(--tinta)"><input type="checkbox" '+(RMJ.semGuia?'checked':'')+' onchange="RMJ.semGuia=this.checked;rmjDesenhar()"> mostrar os '+semG+' serviços sem guia</label>':'')+'</div>';
     if(pend.length) h+='<div class="card" style="border-left:4px solid #c2410c"><b>Faltam trocar no Phoenix</b><div style="font-size:.82rem;color:var(--muted);margin-bottom:8px">Troque o guia dessas RECs no Phoenix e marque aqui.</div>'
-      +pend.sort((a,b)=>a.em-b.em).map(x=>'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--linha)"><b>REC-'+esc(String(x.rec).replace(/^REC-?/i,""))+'</b><span style="color:var(--muted)">'+esc(titulo(x.cliente||""))+'</span><span>'+esc(titulo(x.de))+' '+rmjDestino(x)+'</span><span style="font-size:.75rem;color:var(--muted)">'+esc(x.servico||"")+' · por '+esc(x.por)+' às '+rmjHora(x.em)+'</span><span style="flex:1"></span><button class="btn mini" onclick="rmjPhoenix(\''+rmjChave(x.rec)+'\',true)">✓ Troquei no Phoenix</button></div>').join("")+'</div>';
+      +pend.sort((a,b)=>a.em-b.em).map(x=>'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--linha)"><b>REC-'+esc(String(x.rec).replace(/^REC-?/i,""))+'</b><span style="color:var(--muted)">'+esc(titulo(x.cliente||""))+'</span><span>'+esc(titulo(x.de))+' '+rmjDestino(x)+'</span><span style="font-size:.75rem;color:var(--muted)">'+esc(x.servico||"")+' · por '+esc(x.por)+' às '+rmjHora(x.em)+'</span><span style="flex:1"></span>'+rmjRobo(x)+'<button class="btn mini" onclick="rmjPhoenix(\''+rmjChave(x.rec)+'\',true)">✓ '+(x.motivo==="no show"?'Já desaloquei':'Troquei')+' no Phoenix</button></div>').join("")+'</div>';
     if(!(D.servicos||[]).length) h+='<div class="card" style="color:var(--muted)">Sem escala guardada para esse dia ainda (a escala de hoje e de amanhã é atualizada a cada 30 min).</div>';
     const guias=rmjGuias();
     for(const s of servs){
@@ -3599,9 +3601,9 @@
           const x=recs[rmjChave(r.rec)];
           const vooH=[r.voo&&(r.voo+(r.horaVoo?' '+r.horaVoo:'')),r.hotel].filter(Boolean).join(' · ');
           const ops='<option value="">✓ Com '+esc(titulo(s.guia)||"o guia escalado")+'</option><option value="m:no show">No show</option><option value="m:voo alterado">Voo alterado</option><optgroup label="Foi com outro guia">'+guias.filter(g=>normGuia(g)!==normGuia(s.guia)).map(g=>'<option value="g:'+esc(g)+'">'+esc(titulo(g))+'</option>').join("")+'<option value="g:?">Outro guia (digitar)…</option></optgroup>';
-          return '<tr style="'+(x?'background:#fff7ed':'')+'"><td style="white-space:nowrap"><b>REC-'+esc(String(r.rec).replace(/^REC-?/i,""))+'</b></td><td>'+esc(titulo(r.cliente||""))+(r.pax?' <span style="color:var(--muted)">· '+esc(r.pax)+' pax</span>':'')+'<div style="font-size:.75rem;color:var(--muted)">'+esc(vooH)+(r.idioma?' · 🌐 '+esc(r.idioma):'')+'</div></td><td style="text-align:right;white-space:nowrap">'
+          return '<tr style="'+(x?'background:#fff7ed':'')+'"><td style="white-space:nowrap"><b>REC-'+esc(String(r.rec).replace(/^REC-?/i,""))+'</b></td><td>'+esc(titulo(r.cliente||""))+(r.pax?' <span style="color:var(--muted)">· '+esc(r.pax)+' pax</span>':'')+'<div style="font-size:.75rem;color:var(--muted)">'+esc(vooH)+(r.idioma?' · 🌐 '+esc(rmjIdioma(r.idioma)):'')+'</div></td><td style="text-align:right;white-space:nowrap">'
             +(x?'<span>'+rmjDestino(x)+'</span> <span style="font-size:.72rem;color:var(--muted)">'+esc(x.por)+' '+rmjHora(x.em)+'</span>'
-              +(x.motivo==="outro guia"?' <label style="font-size:.78rem;margin-left:6px"><input type="checkbox" '+(x.phoenix?'checked':'')+' onchange="rmjPhoenix(\''+rmjChave(r.rec)+'\',this.checked)"> trocado no Phoenix</label>':'')
+              +(x.motivo==="outro guia"||x.motivo==="no show"?' '+(x.phoenix?'':rmjRobo(x))+'<label style="font-size:.78rem;margin-left:6px"><input type="checkbox" '+(x.phoenix?'checked':'')+' onchange="rmjPhoenix(\''+rmjChave(r.rec)+'\',this.checked)"> '+(x.motivo==="no show"?'desalocado':'trocado')+' no Phoenix'+(x.phoenixPor==="robô"?' (robô)':'')+'</label>':'')
               +' <button class="btn mini sec" onclick="rmjDesfazer(\''+rmjChave(r.rec)+'\')">Desfazer</button>'
               :'<select onchange="rmjMarcar(this,\''+esc(s.ro)+'\',\''+esc(r.rec)+'\')" style="padding:6px 8px;border:1px solid var(--linha);border-radius:8px;max-width:240px">'+ops+'</select>')
             +'</td></tr>';
@@ -3622,6 +3624,25 @@
     try{ const j=await chamarReman("marcar",{rec,cliente:r.cliente||"",pax:r.pax||"",ro,servico:(String(s.inicio||"").slice(0,5)+" "+(s.servico||"")).trim(),de:s.guia||"",para,motivo}); RMJ.d.recs=j.recs; rmjDesenhar(); }
     catch(e){ alert(e.message); sel.disabled=false; sel.value=""; }
   }
+  // robô do Phoenix (por enquanto só NO SHOW: observação + desalocar)
+  function rmjRobo(x){
+    if(x.motivo!=="no show") return "";
+    const r=x.robo||{}, k=rmjChave(x.rec);
+    if(r.status==="enviando"&&Date.now()-r.em<15*60e3) return '<span class="pill" style="background:#e0ecff;color:#1f5fbf">🤖 robô trabalhando…</span> ';
+    if(r.status==="erro") return '<span class="pill" style="background:#fde2dc;color:#a3271a" title="'+esc(r.mensagem||"")+'">🤖 não conseguiu</span> '+(r.link?'<a href="'+esc(r.link)+'" target="_blank" rel="noopener" style="font-size:.75rem">ver</a> ':'')+'<button class="btn mini sec" onclick="rmjRoboEnviar(\''+k+'\')">Tentar de novo</button> ';
+    return '<button class="btn mini" style="background:#a3271a" onclick="rmjRoboEnviar(\''+k+'\')">🤖 Desalocar no Phoenix</button> ';
+  }
+  async function rmjRoboEnviar(k){ const x=(RMJ.d.recs||{})[k]; if(!x) return;
+    if(!confirm("O robô vai entrar no Phoenix (Reservas > Escalar), escrever NO SHOW na observação de "+(x.cliente||x.rec)+" e DESALOCAR da escala.\n\nConfirma?")) return;
+    try{ const j=await chamarReman("robo",{rec:x.rec}); RMJ.d.recs=j.recs; rmjDesenhar(); rmjAcompanhar(); }catch(e){ alert(e.message); } }
+  // enquanto tiver robô trabalhando, confere a cada 20 s
+  let rmjTimer=null;
+  function rmjAcompanhar(){ clearTimeout(rmjTimer); rmjTimer=setTimeout(async()=>{
+    if(!document.getElementById("rmjCorpo")) return;
+    const ativo=Object.values((RMJ.d||{}).recs||{}).some(x=>x.robo&&x.robo.status==="enviando"&&Date.now()-x.robo.em<15*60e3);
+    if(!ativo) return;
+    try{ const j=await chamarReman("ler",{}); RMJ.d=j; rmjDesenhar(); }catch(_){}
+    rmjAcompanhar(); },20000); }
   async function rmjDesfazer(k){ const x=(RMJ.d.recs||{})[k]; if(!x) return;
     try{ const j=await chamarReman("desfazer",{rec:x.rec}); RMJ.d.recs=j.recs; rmjDesenhar(); }catch(e){ alert(e.message); } }
   async function rmjPhoenix(k,feito){ const x=(RMJ.d.recs||{})[k]; if(!x) return;
