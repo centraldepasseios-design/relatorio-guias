@@ -358,6 +358,7 @@
       {id:"cen-transf", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18M3 15h18M9 3v18M15 3v18\"/></svg>", nome:"Transferistas"},
       {id:"cen-reman", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7 4v16M7 20l-4-4M7 20l4-4M17 20V4M17 4l-4 4M17 4l4 4\"/></svg>", nome:"Remanejamento do Box"},
       {id:"cen-voos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 16l20-6-3-3-6 2-6-5-2 1 4 6-5 2-2-2-2 1z\"/></svg>", nome:"Voos e atrasos (Box)"},
+      {id:"cen-desc", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19 5L5 19\"/><circle cx=\"6.5\" cy=\"6.5\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"17.5\" r=\"2.5\"/></svg>", nome:"Descontos"},
       {id:"cen-relatorio", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 3v16a2 2 0 0 0 2 2h16\"/><path d=\"M18 17V9M13 17V5M8 17v-3\"/></svg>", nome:"Relatório"},
       {id:"central-fechar", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>", nome:"Fechar escalas"},
     ]},
@@ -435,6 +436,7 @@
     if(id==="cen-transf"){ renderTransf(m); return; }
     if(id==="box-reman"||id==="cen-reman"){ renderReman(m); return; }
     if(id==="box-voos"||id==="cen-voos"){ renderVoos(m); return; }
+    if(id==="cen-desc"){ renderDescontos(m); return; }
     if(id==="box-fechar"){ renderFechar(m, "recife"); return; } // o Box fecha IN, OUT, transfer e apoios (regra que era do Recife)
     if(id.endsWith("-fechar")){ renderFechar(m, id.replace("-fechar","")); return; }
     if(id==="cen-contatos"){ renderContatos(m); return; }
@@ -3799,6 +3801,41 @@
   }
   async function vooDesfazer(papel,ro){ try{ const j=await chamarVoo("desfazerTroca",{papel,ro}); Object.assign(VOO.d,{atrasos:j.atrasos,trocas:j.trocas}); vooDesenhar(); }catch(e){ alert(e.message); } }
   async function vooPhoenix(papel,ro){ try{ const j=await chamarVoo("phoenixTroca",{papel,ro,feito:true}); Object.assign(VOO.d,{atrasos:j.atrasos,trocas:j.trocas}); vooDesenhar(); }catch(e){ alert(e.message); } }
+
+
+  // ================= DESCONTOS (relatório semanal do robô de descontos) =================
+  const API_RELDESC="https://us-central1-operacional-luck.cloudfunctions.net/relDescontos";
+  const DSC={ ini:null, d:null, ver:"quem" };
+  function dscSegunda(iso){ const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7)); return d.toISOString().slice(0,10); }
+  function dscSoma(iso,n){ const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+  const brlD=(n)=>"R$ "+Number(n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  function renderDescontos(m){
+    if(!DSC.ini) DSC.ini=dscSegunda(consHoje());
+    cab("Quem mais pede desconto no grupo e quanto foi dado (robô de descontos)","");
+    m.innerHTML='<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn sec mini" onclick="DSC.ini=dscSoma(DSC.ini,-7);DSC.d=null;renderDescontos(document.getElementById(\'mainConteudo\'))">‹</button><b id="dscTit"></b><button class="btn sec mini" onclick="DSC.ini=dscSoma(DSC.ini,7);DSC.d=null;renderDescontos(document.getElementById(\'mainConteudo\'))">›</button><span style="flex:1"></span>'+segmento([["quem","Por quem pediu"],["vendedor","Por vendedor do PDV"]],DSC.ver,"DSC.ver='$v';dscDesenhar()")+'</div><div id="dscCorpo"><div class="card" style="color:var(--muted)">Carregando…</div></div>';
+    const t=document.getElementById("dscTit"); if(t) t.textContent="Semana "+dataBR(DSC.ini).slice(0,5)+" a "+dataBR(dscSoma(DSC.ini,6)).slice(0,5);
+    if(DSC.d) dscDesenhar(); else dscCarregar();
+  }
+  async function dscCarregar(){
+    try{ const r=await fetch(API_RELDESC,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:USUARIO.token,ini:DSC.ini,fim:dscSoma(DSC.ini,6)})}); const j=await r.json(); if(sessaoExpirou(j)) return; if(!j.ok) throw new Error(j.erro||"erro"); DSC.d=j; dscDesenhar(); }
+    catch(e){ const b=document.getElementById("dscCorpo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; }
+  }
+  function dscDesenhar(){
+    const box=document.getElementById("dscCorpo"), D=DSC.d; if(!box||!D) return;
+    const grupos=DSC.ver==="vendedor"?D.porVendedor:D.porQuem, maxT=Math.max(1,...grupos.map(g=>g.total));
+    let h='<div class="cards-resumo"><div class="resumo"><div class="num">'+D.pedidos+'</div><div class="lbl">Pedidos no grupo</div></div>'
+      +'<div class="resumo ok"><div class="num">'+D.feitos+'</div><div class="lbl">Descontos aplicados</div></div>'
+      +'<div class="resumo alerta"><div class="num" style="font-size:1.5rem">'+brlD(D.total)+'</div><div class="lbl">Total em desconto</div></div></div>';
+    if(D.semValor) h+='<div style="font-size:.78rem;color:var(--muted);margin:-8px 0 12px">'+D.semValor+' desconto(s) aplicado(s) antes deste relatório existir ficaram sem o valor registrado (entram na contagem, não no total).</div>';
+    h+='<div class="card" style="padding:0;overflow-x:auto"><table class="tabela" style="min-width:640px"><thead><tr><th>'+(DSC.ver==="vendedor"?"VENDEDOR (PDV)":"QUEM PEDIU (WHATSAPP)")+'</th><th>PEDIDOS</th><th>APLICADOS</th><th>RECUSADOS / EM ANÁLISE</th><th>TOTAL DE DESCONTO</th><th>% DA VENDA</th></tr></thead><tbody>'
+      +(grupos.length?grupos.map(g=>'<tr><td style="font-weight:800">'+esc(titulo(g.nome))+'</td><td>'+g.pedidos+'</td><td>'+g.feitos+'</td><td>'+(g.recusados+g.analise||'—')+'</td><td><div style="display:flex;align-items:center;gap:8px"><div style="height:8px;border-radius:4px;background:#c2410c;width:'+Math.round(g.total/maxT*120)+'px"></div><b>'+brlD(g.total)+'</b></div></td><td>'+(g.pct!=null?String(g.pct).replace(".",",")+"%":"—")+'</td></tr>').join(""):'<tr><td colspan="6" style="color:var(--muted)">Nenhum pedido nessa semana.</td></tr>')
+      +'</tbody></table></div>';
+    h+='<div class="card" style="padding:0;overflow-x:auto"><div style="padding:12px 16px 4px"><b>Pedidos da semana</b></div><table class="tabela" style="min-width:760px"><thead><tr><th>QUANDO</th><th>REC</th><th>QUEM PEDIU</th><th>VENDEDOR</th><th>VALOR FINAL</th><th>DESCONTO</th><th>SITUAÇÃO</th></tr></thead><tbody>'
+      +D.itens.map(i=>{ const st=i.status==="feito"?'<span class="pill" style="background:#d4f0ec;color:#0b6e5f">aplicado</span>':i.status==="recusado"?'<span class="pill" style="background:#fde2dc;color:#a3271a" title="'+esc(i.resultado)+'">recusado</span>':'<span class="pill" style="background:#fff1dd;color:#a3501a" title="'+esc(i.resultado)+'">'+esc(i.status==="analise"?"equipe vai ver":i.status)+'</span>';
+        return '<tr><td style="white-space:nowrap">'+new Date(i.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+'</td><td>REC-'+esc(i.rec)+'</td><td>'+esc(titulo(i.quem))+'</td><td>'+esc(titulo(i.vendedor||"—"))+'</td><td>'+(i.valorFinal!=null?brlD(i.valorFinal):"—")+'</td><td>'+(i.desconto!=null?'<b>'+brlD(i.desconto)+'</b>':"—")+'</td><td>'+st+'</td></tr>'; }).join("")
+      +'</tbody></table></div>';
+    box.innerHTML=h;
+  }
 
   async function chamarTransf(acao,dados){
     const r=await fetch(API_TRANSF,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,semana:TRF.semana,...dados})});
