@@ -168,7 +168,7 @@ function desenharEscala(servs){
     const [tag,cor,transfer]=tipoDe(l), rs=l.reservas||[];
     const uniq=(a)=>[...new Set(a.filter(Boolean))];
     const voos=uniq(rs.map(r=>[r.voo,r.horaVoo].filter(Boolean).join(" · ")));
-    const hoteis=uniq(rs.map(r=>tit(r.hotel))); const idi=uniq(rs.map(r=>r.idioma).join(",").split(",").map(s=>s.trim()));
+    const hoteis=uniq(rs.map(r=>tit(r.hotel))); const idi=uniq(rs.map(r=>r.idioma).join(",").split(",").map(s=>nomeIdioma(s.trim())));
     // observação só em serviço privativo (no regular cada REC tem a sua e não faz sentido juntar)
     const privativo=/PRIVATIVO/i.test(l.servico||"")||rs.some(r=>/PRIV/i.test(r.modo||""));
     const obs=privativo?uniq(rs.map(r=>r.obs)):[];
@@ -312,6 +312,9 @@ function relRecs(l,it){
         +(x.foi?'':'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin:6px 0 0 30px">'+MOTIVOS_REC.map(([v,t])=>'<button class="mini" style="'+(x.motivo===v?'background:var(--escuro);color:#fff':'')+'" onclick="relRec(\''+l.ro+'\','+k+',\'motivo\',\''+v+'\')">'+t+'</button>').join("")+'</div>')+'</div>'; }).join("")+'<button class="mini" style="margin-top:8px;width:100%;height:40px" onclick="recExtra(\''+l.ro+'\')">＋ Veio uma REC que não está aqui</button></div>';
 }
 // REC que entrou de última hora na chegada (o Box juntou e ainda não está no Phoenix)
+// "es-es" → "Espanhol" (o Phoenix manda o código do idioma)
+function nomeIdioma(c){ const k=String(c||"").toLowerCase().slice(0,2);
+  return ({es:"Espanhol",en:"Inglês",fr:"Francês",it:"Italiano",de:"Alemão",pt:"Português",zh:"Chinês",ja:"Japonês",he:"Hebraico",ru:"Russo",ko:"Coreano",ar:"Árabe",nl:"Holandês"})[k]||c; }
 function recExtra(ro){
   const f=document.createElement("div"); f.className="fundo"; f.id="fundo";
   f.innerHTML='<div class="folha-baixo"><b style="font-size:18px">REC de última hora</b><div class="peq muted">Passageiro que veio com você nessa chegada, mas não está na lista (ex.: o Box juntou na hora).</div>'
