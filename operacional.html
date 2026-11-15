@@ -3628,14 +3628,16 @@
   }
   // robô do Phoenix (por enquanto só NO SHOW: observação + desalocar)
   function rmjRobo(x){
-    if(x.motivo!=="no show") return "";
+    if(x.motivo!=="no show"&&x.motivo!=="outro guia") return "";
     const r=x.robo||{}, k=rmjChave(x.rec);
     if(r.status==="enviando"&&Date.now()-r.em<15*60e3) return '<span class="pill" style="background:#e0ecff;color:#1f5fbf">🤖 robô trabalhando…</span> ';
     if(r.status==="erro") return '<span class="pill" style="background:#fde2dc;color:#a3271a" title="'+esc(r.mensagem||"")+'">🤖 não conseguiu</span> '+(r.link?'<a href="'+esc(r.link)+'" target="_blank" rel="noopener" style="font-size:.75rem">ver</a> ':'')+'<button class="btn mini sec" onclick="rmjRoboEnviar(\''+k+'\')">Tentar de novo</button> ';
-    return '<button class="btn mini" style="background:#a3271a" onclick="rmjRoboEnviar(\''+k+'\')">🤖 Desalocar no Phoenix</button> ';
+    return x.motivo==="no show"?'<button class="btn mini" style="background:#a3271a" onclick="rmjRoboEnviar(\''+k+'\')">🤖 Desalocar no Phoenix</button> ':'<button class="btn mini" style="background:#1f5fbf" onclick="rmjRoboEnviar(\''+k+'\')">🤖 Passar no Phoenix</button> ';
   }
   async function rmjRoboEnviar(k){ const x=(RMJ.d.recs||{})[k]; if(!x) return;
-    if(!confirm("O robô vai entrar no Phoenix (Reservas > Escalar), escrever NO SHOW na observação de "+(x.cliente||x.rec)+" e DESALOCAR da escala.\n\nConfirma?")) return;
+    const msg=x.motivo==="no show"?"O robô vai entrar no Phoenix (Reservas > Escalar), escrever NO SHOW na observação de "+(x.cliente||x.rec)+" e DESALOCAR da escala."
+      :"O robô vai entrar no Phoenix (Reservas > Escalar), DESALOCAR "+(x.cliente||x.rec)+" da escala de "+titulo(x.de)+" e ESCALAR na escala de "+titulo(x.para)+" (mesmo tipo de serviço, horário mais próximo).";
+    if(!confirm(msg+"\n\nConfirma?")) return;
     try{ const j=await chamarReman("robo",{rec:x.rec}); RMJ.d.recs=j.recs; rmjDesenhar(); rmjAcompanhar(); }catch(e){ alert(e.message); } }
   // enquanto tiver robô trabalhando, confere a cada 20 s
   let rmjTimer=null;
@@ -3749,7 +3751,7 @@
       +'<span style="flex:1"></span><button class="btn sec mini" onclick="VOO.d=null;vooCarregar()">Atualizar</button></div><div id="vooCorpo"><div class="card" style="color:var(--muted)">Carregando a escala…</div></div>';
     if(VOO.d) vooDesenhar(); else vooCarregar();
   }
-  async function vooCarregar(){ try{ VOO.d=await chamarVoo("ler",{todos:true}); vooDesenhar(); }catch(e){ const b=document.getElementById("vooCorpo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; } }
+  async function vooCarregar(){ try{ VOO.d=await chamarVoo("ler",{todos:true}); vooDesenhar(); vooAcompanhar(); }catch(e){ const b=document.getElementById("vooCorpo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; } }
   function vooDesenhar(){
     const box=document.getElementById("vooCorpo"), D=VOO.d; if(!box||!D) return;
     const servs=vServicos(), conf=vConflitos(servs), at=D.atrasos||{}, tr=D.trocas||{};
@@ -3761,7 +3763,7 @@
       +'<div class="resumo'+(Object.keys(at).length?' alerta':'')+'"><div class="num">'+Object.keys(at).length+'</div><div class="lbl">Com horário novo informado</div></div>'
       +'<div class="resumo'+(conf.length?' alerta':' ok')+'"><div class="num">'+conf.length+'</div><div class="lbl">Conflitos para resolver</div></div>'
       +'<div class="resumo'+(pendT.length?' alerta':' ok')+'"><div class="num">'+pendT.length+'</div><div class="lbl">Trocas a fazer no Phoenix</div></div></div>';
-    if(pendT.length) h+='<div class="card" style="border-left:4px solid #c2410c"><b>Trocas a fazer no Phoenix</b>'+pendT.map(([k,x])=>'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--linha)"><span class="pill" style="background:#eef3f1">'+(x.papel==="guia"?"Guia":"Motorista")+'</span><b>'+esc(x.servico)+'</b><span>'+esc(titulo(x.de))+' → <b>'+esc(titulo(x.para))+'</b></span><span style="font-size:.75rem;color:var(--muted)">'+esc(x.motivo||"")+' · '+esc(x.por)+' '+rmjHora(x.em)+'</span><span style="flex:1"></span><button class="btn mini" onclick="vooPhoenix(\''+esc(x.papel)+'\',\''+esc(x.ro)+'\')">✓ Troquei no Phoenix</button><button class="btn mini sec" onclick="vooDesfazer(\''+esc(x.papel)+'\',\''+esc(x.ro)+'\')">Desfazer</button></div>').join("")+'</div>';
+    if(pendT.length) h+='<div class="card" style="border-left:4px solid #c2410c"><b>Trocas a fazer no Phoenix</b>'+pendT.map(([k,x])=>'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--linha)"><span class="pill" style="background:#eef3f1">'+(x.papel==="guia"?"Guia":"Motorista")+'</span><b>'+esc(x.servico)+'</b><span>'+esc(titulo(x.de))+' → <b>'+esc(titulo(x.para))+'</b></span><span style="font-size:.75rem;color:var(--muted)">'+esc(x.motivo||"")+' · '+esc(x.por)+' '+rmjHora(x.em)+'</span><span style="flex:1"></span>'+vooRobo(x)+'<button class="btn mini" onclick="vooPhoenix(\''+esc(x.papel)+'\',\''+esc(x.ro)+'\')">✓ Troquei no Phoenix</button><button class="btn mini sec" onclick="vooDesfazer(\''+esc(x.papel)+'\',\''+esc(x.ro)+'\')">Desfazer</button></div>').join("")+'</div>';
     // conflitos
     for(const c of conf){
       const B=c.B, A=c.A, sug=vSugestoes(servs,c.papel,B), lbl=c.papel==="motorista"?"Motorista":"Guia";
@@ -3793,6 +3795,24 @@
     h+='<div style="font-size:.75rem;color:var(--muted);margin-top:-4px">Estrada usada no cálculo: Recife–Porto '+VOO_DESLOC["RE|PT"]+' min · Recife–Cabo '+VOO_DESLOC["RE|CB"]+' · Porto–Cabo '+VOO_DESLOC["PT|CB"]+' · Porto–Maragogi '+VOO_DESLOC["PT|MG"]+' · Recife–Maragogi '+VOO_DESLOC["RE|MG"]+'. Só aparece quem está na escala do dia.</div>';
     box.innerHTML=h;
   }
+  function vooRobo(x){
+    const r=x.robo||{};
+    if(r.status==="enviando"&&Date.now()-r.em<15*60e3) return '<span class="pill" style="background:#e0ecff;color:#1f5fbf">🤖 robô trabalhando…</span> ';
+    const bt='<button class="btn mini" style="background:#1f5fbf" onclick="vooRoboEnviar(\''+esc(x.papel)+'\',\''+esc(x.ro)+'\')">'+(r.status==="erro"?'Tentar de novo':'🤖 Trocar no Phoenix')+'</button> ';
+    return (r.status==="erro"?'<span class="pill" style="background:#fde2dc;color:#a3271a" title="'+esc(r.mensagem||"")+'">🤖 não conseguiu</span> '+(r.link?'<a href="'+esc(r.link)+'" target="_blank" rel="noopener" style="font-size:.75rem">ver</a> ':''):'')+bt;
+  }
+  async function vooRoboEnviar(papel,ro){
+    const x=(VOO.d.trocas||{})[papel+"_"+ro]; if(!x) return;
+    if(!confirm("O robô vai entrar no Phoenix (Reservas > Escalar) e trocar "+(papel==="motorista"?"o motorista (com o carro dele)":"o guia")+" do serviço "+(x.servico||"")+" de "+titulo(x.de)+" para "+titulo(x.para)+".\n\nConfirma?")) return;
+    try{ const j=await chamarVoo("roboTroca",{papel,ro}); Object.assign(VOO.d,{atrasos:j.atrasos,trocas:j.trocas}); vooDesenhar(); vooAcompanhar(); }catch(e){ alert(e.message); }
+  }
+  let vooTimer=null;
+  function vooAcompanhar(){ clearTimeout(vooTimer); vooTimer=setTimeout(async()=>{
+    if(!document.getElementById("vooCorpo")) return;
+    const ativo=Object.values((VOO.d||{}).trocas||{}).some(x=>x.robo&&x.robo.status==="enviando"&&Date.now()-x.robo.em<15*60e3);
+    if(!ativo) return;
+    try{ VOO.d=await chamarVoo("ler",{todos:true}); vooDesenhar(); }catch(_){}
+    vooAcompanhar(); },20000); }
   async function vooAtraso(voo,hora,prev){ try{ const j=await chamarVoo("atraso",{voo,hora,previsto:prev}); Object.assign(VOO.d,{atrasos:j.atrasos,trocas:j.trocas}); vooDesenhar(); }catch(e){ alert(e.message); } }
   async function vooTrocar(papel,ro,para,motivo){
     const s=(VOO.d.todos||[]).find(x=>x.ro===ro)||{}, tr=(VOO.d.trocas||{})[papel+"_"+ro];
