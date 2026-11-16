@@ -4042,9 +4042,64 @@
         +(g.linhas||[]).filter(l=>/sem tarifa/i.test(l.obs||"")).map(l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>').join("")
         +(g.lancamentos||[]).map(x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
           +(x.status==="aberto"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'aceito\','+(x.sugerido||0)+')">Aceitar</button><button class="btn mini danger" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'negado\',0)">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(x.status==="aceito"?"var(--ok)":"var(--alerta)")+'">'+(x.status==="aceito"?"Aceito · "+brlP(x.valor):"Negado")+'</span>')+'</div>').join("")
+        +'<details class="rpbox" style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px" ontoggle="rpAbrir(\''+g.gid+'\',this)"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">Relatório × Phoenix <span id="rpb-'+g.gid+'"></span></summary><div id="rp-'+g.gid+'" style="margin-top:8px"></div></details>'
         +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button></div>':'')
         +'</div>';
     }).join("");
+    rpPrepararBadges();
+  }
+  // ---- Relatório do guia × o que está no Phoenix (mapa), recolhido em cada guia ----
+  const RP={ k:null, rel:null, p:null };
+  function rpCarregar(){
+    const k=PIL.qid; if(RP.k===k&&RP.rel) return Promise.resolve(RP.rel);
+    if(RP.p&&RP.pk===k) return RP.p;
+    const [ini,fim]=k.split("_"); RP.pk=k;
+    RP.p=relChamar("relatorios",ini,fim).then(j=>{ RP.rel=j.relatorios||[]; RP.k=k; return RP.rel; }).finally(()=>{ RP.p=null; });
+    return RP.p;
+  }
+  function rpDoGuia(g,rel){
+    const [ini,fim]=PIL.qid.split("_"); const N=normP(g.nome);
+    const noPeriodo=rel.filter(r=>r.data>=ini&&r.data<=fim);
+    let meus=noPeriodo.filter(r=>normP(r.guia)===N);
+    if(!meus.length) meus=noPeriodo.filter(r=>nomeBate(g.nome,r.guia)||nomeBate(r.guia,g.nome));
+    const ros={}; (g.linhas||[]).forEach(l=>{ if(l.ro&&!ros[l.ro]) ros[l.ro]={servico:String(l.servico||"").replace(/^APOIO · /,"")}; });
+    const alertas=conferirMapa([{...g,doc:""}],meus,ros)[0].alertas.filter(a=>a.tipo!=="zero"&&a.tipo!=="cnpj"&&a.tipo!=="nome");
+    return {meus,alertas};
+  }
+  function rpHtml(g,rel){
+    const {meus,alertas}=rpDoGuia(g,rel);
+    const dias=[...new Set([...(g.linhas||[]).map(l=>l.data),...meus.map(r=>r.data)])].sort();
+    if(!dias.length) return '<div style="font-size:.82rem;color:var(--muted)">Sem serviços nem relatórios na quinzena.</div>';
+    const th='font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em';
+    return '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 18px;font-size:.8rem"><div style="'+th+'">Phoenix (mapa)</div><div style="'+th+'">Relatório do guia</div></div>'
+      +dias.map(d=>{
+        const L=(g.linhas||[]).filter(l=>l.data===d).sort((a,b)=>String(a.hora).localeCompare(String(b.hora)));
+        const R=meus.filter(r=>r.data===d); const A=alertas.filter(a=>a.data===d);
+        const col1=L.length?L.map(l=>'<div style="display:flex;gap:6px;justify-content:space-between;padding:2px 0"><span><b>'+esc(l.hora||"—")+'</b> '+esc(l.servico)+(l.obs?' <span style="color:#8a4a0c">· '+esc(l.obs)+'</span>':'')+'</span><b style="white-space:nowrap">'+brlP(l.valor)+'</b></div>').join(""):'<span style="color:var(--muted)">—</span>';
+        const itens=R.flatMap(r=>r.itens||[]);
+        const col2=itens.length?itens.map(i=>'<div style="padding:2px 0">'+esc(relServico(i.servico))+' · '+(i.naoRealizado?'<span style="color:#8a4a0c;font-weight:700">não realizado'+(i.motivo?': '+esc(i.motivo):'')+'</span>':'<span style="color:var(--ok);font-weight:700">feito</span>')+(i.motorista?' <span style="color:var(--muted)">· '+esc(i.motorista)+'</span>':'')+(i.recIdioma?' · idioma REC '+esc(i.recIdioma):'')+'</div>').join(""):'<span style="color:var(--muted)">sem relatório neste dia</span>';
+        return '<div style="border-top:1px solid var(--linha);margin-top:6px;padding-top:6px"><div style="font-size:.78rem;font-weight:800;margin-bottom:2px">'+esc(dataBR(d).slice(0,5))+'</div><div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 18px;font-size:.8rem"><div>'+col1+'</div><div>'+col2+'</div></div>'
+          +A.map(a=>'<div style="font-size:.78rem;color:#b45309;margin-top:3px">⚠️ '+esc(a.servico?a.servico+": ":"")+esc(a.detalhe)+'</div>').join("")+'</div>';
+      }).join("");
+  }
+  async function rpAbrir(gid,el){
+    if(!el.open) return; const box=document.getElementById("rp-"+gid); if(!box||box.dataset.ok) return;
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
+    box.innerHTML='<div style="font-size:.82rem;color:var(--muted)">Carregando relatórios do guia...</div>';
+    try{ const rel=await rpCarregar(); box.innerHTML=rpHtml(g,rel); box.dataset.ok="1"; rpBadges(); }
+    catch(e){ box.innerHTML='<div style="font-size:.82rem;color:var(--alerta)">'+esc(e.message)+'</div>'; }
+  }
+  function rpBadges(){
+    if(!RP.rel||RP.k!==PIL.qid) return;
+    for(const g of (PIL.dados&&PIL.dados.guias||[])){
+      const b=document.getElementById("rpb-"+g.gid); if(!b) continue;
+      const n=rpDoGuia(g,RP.rel).alertas.length;
+      b.innerHTML=n?'<span style="margin-left:6px;background:#fff1e0;color:#8a4a0c;border-radius:999px;padding:2px 8px;font-size:.7rem">'+n+' divergência'+(n>1?'s':'')+'</span>':'<span style="margin-left:6px;color:var(--ok)">✓ confere</span>';
+    }
+  }
+  function rpPrepararBadges(){
+    if(RP.rel&&RP.k===PIL.qid){ rpBadges(); return; }
+    rpCarregar().then(rpBadges).catch(()=>{});
   }
   async function pilotoCarregarMapa(){
     const f=document.getElementById("pilMapa").files[0]; if(!f){ alert("Selecione o mapa do PAAR."); return; }
@@ -4118,7 +4173,7 @@
   // ======================= MAPA PELO PHOENIX (sem o Utopia) =======================
   // Lê as escalas do Phoenix no período, aplica o tarifário dos guias e as regras combinadas:
   // idioma quando o guia informou a REC de idioma no relatório; motoguia 262 (idioma 300) uma vez
-  // por dia; apoio de manhã paga 1 (2 com Maragogi + outro passeio); apoio da tarde (VOLTA) paga 1;
+  // por turno (dia e noite); apoio de manhã paga 1 (2 com Maragogi + outro passeio); apoio da tarde (VOLTA) paga 1;
   // passeio privativo tem o mesmo valor do regular.
   const MOTOGUIA=262, MOTOGUIA_IDIOMA=300, APOIO=40;
   async function salvarTarifario(){
@@ -4155,12 +4210,14 @@
         const usaIdioma=(cat)=>{ const i=itens.find(x=>!x._usado&&x.recIdioma&&String(catRel(x.servico)).startsWith(cat)); if(i){ i._usado=true; return i.recIdioma; } return ""; };
         const ehMoto=(l)=>normP(l.motorista)&&(normP(l.motorista)===N||nomeBate(nome,l.motorista));
         const motoIdioma=L.some(ehMoto)&&itens.some(i=>i.recIdioma);
-        let motoPago=false; const idas=[], voltas=[];
+        // motoguia: 1 tarifa por turno (Dia e Noite), independente de quantos serviços fez; Noite = 18h em diante + madrugada
+        const turnoMoto=(l)=>{ const h=String(l.apresentacao||l.inicio||"").slice(0,5); return (h&&(h>="18:00"||h<"06:00"))?"noite":"dia"; };
+        const motoPagos={}; const idas=[], voltas=[];
         for(const l of L){
           const ap=l.auxiliar||/APOIO/i.test(l.servico);
           const cat=ap?(/VOLTA/i.test(l.servico)?"apoio-volta":"apoio-ida"):catMapa(l.servico);
           const linha={data:d,hora:String(l.apresentacao||l.inicio||"").slice(0,5),ro:l.escala,servico:l.auxiliar?("APOIO · "+l.servico):l.servico,veiculo:l.veiculo,motorista:l.motorista,valor:0,obs:""};
-          if(ehMoto(l)){ linha.valor=motoPago?0:(motoIdioma?MOTOGUIA_IDIOMA:MOTOGUIA); linha.obs=motoPago?"motoguia (já pago no dia)":"motoguia"+(motoIdioma?" com idioma":""); motoPago=true; }
+          if(ehMoto(l)){ const t=turnoMoto(l); linha.valor=motoPagos[t]?0:(motoIdioma?MOTOGUIA_IDIOMA:MOTOGUIA); linha.obs=motoPagos[t]?"motoguia (já pago no turno "+t+")":"motoguia "+t+(motoIdioma?" com idioma":""); motoPagos[t]=true; }
           else if(ap){ linha.valor=APOIO; (cat==="apoio-volta"?voltas:idas).push({linha,passeio:String(l.servico).toUpperCase()}); }
           else {
             const rec=cat==="passeio"?usaIdioma("passeio"):usaIdioma(cat==="chegada"?"chegada":cat==="saida"?"saida":"trf");
