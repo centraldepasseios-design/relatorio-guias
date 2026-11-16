@@ -191,6 +191,10 @@ function desenharEscala(servs){
       +(hoteis.length?'<span class="det">🏨 '+esc(hoteis.join(" · "))+'</span>':'')
       +(idi.length?'<span class="det" style="color:var(--chegada);font-weight:800">🌐 Idioma: '+esc(idi.join(", "))+'</span>':'')
       +obs.map(o=>'<span class="obs">📝 '+esc(o)+'</span>').join("")
+      +(l.passouPara?'<span class="obs" style="background:#fde2dc;color:#7a1d13">↪ O Box passou este serviço para '+esc(tit(l.passouPara))+'</span>':'')
+      +(l.trocaBox?'<span class="obs" style="background:#e0ecff;color:#1f3f7a">＋ Você assumiu este serviço no lugar de '+esc(tit(l.trocaBox.de))+' (Box)</span>':'')
+      +rs.filter(r=>r.foiCom||r.motivoBox).map(r=>'<span class="obs" style="background:#fff1e3;color:#7a3c0c">↪ REC-'+esc(String(r.rec).replace(/^REC-?/i,""))+' '+esc(tit(r.cliente||""))+': '+(r.foiCom?'foi com '+esc(tit(r.foiCom)):esc(r.motivoTexto||""))+' (Box)</span>').join("")
+      +rs.filter(r=>r.veioDe).map(r=>'<span class="obs" style="background:#e0ecff;color:#1f3f7a">＋ REC-'+esc(String(r.rec).replace(/^REC-?/i,""))+' '+esc(tit(r.cliente||""))+' veio do serviço de '+esc(tit(r.veioDe))+' (Box)</span>').join("")
       +(l.tipo==="IN"&&voos.length?(()=>{ // um botão para cada voo diferente do IN
         const vs=uniq(rs.map(r=>String(r.voo||"").trim()).filter(Boolean));
         return '<span style="display:flex;gap:14px;flex-wrap:wrap">'+vs.map(v=>'<a class="peq" style="color:var(--chegada);font-weight:800" target="_blank" href="'+esc(linkVoo(v))+'">Rastrear '+(vs.length>1?esc(v)+' ':'voo ')+'↗</a>').join("")+'</span>';
@@ -272,7 +276,7 @@ function mudarRelDia(d){ S.relDia=d; telaRel(); }
 function desenharRel(){
   const box=document.getElementById("conteudo"); if(S.aba!=="rel") return;
   const servs=[...S.relServs].sort((a,b)=>(a.apresentacao||a.inicio||"").localeCompare(b.apresentacao||b.inicio||""));
-  const transfers=servs.filter(l=>tipoDe(l)[2]), passeios=servs.filter(l=>!tipoDe(l)[2]);
+  const transfers=servs.filter(l=>tipoDe(l)[2]&&!l.passouPara), passeios=servs.filter(l=>!tipoDe(l)[2]&&!l.passouPara);
   let h='<div class="card"><b>'+diaLongo(S.relDia)+'</b><div class="peq muted">'+(S.relSalvo?'Relatório enviado · você pode corrigir e enviar de novo':'Relatório ainda não enviado')+'</div></div>';
   if(!servs.length) h+='<div class="vazio">Sem serviços nesse dia no Phoenix.</div>';
   if(transfers.length){
@@ -309,8 +313,9 @@ const MOTIVOS_REC=[["noshow","No show"],["box","Mudança do Box"],["voo","Voo al
 function relRecs(l,it){
   if(l.tipo!=="IN") return "";
   const vistos=new Set(), rs=(l.reservas||[]).filter(r=>r.rec&&!vistos.has(r.rec)&&vistos.add(r.rec));
-  if(!Array.isArray(it.recs)) it.recs=rs.map(r=>({rec:r.rec,foi:true,motivo:""}));
-  rs.forEach(r=>{ if(!it.recs.some(x=>x.rec===r.rec)) it.recs.push({rec:r.rec,foi:true,motivo:""}); });
+  const ini=(r)=>r.motivoBox?{rec:r.rec,foi:false,motivo:r.motivoBox}:{rec:r.rec,foi:true,motivo:""};
+  if(!Array.isArray(it.recs)) it.recs=rs.map(ini);
+  rs.forEach(r=>{ if(!it.recs.some(x=>x.rec===r.rec)) it.recs.push(ini(r)); });
   const foram=it.recs.filter(x=>x.foi).length;
   return '<div style="background:var(--claro);border-radius:12px;padding:10px 12px"><div class="peq" style="font-weight:800;margin-bottom:6px">Quem veio com você? ('+foram+' de '+it.recs.length+')</div>'
     +it.recs.map((x,k)=>{ const r=rs.find(y=>y.rec===x.rec)||{};
@@ -382,7 +387,7 @@ function intercorrencia(ro,servico){
 }
 async function enviarRel(){
   const b=document.getElementById("btnRel"); b.disabled=true;
-  const transfers=S.relServs.filter(l=>tipoDe(l)[2]).map(l=>S.relItens[l.ro]).filter(Boolean);
+  const transfers=S.relServs.filter(l=>tipoDe(l)[2]&&!l.passouPara).map(l=>S.relItens[l.ro]).filter(Boolean);
   const faltaMotivo=transfers.find(t=>(t.recs||[]).some(r=>!r.foi&&!r.motivo));
   if(faltaMotivo){ alert("Marque o motivo das reservas que não vieram com você (no show, mudança do Box ou voo alterado)."); b.disabled=false; return; }
   const vendaDia=String(S.relVendaDia==null?"":S.relVendaDia).trim()===""?null:parseFloat(String(S.relVendaDia).replace(",","."));
@@ -419,8 +424,12 @@ async function telaHist(){
 // ================= PAGAMENTO =================
 async function telaPag(){
   const box=document.getElementById("conteudo");
-  box.innerHTML='<div id="pagParcial"><div class="esqueleto" style="height:130px"></div><div class="esqueleto"></div></div>'
-    +(S.pag?'<h3 class="tit" style="margin:18px 2px 8px">Quinzena fechada · nota fiscal</h3><iframe src="pagamento.html?t='+encodeURIComponent(S.pag)+'&app=1" title="Nota fiscal" style="width:calc(100% + 28px);margin:0 -14px;border:none;height:calc(100vh - 220px);min-height:520px"></iframe>':'');
+  // quinzena fechada (para conferir) vem primeiro; o link é pedido de novo toda vez
+  box.innerHTML='<div id="pagFechada"><div class="esqueleto" style="height:90px"></div></div><div id="pagParcial"><div class="esqueleto" style="height:130px"></div><div class="esqueleto"></div></div>';
+  const fechada=(t)=>{ const el=document.getElementById("pagFechada"); if(!el) return; el.innerHTML=t?'<h3 class="tit" style="margin:4px 2px 8px">Quinzena fechada · conferência e nota fiscal</h3><iframe src="pagamento.html?t='+encodeURIComponent(t)+'&app=1" title="Nota fiscal" style="width:calc(100% + 28px);margin:0 -14px 14px;border:none;height:calc(100vh - 220px);min-height:520px"></iframe><h3 class="tit" style="margin:8px 2px 8px">Quinzena atual</h3>':''; };
+  // mostra na hora o link guardado e, ao mesmo tempo, confere se já tem uma quinzena mais nova (sem travar o resto)
+  fechada(S.pag);
+  api("meuPag",{}).then(p=>{ if(p&&p.ok&&p.token!==undefined&&(p.token||"")!==(S.pag||"")){ S.pag=p.token||""; try{localStorage.setItem("ag_pag",S.pag);}catch(_){} fechada(S.pag); } }).catch(()=>{});
   try{ const j=await api("parcial",{}); if(!j.ok) throw new Error(j.erro); S.parcial=j; desenharParcial(); }
   catch(e){ document.getElementById("pagParcial").innerHTML='<div class="card erro">'+esc(e.message)+'</div>'; }
 }
