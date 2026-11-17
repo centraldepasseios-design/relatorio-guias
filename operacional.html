@@ -2383,11 +2383,23 @@
     let h='';
     if(e) h+='<div class="card" style="border:2px solid var(--verde);display:flex;gap:10px;flex-wrap:wrap;align-items:center;"><b>'+(e.id?"Editar":"Novo")+' contato</b><input id="cNome" value="'+esc(e.nome)+'" placeholder="Nome (como no Phoenix, ex.: ARTHUR)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;text-transform:uppercase"><input id="cTel" value="'+esc(e.telefone)+'" placeholder="DDD + número" style="width:160px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px"><input id="cApel" value="'+esc((e.apelidos||[]).join(", "))+'" placeholder="Também aparece como (separe por vírgula)" title="Outros nomes desse mesmo guia no Phoenix ou no app antigo. Deixe vazio se não tiver." style="flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;text-transform:uppercase"><button class="btn sec" onclick="CONT.editando=null;desenharContatos()">Cancelar</button>'+(e.id?'<button class="btn danger" onclick="removerContato(\''+esc(e.id)+'\',\''+esc(e.nome).replace(/'/g,"\\'")+'\')">Remover contato</button>':'')+'<button class="btn" onclick="salvarContato()">Salvar</button></div>';
     const fone=(t)=>esc(String(t).replace(/^(\d{2})(\d{5})(\d{4})$/,"($1) $2-$3"));
-    h+='<div class="card" style="padding:0;overflow-x:auto"><table class="tabela" style="min-width:640px"><thead><tr><th>GUIA</th><th>WHATSAPP</th><th>NO PHOENIX TAMBÉM APARECE COMO</th><th></th></tr></thead><tbody>'
+    h+='<div class="card" style="padding:0;overflow-x:auto"><table class="tabela" style="min-width:640px"><thead><tr><th>GUIA</th><th>WHATSAPP</th><th>NO PHOENIX TAMBÉM APARECE COMO</th><th>SENHA DO APP</th><th></th></tr></thead><tbody>'
       +vis.map(c=>'<tr><td style="font-weight:800;color:var(--tinta)">'+esc(c.nome)+'</td><td>'+fone(c.telefone)+'</td><td style="color:var(--muted)">'+((c.apelidos||[]).length?c.apelidos.map(esc).join(", "):"—")+'</td>'
-        +'<td style="text-align:right;white-space:nowrap"><button class="btn mini sec" onclick="CONT.editando={id:\''+esc(c.id)+'\',nome:\''+esc(c.nome).replace(/'/g,"\\'")+'\',telefone:\''+esc(c.telefone)+'\',apelidos:(ENV.contatos.find(x=>x.id===\''+esc(c.id)+'\')||{}).apelidos||[]};desenharContatos()">Editar</button></td></tr>').join("")
+        +'<td style="white-space:nowrap">'+(c.temSenha?'<span style="color:var(--ok);font-weight:700">✓ app novo</span>':'<span style="color:var(--muted)">do app antigo</span>')+'</td>'
+        +'<td style="text-align:right;white-space:nowrap"><button class="btn mini sec" onclick="senhaAppGuia(\''+esc(c.id)+'\')">Senha do app</button> <button class="btn mini sec" onclick="CONT.editando={id:\''+esc(c.id)+'\',nome:\''+esc(c.nome).replace(/'/g,"\\'")+'\',telefone:\''+esc(c.telefone)+'\',apelidos:(ENV.contatos.find(x=>x.id===\''+esc(c.id)+'\')||{}).apelidos||[]};desenharContatos()">Editar</button></td></tr>').join("")
       +'</tbody></table></div>';
     box.innerHTML=h;
+  }
+  // Central cria ou redefine a senha do guia no app novo (em branco = gera uma de 6 números)
+  async function senhaAppGuia(id){
+    const c=(ENV.contatos||[]).find(x=>x.id===id); if(!c) return;
+    let senha=prompt("Senha do app para "+c.nome+(c.temSenha?" (já tem senha: esta substitui)":"")+".\n\nDigite a senha (pelo menos 6 caracteres) ou deixe em branco para eu criar uma de 6 números:","");
+    if(senha===null) return; senha=senha.trim();
+    if(!senha) senha=String(Math.floor(100000+Math.random()*900000));
+    if(senha.length<6){ alert("A senha precisa ter pelo menos 6 caracteres."); return; }
+    const j=await chamarEnvios("senhaApp",{id,senha}); if(!j.ok){ alert(j.erro||"Erro"); return; }
+    prompt("Senha de "+c.nome+" definida. Copie e mande para o guia (ele entra no app com o nome dele e esta senha, e pode trocar depois pelo 🔑):",senha);
+    c.temSenha=true; desenharContatos();
   }
   async function salvarContato(){
     const e=CONT.editando; if(!e) return;
@@ -4274,7 +4286,7 @@
   async function pilotoAtualizarGuia(gid){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
     if(!confirm("Atualizar o mapa de "+g.nome+" pelo Phoenix? Só dele, sem mandar WhatsApp. Pode levar 1 a 2 minutos.")) return;
-    const j=await atualizarMapaGuia(g,[...new Set((g.contestacoes||[]).filter(c=>/faltou/i.test(c.tipo)&&c.data).map(c=>c.data))].slice(-3));
+    const j=await atualizarMapaGuia(g,[...new Set((g.contestacoes||[]).filter(c=>c.data).map(c=>c.data))].slice(-6));
     if(!j.ok){ if(!j.silencio) alert("Não consegui atualizar: "+j.erro); return; }
     alert("Mapa de "+g.nome+" atualizado: "+j.servicos+" serviços · "+brlP(j.totalMapa)+"."+((j.phoenixLento&&j.phoenixLento.length)?"\n\n⚠️ O Phoenix não respondeu a tempo: foi usada a cópia guardada. Tente de novo em 2 ou 3 minutos.":"")); atualizarPiloto();
   }
@@ -4307,7 +4319,7 @@
       if(!(valorManual>0)){ alert("Valor inválido."); return; }
     }
     else if(status==="aceita"&&c&&/faltou/i.test(c.tipo)){
-      const a=await atualizarMapaGuia(g,c.data?[c.data]:null);
+      const a=await atualizarMapaGuia(g,[...new Set([c.data,...(g.contestacoes||[]).filter(x=>x.status==="aberta").map(x=>x.data)].filter(Boolean))].slice(0,6));
       if(!a.ok){ if(!a.silencio) alert("Não consegui atualizar o mapa: "+a.erro); return; }
       const lentoTxt=(a.phoenixLento&&a.phoenixLento.length)?"\n\n⚠️ O Phoenix não respondeu a tempo para "+a.phoenixLento.map(d=>dataBR(d).slice(0,5)).join(", ")+": o mapa foi montado com a cópia guardada. Se o serviço não entrou, cancele e tente de novo em 2 ou 3 minutos (a leitura continua por trás).":"";
       if(!confirm("Mapa de "+g.nome+" atualizado: "+a.servicos+" serviços · "+brlP(a.totalMapa)+"."+lentoTxt+"\n\nConfira se o serviço novo entrou e clique OK para aceitar a contestação.")) { atualizarPiloto(); return; }
