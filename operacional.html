@@ -4048,8 +4048,9 @@
     vis.sort((a,b)=>(pend(b)?1:0)-(pend(a)?1:0)||a.nome.localeCompare(b.nome));
     const topo='<div class="cards-resumo"><div class="resumo"><div class="num">'+cont.todos+'</div><div class="lbl">Guias com serviço</div></div><div class="resumo'+(cont.pend?' alerta':'')+'"><div class="num">'+cont.pend+'</div><div class="lbl">Com pendência pra vocês</div></div><div class="resumo ok"><div class="num">'+cont.ok+'</div><div class="lbl">Notas conferidas</div></div><div class="resumo'+(cont.prob?' alerta':'')+'"><div class="num">'+cont.prob+'</div><div class="lbl">Notas com problema</div></div><div class="resumo"><div class="num">'+cont.sem+'</div><div class="lbl">Sem nota</div></div></div>'
       +'<div class="filtros">'+campoBusca("qBusca","Buscar guia",PIL.busca,"PIL.busca=this.value;atualizarPiloto(true);setTimeout(()=>{const e=document.getElementById(\'qBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")
-      +segmento([["todos","Todos"],["pend","Pendências"],["sem","Sem nota"],["prob","Nota com problema"],["ok","Nota conferida"]],PIL.filtro,"PIL.filtro='$v';atualizarPiloto(true)")+'</div>';
+      +segmento([["todos","Todos"],["pend","Pendências"],["sem","Sem nota"],["prob","Nota com problema"],["ok","Nota conferida"],["com","Comissão"]],PIL.filtro,"PIL.filtro='$v';atualizarPiloto(true)")+'</div>';
     j.guias=vis;
+    if(PIL.filtro==="com"){ box.innerHTML=topo+pilotoTabelaComissao(vis); return; }
     const ST={aguardando:["Aguardando conferência","#eef1f0","#3c524d"],conferido:["Conferiu os serviços","#e3f2ee","#0b4f44"],contestado:["Contestou","#fff1e0","#8a4a0c"],nota_ok:["Nota conferida ✓","#e3f2ee","#0b4f44"],nota_com_problema:["Nota com problema","#fde4df","#9f2a15"]};
     box.innerHTML=topo+(j.guias.length?'':'<div class="card" style="color:var(--muted)">Nenhum guia nesse filtro.</div>')+j.guias.map(g=>{
       const st=ST[g.status]||ST.aguardando; const v=g.valores;
@@ -4059,7 +4060,6 @@
         +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1rem">'+esc(g.nome)+'</b><span style="font-size:.72rem;font-weight:800;background:'+st[1]+';color:'+st[2]+';border-radius:999px;padding:3px 10px">'+st[0]+'</span>'
         +'<span style="margin-left:auto;display:flex;gap:6px">'+(lib&&g.valores&&!g.liberadoGuia?'':(g.liberadoGuia?'<button class="btn mini sec" title="Só este guia vê o valor da nota" onclick="pilotoLiberarGuia(\''+g.gid+'\',false)">Liberado só p/ ele ✓ (desfazer)</button>':'<button class="btn mini sec" onclick="pilotoLiberarGuia(\''+g.gid+'\',true)">Liberar só este guia</button>'))+'<button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
         +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;margin-top:8px;color:var(--muted)"><span>'+(g.linhas||[]).length+' serviços no mapa · '+brlP(g.totalMapa)+'</span>'
-        +(g.comissaoPhoenix!=null?'<span>Comissão no Phoenix: <b style="color:var(--tinta)">'+brlP(g.comissaoPhoenix)+'</b>'+(v&&Math.abs((v.com||0)-g.comissaoPhoenix)>=0.01?' <span style="color:#b45309">(fechamento: '+brlP(v.com)+')</span>':'')+'</span>':'')
         +(v?'<span>Serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
         +(dif?'<div style="font-size:.8rem;color:#b45309;margin-top:6px">ℹ️ A PGG tem '+brlP(v.servPgg)+' de serviços; o sistema calculou '+brlP(v.serv)+' pelo Phoenix. O valor da nota usa o do sistema.</div>':'')
         +(g.contestacoes||[]).map(c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
@@ -4072,6 +4072,26 @@
         +'</div>';
     }).join("");
     rpPrepararBadges();
+  }
+  // ---- aba Comissão: só os valores de cada guia, para conferir com a PGG ----
+  function pilotoTabelaComissao(gs){
+    const L=[...gs].sort((a,b)=>a.nome.localeCompare(b.nome));
+    const com=L.filter(g=>g.valores&&g.valores.com>0).length, zero=L.filter(g=>g.valores&&!(g.valores.com>0)).length, sem=L.filter(g=>!g.valores).length;
+    const T={com:0,reemb:0,maq:0,serv:0,liq:0}; L.forEach(g=>{ if(g.valores) for(const k in T) T[k]+=g.valores[k]||0; });
+    const td='padding:8px 10px;border-top:1px solid var(--linha);font-size:.84rem', n='text-align:right;white-space:nowrap';
+    const th='padding:8px 10px;font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:left';
+    return '<div class="card"><div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.84rem;margin-bottom:10px">'
+      +'<span><b>'+com+'</b> com comissão</span><span><b>'+zero+'</b> sem comissão (R$ 0)</span><span style="color:'+(sem?'var(--alerta)':'var(--muted)')+'"><b>'+sem+'</b> sem valor lançado</span>'
+      +'<span style="margin-left:auto">Total de comissão: <b>'+brlP(T.com)+'</b></span></div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+th+'">Guia</th><th style="'+th+'">Na PGG</th><th style="'+th+';'+n+'">Comissão</th><th style="'+th+';'+n+'">Reembolso</th><th style="'+th+';'+n+'">Maquineta</th><th style="'+th+';'+n+'">Serviços</th><th style="'+th+';'+n+'">Nota</th></tr></thead><tbody>'
+      +L.map(g=>{ const v=g.valores;
+        if(!v) return '<tr style="background:#fdf2ef"><td style="'+td+'"><b>'+esc(g.nome)+'</b></td><td style="'+td+';color:var(--alerta)" colspan="6">sem valor lançado: suba a PGG e clique em Atualizar valores</td></tr>';
+        return '<tr><td style="'+td+'"><b>'+esc(g.nome)+'</b></td><td style="'+td+';color:var(--muted)">'+esc(g.nomePgg||"")+'</td>'
+          +'<td style="'+td+';'+n+';font-weight:700;color:'+(v.com>0?'var(--tinta)':'var(--muted)')+'">'+brlP(v.com)+'</td>'
+          +'<td style="'+td+';'+n+'">'+(v.reemb?'− '+brlP(v.reemb):'—')+'</td><td style="'+td+';'+n+'">'+(v.maq?'− '+brlP(v.maq):'—')+'</td>'
+          +'<td style="'+td+';'+n+'">'+brlP(v.serv)+'</td><td style="'+td+';'+n+';font-weight:700">'+brlP(v.liq)+'</td></tr>'; }).join("")
+      +'<tr><td style="'+td+';font-weight:800" colspan="2">Total</td><td style="'+td+';'+n+';font-weight:800">'+brlP(T.com)+'</td><td style="'+td+';'+n+'">'+(T.reemb?'− '+brlP(T.reemb):'—')+'</td><td style="'+td+';'+n+'">'+(T.maq?'− '+brlP(T.maq):'—')+'</td><td style="'+td+';'+n+';font-weight:800">'+brlP(T.serv)+'</td><td style="'+td+';'+n+';font-weight:800">'+brlP(T.liq)+'</td></tr>'
+      +'</tbody></table></div></div>';
   }
   // ---- Relatório do guia × o que está no Phoenix (mapa), recolhido em cada guia ----
   const RP={ k:null, rel:null, p:null };
