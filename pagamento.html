@@ -184,7 +184,7 @@ function lerNota(texto) {
     }
     if(!conferido) h+='<button class="btn" onclick="confirmar()">Meus serviços estão certos</button>';
     if(D.liberado&&conferido){
-      h+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:800;color:var(--muted)">DESCRIÇÃO PRONTA PARA A NOTA</span><b style="font-size:12px;color:var(--acc-esc)">'+brl(D.valores.liq)+'</b></div><p class="desc" id="desc">'+esc(descricao())+'</p><button class="btn sec" onclick="copiar()">Copiar descrição</button></div>';
+      h+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:800;color:var(--muted)">DESCRIÇÃO PRONTA PARA A NOTA</span><b style="font-size:12px;color:var(--acc-esc)">'+brl(D.valores.liq)+'</b></div><p class="desc" id="desc">'+esc(descricao())+'</p><button class="btn sec" onclick="copiar()">Copiar descrição</button><button class="btn sec" style="margin-top:8px" id="btnContador" onclick="pdfContador()">Baixar PDF para o contador</button></div>';
       if(D.nota) h+=(D.nota.ok?'<div class="ok"><b style="font-size:15px">✓ Nota '+esc(D.nota.numero)+' conferida</b><div style="font-size:13px;margin-top:6px">Valor '+brl(D.nota.valor)+' bate com a quinzena. Não precisa fazer mais nada.</div></div>':'<div class="prob"><b style="font-size:15px">⚠ Nota '+esc(D.nota.numero)+' com problema</b><div style="font-size:13px;margin-top:6px">'+D.nota.problemas.map(esc).join("<br>")+'</div><div style="font-size:13px;margin-top:6px">Corrija no emissor e envie a nota nova.</div></div>');
       if(!(D.nota&&D.nota.ok)) h+='<label class="btn" style="display:flex;align-items:center;justify-content:center;flex-direction:row">'+(D.nota?'Enviar a nota corrigida (PDF)':'Enviar minha nota (PDF)')+'<input type="file" accept="application/pdf" style="display:none" onchange="enviarNota(this)"></label>';
     }
@@ -232,6 +232,45 @@ function lerNota(texto) {
       const j=await api("contestar",{tipo:document.getElementById("cTipo").value,data,servico:serv,ro:l?l.ro:"",obs});
       if(!j.ok){alert(j.erro);return;} f.remove(); carregar();
     };
+  }
+  // PDF com os serviços e a descrição pronta, para o guia que manda o contador emitir a NFS-e
+  function carregarScript(src){ return new Promise((ok,erro)=>{ const e=document.createElement("script"); e.src=src; e.onload=ok; e.onerror=()=>erro(new Error("sem internet para gerar o PDF")); document.head.appendChild(e); }); }
+  async function pdfContador(){
+    const bt=document.getElementById("btnContador"); const txt=bt.textContent; bt.disabled=true; bt.textContent="Gerando o PDF...";
+    try{
+      if(!window.jspdf) await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+      if(!window.jspdf.jsPDF.API.autoTable) await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
+      const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:"mm",format:"a4"});
+      const [ini,fim]=D.periodo, v=D.valores, R=(x)=>"R$ "+Number(x||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+      const nome=titulo(D.nome); const verde=[13,59,48]; let y=18;
+      doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(...verde); doc.text("Serviços da quinzena para emissão da NFS-e",14,y); y+=8;
+      doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40);
+      doc.text("Prestador (guia): "+nome,14,y); y+=5.5;
+      doc.text("Tomador: Luck  ·  CNPJ 10.866.549/0001-17",14,y); y+=5.5;
+      doc.text("Período: "+dBR(ini)+" a "+dBR(fim),14,y); y+=8;
+      doc.setFillColor(227,242,238); doc.roundedRect(14,y,182,16,3,3,"F");
+      doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(...verde); doc.text("VALOR DA NOTA",19,y+6.5);
+      doc.setFontSize(16); doc.text(R(v.liq),19,y+13); y+=22;
+      const linhas=[...D.linhas.map(l=>({data:l.data,hora:String(l.hora||"").slice(0,5),serv:titulo(l.servico),valor:l.valor})),
+        ...(D.lancamentos||[]).filter(x=>x.status==="aceito").map(x=>({data:x.data,hora:"",serv:titulo(x.nome)+(x.idioma?" (idioma)":""),valor:x.valor}))]
+        .sort((a,b)=>(a.data+a.hora).localeCompare(b.data+b.hora));
+      doc.autoTable({startY:y,head:[["Data","Horário","Serviço","Valor"]],body:linhas.map(l=>[dBR(l.data),l.hora||"-",l.serv,R(l.valor)]),
+        styles:{fontSize:9,cellPadding:2},headStyles:{fillColor:verde},didParseCell:(c)=>{ if(c.section==="head"&&c.column.index===3) c.cell.styles.halign="right"; },columnStyles:{0:{cellWidth:22},1:{cellWidth:18},3:{cellWidth:28,halign:"right"}},margin:{left:14,right:14}});
+      y=doc.lastAutoTable.finalY+6;
+      const res=[["Serviços",R(v.serv)],["Comissão",R(v.com)]]; if(v.reemb) res.push(["Reembolso","- "+R(v.reemb)]); if(v.maq) res.push(["Maquineta","- "+R(v.maq)]); res.push(["TOTAL DA NOTA",R(v.liq)]);
+      doc.autoTable({startY:y,body:res,theme:"plain",styles:{fontSize:10,cellPadding:1.5},columnStyles:{0:{cellWidth:40,fontStyle:"bold"},1:{halign:"right",cellWidth:34}},margin:{left:110},tableWidth:86,
+        didParseCell:(c)=>{ if(c.row.index===res.length-1){ c.cell.styles.fontStyle="bold"; c.cell.styles.textColor=verde; } }});
+      y=doc.lastAutoTable.finalY+8; if(y>250){ doc.addPage(); y=18; }
+      doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(...verde); doc.text("Discriminação do serviço (copiar para a nota):",14,y); y+=5;
+      doc.setFont("courier","normal"); doc.setFontSize(8.5); doc.setTextColor(40);
+      for(const ln of doc.splitTextToSize(descricao(),182)){ if(y>285){ doc.addPage(); y=18; } doc.text(ln,14,y); y+=4; }
+      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(120); doc.text("Gerado pelo app da Central de Guias em "+new Date().toLocaleString("pt-BR"),14,292);
+      const arq="Servicos "+nome.split(" ")[0]+" "+dBR(ini).slice(0,5).replace("/","-")+" a "+dBR(fim).slice(0,5).replace("/","-")+".pdf";
+      const blob=doc.output("blob"); const file=new File([blob],arq,{type:"application/pdf"});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file],title:arq,text:"Serviços da quinzena para emitir a nota"}); return; }catch(e){ if(e.name==="AbortError") return; } }
+      const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=arq; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    }catch(e){ alert("Não consegui gerar o PDF: "+e.message); }
+    finally{ bt.disabled=false; bt.textContent=txt; }
   }
   async function textoPdf(arq){
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
