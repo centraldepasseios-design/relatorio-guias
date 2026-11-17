@@ -4032,7 +4032,7 @@
       const abertas=(g.contestacoes||[]).filter(c=>c.status==="aberta");
       return '<div class="card" style="padding:14px 18px">'
         +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1rem">'+esc(g.nome)+'</b><span style="font-size:.72rem;font-weight:800;background:'+st[1]+';color:'+st[2]+';border-radius:999px;padding:3px 10px">'+st[0]+'</span>'
-        +'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
+        +'<span style="margin-left:auto;display:flex;gap:6px">'+(lib?'':(g.liberadoGuia?'<button class="btn mini sec" title="Só este guia vê o valor da nota" onclick="pilotoLiberarGuia(\''+g.gid+'\',false)">Liberado só p/ ele ✓ (desfazer)</button>':'<button class="btn mini sec" onclick="pilotoLiberarGuia(\''+g.gid+'\',true)">Liberar só este guia</button>'))+'<button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
         +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;margin-top:8px;color:var(--muted)"><span>'+(g.linhas||[]).length+' serviços no mapa · '+brlP(g.totalMapa)+'</span>'
         +(g.comissaoPhoenix!=null?'<span>Comissão no Phoenix: <b style="color:var(--tinta)">'+brlP(g.comissaoPhoenix)+'</b>'+(v&&Math.abs((v.com||0)-g.comissaoPhoenix)>=0.01?' <span style="color:#b45309">(fechamento: '+brlP(v.com)+')</span>':'')+'</span>':'')
         +(v?'<span>Serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
@@ -4136,6 +4136,21 @@
     if(v&&!confirm("Liberar os valores? Os guias vão ver o valor da nota e a descrição pronta, e recebem um aviso no WhatsApp.")) return;
     const j=await chamarPiloto("liberar",{liberado:v}); if(!j.ok){ alert(j.erro); return; }
     if(v) alert("Valores liberados."+(j.avisados?" "+j.avisados+" guia(s) avisados no WhatsApp.":""));
+    atualizarPiloto();
+  }
+  async function pilotoLiberarGuia(gid,liberar){
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
+    if(!liberar){ if(!confirm("Desfazer a liberação de "+g.nome+"? Ele deixa de ver o valor da nota até a liberação geral.")) return; }
+    else {
+      const conferiu=["conferido","nota_ok","nota_com_problema"].includes(g.status)||!!g.nota;
+      if(!conferiu){ alert(g.nome+" ainda não confirmou os serviços no app. Peça para ele conferir primeiro."); return; }
+      if((g.contestacoes||[]).some(c=>c.status==="aberta")||(g.lancamentos||[]).some(x=>x.status==="aberto")){ alert(g.nome+" tem contestação ou lançamento em aberto. Responda antes de liberar."); return; }
+      const ext=(g.lancamentos||[]).filter(x=>x.status==="aceito").reduce((s,x)=>s+(x.valor||0),0);
+      const v=g.valores||{serv:(g.totalMapa||0)+ext,com:0,reemb:0,maq:0,liq:(g.totalMapa||0)+ext};
+      if(!confirm("Liberar o valor da nota só para "+g.nome+"?\n\nServiços: "+brlP(v.serv)+"\nComissão: "+(g.valores?brlP(v.com):"sem comissão (R$ 0,00)")+(v.reemb?"\nReembolso: − "+brlP(v.reemb):"")+(v.maq?"\nMaquineta: − "+brlP(v.maq):"")+"\n\nVALOR DA NOTA: "+brlP(v.liq)+"\n\n⚠️ Confira na PGG se ele não tem reembolso ou maquineta antes de liberar.")) return;
+    }
+    const j=await chamarPiloto("liberarGuia",{gid,liberado:liberar}); if(!j.ok){ alert(j.erro); return; }
+    if(liberar) alert("Liberado! "+g.nome+" já vê o valor da nota ("+brlP(j.valores.liq)+") e pode emitir. Avise ele no WhatsApp.");
     atualizarPiloto();
   }
   async function pilotoLink(gid){
