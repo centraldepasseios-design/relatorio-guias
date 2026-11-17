@@ -4038,7 +4038,7 @@
         +(v?'<span>Serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
         +(dif?'<div style="font-size:.8rem;color:#b45309;margin-top:6px">ℹ️ A PGG tem '+brlP(v.servPgg)+' de serviços; o sistema calculou '+brlP(v.serv)+' pelo Phoenix. O valor da nota usa o do sistema.</div>':'')
         +(g.contestacoes||[]).map(c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
-          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita":"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>')+'</div>').join("")
+          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita"+(c.valorDepois!=null?" · "+brlP(c.valorAntes)+" → "+brlP(c.valorDepois):""):"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>')+'</div>').join("")
         +(g.linhas||[]).filter(l=>/sem tarifa/i.test(l.obs||"")).map(l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>').join("")
         +(g.lancamentos||[]).map(x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
           +(x.status==="aberto"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'aceito\','+(x.sugerido||0)+')">Aceitar</button><button class="btn mini danger" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'negado\',0)">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(x.status==="aceito"?"var(--ok)":"var(--alerta)")+'">'+(x.status==="aceito"?"Aceito · "+brlP(x.valor):"Negado")+'</span>')+'</div>').join("")
@@ -4144,9 +4144,21 @@
     try{ await navigator.clipboard.writeText(url); alert("Link copiado:\n"+url+"\n\nMande só para esse guia (é pessoal)."); }catch(e){ prompt("Link do guia (copie):",url); }
   }
   async function pilotoResponder(gid,cid,status){
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); const c=g&&(g.contestacoes||[]).find(x=>x.id===cid);
+    if(status==="aceita"&&c&&/faltou/i.test(c.tipo)&&!confirm("Você já conferiu e incluiu "+g.nome+" nesse serviço no Phoenix?\n\n"+(c.data?dataBR(c.data)+" · ":"")+c.servico+(c.obs?"\n"+c.obs:"")+"\n\nOK = sim, aceitar.  Cancelar = ainda não.")) return;
+    // aceitar contestação de um serviço do mapa: já corrige o valor (Não fiz = zera; Valor errado/Outro = pergunta o valor)
+    let valor;
+    if(status==="aceita"&&c&&c.ro){
+      const l=(g.linhas||[]).find(x=>x.ro===c.ro);
+      if(l){
+        if(/n[ãa]o fiz/i.test(c.tipo)){ if(!confirm("Aceitar e zerar este serviço?\n\n"+l.servico+"\n"+brlP(l.valor)+" → R$ 0,00")) return; valor=0; }
+        else { const v=prompt("Novo valor deste serviço para o guia (R$).\n"+l.servico+"\nValor atual: "+brlP(l.valor)+"\n\nPara retirar, coloque 0. Deixe em branco para não mudar o valor.",String(l.valor).replace(".",","));
+          if(v===null) return; if(v.trim()!==""){ valor=parseFloat(v.replace(/\./g,"").replace(",",".")); if(!(valor>=0)){ alert("Valor inválido."); return; } } }
+      }
+    }
     const resposta=prompt(status==="aceita"?"Aceitar a contestação. Mensagem para o guia (opcional):":"Negar a contestação. Explique o motivo para o guia:","");
     if(resposta===null) return;
-    const j=await chamarPiloto("responder",{gid,cid,status,resposta}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+    const j=await chamarPiloto("responder",{gid,cid,status,resposta,...(valor!==undefined?{valor}:{})}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
   }
   async function pilotoAjustar(gid,ro){
     const v=prompt("Valor deste serviço para o guia (R$):",""); if(v===null) return;
@@ -4195,6 +4207,13 @@
     const x=t[n]||t[n.replace(/ - NOVOTEL MARINA$/,"")];
     return x?(idioma?x.vi:x.v):null;
   }
+  // nome do passeio sem buggy, sem o "(Boa Viagem | Piedade)", sem "Praias do" e com STO = SANTO, para achar o mesmo passeio
+  // vale para qualquer saída: Boa Viagem/Piedade e Porto de Galinhas (cada saída é comparada com ela mesma)
+  function chavePasseio(s){
+    s=String(s||""); const saida=/PORTO/i.test((s.match(/\(.*?\)/g)||[]).join(" "))?"PORTO":"RECIFE";
+    return normP(s.replace(/\(.*?\)/g," ")).replace(/\bCOM BUGGY( INCLUSO)?\b/g," ").replace(/\bBUGGY\b/g," ")
+      .replace(/^PRAIAS? (DO|DA|DOS|DAS|DE) /,"").replace(/\bSTO\b/g,"SANTO").replace(/\bSTA\b/g,"SANTA").replace(/\s+/g," ").trim()+"|"+saida;
+  }
   function montarMapaPhoenix(linhas,nomes,relatorios){
     const porGuiaDia={};
     for(const r of relatorios){ const k=normP(r.guia)+"|"+r.data; (porGuiaDia[k]=porGuiaDia[k]||[]).push(...r.itens.map(i=>({...i}))); }
@@ -4230,6 +4249,16 @@
         const pagos=idas.length?((mar&&outros)?2:1):0;
         idas.slice(pagos).forEach(a=>{ a.linha.valor=0; a.linha.obs="apoio além do permitido no dia"; });
         voltas.slice(1).forEach(a=>{ a.linha.valor=0; a.linha.obs="apoio de volta já pago no dia"; });
+        // mesmo passeio no mesmo dia, um com buggy e outro sem (ex.: Cabo de Santo Agostinho): paga só 1
+        const grupos={};
+        out.filter(x=>x.data===d&&x.valor>0&&!/^APOIO/.test(x.servico)&&!/^motoguia/.test(x.obs)&&catMapa(x.servico)==="passeio")
+          .forEach(x=>{ const k=chavePasseio(x.servico); (grupos[k]=grupos[k]||[]).push(x); });
+        for(const g of Object.values(grupos)){
+          const comB=g.filter(x=>/BUGGY/i.test(x.servico)), semB=g.filter(x=>!/BUGGY/i.test(x.servico));
+          if(!comB.length||!semB.length) continue;
+          const pago=g.reduce((m,x)=>x.valor>m.valor?x:m,g[0]);
+          g.forEach(x=>{ if(x!==pago){ x.valor=0; x.obs="mesmo passeio com/sem buggy: pago 1 vez"; } });
+        }
       }
       return {nome,linhas:out,total:out.reduce((s,l)=>s+l.valor,0)};
     });

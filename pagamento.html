@@ -27,8 +27,8 @@
   .tag{font-size:11px;font-weight:800;border-radius:999px;padding:4px 10px;display:inline-block}
   .desc{margin:8px 0 10px;font-size:12px;line-height:1.55;color:#3c524d;background:var(--bg);border-radius:10px;padding:10px 12px;font-family:ui-monospace,monospace;word-break:break-word}
   .ok{background:var(--claro);border-radius:18px;padding:16px;color:var(--acc-esc)} .prob{background:var(--alerta-bg);border-radius:18px;padding:16px;color:var(--alerta)}
-  textarea,select,input[type=text],input[type=date]{width:100%;box-sizing:border-box;border:1px solid #cfdcd8;border-radius:12px;padding:10px 12px;font-family:inherit;font-size:15px;background:#fff;color:var(--tinta)}
-  input[type=date]{min-height:46px;-webkit-appearance:none;appearance:none}
+  textarea,select,input[type=text],input[type=date],input[type=time]{width:100%;box-sizing:border-box;border:1px solid #cfdcd8;border-radius:12px;padding:10px 12px;font-family:inherit;font-size:15px;background:#fff;color:var(--tinta)}
+  input[type=date],input[type=time]{min-height:46px;-webkit-appearance:none;appearance:none}
   label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#3c524d}
   .no-app body{background:transparent} .no-app .wrap{padding-top:4px}
   .fundo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
@@ -219,14 +219,17 @@ function lerNota(texto) {
     const l=i>=0?D.linhas[i]:null; const f=document.createElement("div"); f.className="fundo"; f.id="fundo";
     f.innerHTML='<div class="folha"><b style="font-size:18px">'+(l?'O que está errado?':'Qual serviço faltou?')+'</b>'
       +(l?'<div class="sub">'+dBR(l.data)+' · '+esc(String(l.hora||"").slice(0,5))+' · '+esc(titulo(l.servico))+' · '+brl(l.valor)+(l.motorista?'<br>'+esc(titulo(l.veiculo||""))+' · Mot. '+esc(titulo(l.motorista)):'')+'</div><label>Motivo<select id="cTipo"><option>Não fiz esse serviço</option><option>Valor errado</option><option>Outro</option></select></label>'
-         :'<input type="hidden" id="cTipo" value="Faltou serviço"><label>Data<input type="date" id="cData" min="'+D.periodo[0]+'" max="'+D.periodo[1]+'"></label><label>Serviço<input type="text" id="cServ" placeholder="ex.: IN Porto de Galinhas"></label>')
+         :'<input type="hidden" id="cTipo" value="Faltou serviço"><label>Data<input type="date" id="cData" min="'+D.periodo[0]+'" max="'+D.periodo[1]+'"></label><label>Serviço<input type="text" id="cServ" placeholder="ex.: IN Porto de Galinhas"></label><div style="display:flex;gap:10px"><label style="flex:1">Horário<input type="time" id="cHora"></label><label style="flex:1.4">Motorista<input type="text" id="cMot" placeholder="ex.: Josias"></label></div>')
       +'<label>Explique (opcional)<textarea id="cObs" rows="3" placeholder="Ex.: o voo foi cancelado, fiz com o motorista X..."></textarea></label>'
       +'<button class="btn" id="cBtn">Enviar para a Central</button><button class="btn sec" onclick="document.getElementById(\'fundo\').remove()">Cancelar</button></div>';
     document.body.appendChild(f);
     document.getElementById("cBtn").onclick=async()=>{
       let data=l?l.data:"", serv=l?l.servico:document.getElementById("cServ").value.trim();
-      if(!l){ data=document.getElementById("cData").value; if(!data||!serv){alert("Escolha a data e informe o serviço.");return;} }
-      const j=await api("contestar",{tipo:document.getElementById("cTipo").value,data,servico:serv,ro:l?l.ro:"",obs:document.getElementById("cObs").value});
+      let obs=document.getElementById("cObs").value.trim();
+      if(!l){ data=document.getElementById("cData").value; const hora=document.getElementById("cHora").value, mot=document.getElementById("cMot").value.trim();
+        if(!data||!serv||!hora||!mot){alert("Preencha a data, o serviço, o horário e o motorista.");return;}
+        obs="Horário: "+hora+" · Motorista: "+mot+(obs?" · "+obs:""); }
+      const j=await api("contestar",{tipo:document.getElementById("cTipo").value,data,servico:serv,ro:l?l.ro:"",obs});
       if(!j.ok){alert(j.erro);return;} f.remove(); carregar();
     };
   }
