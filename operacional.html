@@ -4140,15 +4140,19 @@
   }
   async function pilotoValores(){
     const f=document.getElementById("pilPgg").files[0]; if(!f){ alert("Selecione a PGG."); return; }
-    await libsPagamentos(); const pgg=await lerPGG(f); const valores={}; const faltam=[];
+    await libsPagamentos(); const pgg=await lerPGG(f); const valores={}; const fora=[], duplos=[];
     for(const g of (PIL.dados?PIL.dados.guias:[])){
       let c=pgg.rows.filter(r=>normP(r.nome)===normP(g.nome)); if(!c.length) c=pgg.rows.filter(r=>nomeBate(r.nome,g.nome)||nomeBate(g.nome,r.nome));
       const comValor=c.filter(r=>(r.com||0)>0||(r.serv||0)>0||(r.liq||0)>0); if(comValor.length) c=comValor;
-      if(c.length!==1){ faltam.push(g.nome); continue; }
+      if(!c.length){ fora.push(g); continue; }
+      if(c.length>1){ duplos.push(g.nome+" ("+c.map(r=>r.nome).join(" / ")+")"); continue; }
       const r=c[0]; valores[g.gid]={serv:r.serv||0,com:r.com||0,reemb:r.reemb||0,maq:r.maq||0,liq:r.liq||0,nomePgg:r.nome};
     }
+    // quem não está na PGG normalmente não vendeu: entra sem comissão, reembolso e maquineta (a Central confirma)
+    if(fora.length&&confirm("Estes guias não estão na PGG:\n\n"+fora.map(g=>g.nome).join(", ")+"\n\nSe é porque não tiveram vendas, clique OK para lançar SEM comissão (R$ 0,00). O valor da nota deles fica só com os serviços.\n\nCancelar = deixar sem valor (confira se o nome não está diferente na PGG)."))
+      fora.forEach(g=>{ valores[g.gid]={serv:0,com:0,reemb:0,maq:0,liq:0,nomePgg:"(fora da PGG · sem comissão)"}; });
     const j=await chamarPiloto("valores",{valores}); if(!j.ok){ alert(j.erro); return; }
-    if(faltam.length) alert("Não achei na PGG (ou achei mais de um): "+faltam.join(", "));
+    if(duplos.length) alert("Achei mais de um nome na PGG para: "+duplos.join(", ")+". Confira a planilha.");
     atualizarPiloto();
   }
   async function pilotoFecharTodos(){
