@@ -4243,7 +4243,7 @@
     if(!confirm("Atualizar o mapa de "+g.nome+" pelo Phoenix? Só dele, sem mandar WhatsApp. Pode levar 1 a 2 minutos.")) return;
     const j=await atualizarMapaGuia(g,[...new Set((g.contestacoes||[]).filter(c=>/faltou/i.test(c.tipo)&&c.data).map(c=>c.data))].slice(-3));
     if(!j.ok){ if(!j.silencio) alert("Não consegui atualizar: "+j.erro); return; }
-    alert("Mapa de "+g.nome+" atualizado: "+j.servicos+" serviços · "+brlP(j.totalMapa)+"."); atualizarPiloto();
+    alert("Mapa de "+g.nome+" atualizado: "+j.servicos+" serviços · "+brlP(j.totalMapa)+"."+((j.phoenixLento&&j.phoenixLento.length)?"\n\n⚠️ O Phoenix não respondeu a tempo: foi usada a cópia guardada. Tente de novo em 2 ou 3 minutos.":"")); atualizarPiloto();
   }
   async function pilotoLiberarGuia(gid,liberar){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
@@ -4276,7 +4276,8 @@
     else if(status==="aceita"&&c&&/faltou/i.test(c.tipo)){
       const a=await atualizarMapaGuia(g,c.data?[c.data]:null);
       if(!a.ok){ if(!a.silencio) alert("Não consegui atualizar o mapa: "+a.erro); return; }
-      if(!confirm("Mapa de "+g.nome+" atualizado: "+a.servicos+" serviços · "+brlP(a.totalMapa)+".\n\nConfira se o serviço novo entrou e clique OK para aceitar a contestação.")) { atualizarPiloto(); return; }
+      const lentoTxt=(a.phoenixLento&&a.phoenixLento.length)?"\n\n⚠️ O Phoenix não respondeu a tempo para "+a.phoenixLento.map(d=>dataBR(d).slice(0,5)).join(", ")+": o mapa foi montado com a cópia guardada. Se o serviço não entrou, cancele e tente de novo em 2 ou 3 minutos (a leitura continua por trás).":"";
+      if(!confirm("Mapa de "+g.nome+" atualizado: "+a.servicos+" serviços · "+brlP(a.totalMapa)+"."+lentoTxt+"\n\nConfira se o serviço novo entrou e clique OK para aceitar a contestação.")) { atualizarPiloto(); return; }
     }
     // aceitar contestação de um serviço do mapa: já corrige o valor (Não fiz = zera; Valor errado/Outro = pergunta o valor)
     let valor;
