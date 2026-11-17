@@ -4222,8 +4222,10 @@
     if(ATUALIZANDO_GUIA){ alert("Já estou atualizando um mapa. Espere terminar."); return {ok:false,erro:"ocupado",silencio:true}; }
     ATUALIZANDO_GUIA=true; const info=document.getElementById("pilPhxInfo");
     if(info) info.textContent="Atualizando o mapa de "+g.nome+" pelo Phoenix... pode levar 1 a 2 minutos.";
-    try{ return await chamarPiloto("atualizarGuia",{gid:g.gid,...(dias?{dias}:{})}); }
-    catch(e){ return {ok:false,erro:"o servidor demorou demais ou caiu. Recarregue a página em 1 minuto e confira o mapa: às vezes a atualização termina mesmo assim."}; }
+    // espera no máximo 3 minutos; depois disso libera a tela (o servidor pode terminar sozinho)
+    const limite=new Promise((_,erro)=>setTimeout(()=>erro(new Error("tempo")),180000));
+    try{ return await Promise.race([chamarPiloto("atualizarGuia",{gid:g.gid,...(dias?{dias}:{})}),limite]); }
+    catch(e){ return {ok:false,erro:"o servidor demorou mais de 3 minutos ou caiu. Recarregue a página em 1 minuto e confira o mapa: às vezes a atualização termina mesmo assim."}; }
     finally{ ATUALIZANDO_GUIA=false; if(info) info.textContent=""; }
   }
   // contestação já aceita sem mexer no valor: corrige o serviço depois (mesmo "Definir valor" dos sem tarifa)
