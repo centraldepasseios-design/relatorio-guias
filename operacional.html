@@ -4256,8 +4256,13 @@
   }
   async function pilotoResponder(gid,cid,status){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); const c=g&&(g.contestacoes||[]).find(x=>x.id===cid);
-    if(status==="aceita"&&c&&/faltou/i.test(c.tipo)){
-      if(!confirm("Você já conferiu e incluiu "+g.nome+" nesse serviço no Phoenix?\n\n"+(c.data?dataBR(c.data)+" · ":"")+c.servico+(c.obs?"\n"+c.obs:"")+"\n\nOK = sim: atualizo o mapa dele pelo Phoenix (só dele, sem WhatsApp) e aceito.\nCancelar = ainda não.")) return;
+    let valorManual;
+    if(status==="aceita"&&c&&/faltou/i.test(c.tipo)&&!confirm("Esse serviço está no Phoenix com "+g.nome+" escalado?\n\n"+(c.data?dataBR(c.data)+" · ":"")+c.servico+(c.obs?"\n"+c.obs:"")+"\n\nOK = sim: atualizo o mapa dele pelo Phoenix (só dele, sem WhatsApp) e aceito.\nCancelar = não tem escala no Phoenix (lançar o valor à mão).")){
+      const v=prompt("Lançar à mão, fora do Phoenix:\n"+(c.data?dataBR(c.data)+" · ":"")+c.servico+"\n\nValor a pagar ao guia (R$). Deixe em branco para não aceitar agora.","");
+      if(v===null||v.trim()==="") return; valorManual=parseFloat(v.replace(/\./g,"").replace(",","."));
+      if(!(valorManual>0)){ alert("Valor inválido."); return; }
+    }
+    else if(status==="aceita"&&c&&/faltou/i.test(c.tipo)){
       const info=document.getElementById("pilPhxInfo"); if(info) info.textContent="Atualizando o mapa de "+g.nome+" pelo Phoenix... pode levar 1 a 2 minutos.";
       const a=await chamarPiloto("atualizarGuia",{gid}); if(info) info.textContent="";
       if(!a.ok){ alert("Não consegui atualizar o mapa: "+a.erro); return; }
@@ -4275,6 +4280,7 @@
     }
     const resposta=prompt(status==="aceita"?"Aceitar a contestação. Mensagem para o guia (opcional):":"Negar a contestação. Explique o motivo para o guia:","");
     if(resposta===null) return;
+    if(valorManual!==undefined) valor=valorManual;
     const j=await chamarPiloto("responder",{gid,cid,status,resposta,...(valor!==undefined?{valor}:{})}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
   }
   async function pilotoAjustar(gid,ro){
