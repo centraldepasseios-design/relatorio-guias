@@ -133,7 +133,7 @@ function lerNota(texto) {
     const fmt=(x)=>Number(x||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
     return "ref "+ini.slice(8)+" a "+fim.slice(8)+" "+mes+" "
       +[...D.linhas.map(l=>({data:l.data,txt:curto(l.servico),valor:l.valor})),...(D.lancamentos||[]).filter(x=>x.status==="aceito").map(x=>({data:x.data,txt:x.nome,valor:x.valor}))]
-        .sort((a,b)=>a.data.localeCompare(b.data)).map(l=>"#"+dBR(l.data)+" "+l.txt+" $"+fmt(l.valor).replace(/,00$/,"")).join(" ")
+        .filter(l=>Number(l.valor)>0).sort((a,b)=>a.data.localeCompare(b.data)).map(l=>"#"+dBR(l.data)+" "+l.txt+" $"+fmt(l.valor).replace(/,00$/,"")).join(" ")
       +", SERV: R$"+fmt(v.serv)+" COMISS: R$"+fmt(v.com)+(v.reemb?" - REEMB R$"+fmt(v.reemb):"")+(v.maq?" - MAQ R$"+fmt(v.maq):"")+" TOTAL: R$"+fmt(v.liq);
   }
   async function carregar(){
@@ -251,7 +251,7 @@ function lerNota(texto) {
       doc.setFillColor(227,242,238); doc.roundedRect(14,y,182,16,3,3,"F");
       doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(...verde); doc.text("VALOR DA NOTA",19,y+6.5);
       doc.setFontSize(16); doc.text(R(v.liq),19,y+13); y+=22;
-      const linhas=[...D.linhas.map(l=>({data:l.data,hora:String(l.hora||"").slice(0,5),serv:titulo(l.servico),valor:l.valor})),
+      const linhas=[...D.linhas.filter(l=>Number(l.valor)>0).map(l=>({data:l.data,hora:String(l.hora||"").slice(0,5),serv:titulo(l.servico),valor:l.valor})),
         ...(D.lancamentos||[]).filter(x=>x.status==="aceito").map(x=>({data:x.data,hora:"",serv:titulo(x.nome)+(x.idioma?" (idioma)":""),valor:x.valor}))]
         .sort((a,b)=>(a.data+a.hora).localeCompare(b.data+b.hora));
       doc.autoTable({startY:y,head:[["Data","Horário","Serviço","Valor"]],body:linhas.map(l=>[dBR(l.data),l.hora||"-",l.serv,R(l.valor)]),
