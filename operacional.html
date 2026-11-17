@@ -4072,17 +4072,20 @@
       const dif=v&&v.servPgg!=null&&Math.abs(v.servPgg-v.serv)>=0.01;
       const abertas=(g.contestacoes||[]).filter(c=>c.status==="aberta");
       return '<div class="card" style="padding:14px 18px">'
-        +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1rem">'+esc(g.nome)+'</b><span style="font-size:.72rem;font-weight:800;background:'+st[1]+';color:'+st[2]+';border-radius:999px;padding:3px 10px">'+st[0]+'</span>'
+        +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1rem">'+esc(g.nome)+'</b><span style="font-size:.72rem;font-weight:800;background:'+st[1]+';color:'+st[2]+';border-radius:999px;padding:3px 10px">'+st[0]+'</span>'+(()=>{ const n=abertas.length+(g.lancamentos||[]).filter(x=>x.status==="aberto").length; return n?'<span style="font-size:.72rem;font-weight:800;background:#fff1e0;color:#8a4a0c;border-radius:999px;padding:3px 10px">'+n+' em aberto</span>':''; })()
         +'<span style="margin-left:auto;display:flex;gap:6px">'+(lib&&g.valores&&!g.liberadoGuia?'':(g.liberadoGuia?'<button class="btn mini sec" title="Só este guia vê o valor da nota" onclick="pilotoLiberarGuia(\''+g.gid+'\',false)">Liberado só p/ ele ✓ (desfazer)</button>':'<button class="btn mini sec" onclick="pilotoLiberarGuia(\''+g.gid+'\',true)">Liberar só este guia</button>'))+'<button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
         +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;margin-top:8px;color:var(--muted)"><span>'+(g.linhas||[]).length+' serviços no mapa · '+brlP(g.totalMapa)+'</span>'
         +(v?'<span>Serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
         +(dif?'<div style="font-size:.8rem;color:#b45309;margin-top:6px">ℹ️ A PGG tem '+brlP(v.servPgg)+' de serviços; o sistema calculou '+brlP(v.serv)+' pelo Phoenix. O valor da nota usa o do sistema.</div>':'')
-        +(g.contestacoes||[]).map(c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
-          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita"+(c.valorDepois!=null?" · "+brlP(c.valorAntes)+" → "+brlP(c.valorDepois):""):"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>'+(c.status==="aceita"&&c.valorDepois==null?(c.ro?'<button class="btn mini sec" onclick="pilotoCorrigirValor(\''+g.gid+'\',\''+esc(c.ro)+'\')">Corrigir valor</button>':'<button class="btn mini sec" onclick="pilotoAtualizarGuia(\''+g.gid+'\')">Atualizar mapa dele</button>'):''))+'</div>').join("")
-        +(g.linhas||[]).filter(l=>/sem tarifa/i.test(l.obs||"")).map(l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>').join("")
-        +(g.lancamentos||[]).map(x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
-          +(x.status==="aberto"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'aceito\','+(x.sugerido||0)+')">Aceitar</button><button class="btn mini danger" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'negado\',0)">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(x.status==="aceito"?"var(--ok)":"var(--alerta)")+'">'+(x.status==="aceito"?"Aceito · "+brlP(x.valor):"Negado")+'</span>')+'</div>').join("")
-        +'<details class="rpbox" style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px" ontoggle="rpAbrir(\''+g.gid+'\',this)"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">Relatório × Phoenix <span id="rpb-'+g.gid+'"></span></summary><div id="rp-'+g.gid+'" style="margin-top:8px"></div></details>'
+        +(()=>{ const fC=c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
+          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita"+(c.valorDepois!=null?" · "+brlP(c.valorAntes)+" → "+brlP(c.valorDepois):""):"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>'+(c.status==="aceita"&&c.valorDepois==null?(c.ro?'<button class="btn mini sec" onclick="pilotoCorrigirValor(\''+g.gid+'\',\''+esc(c.ro)+'\')">Corrigir valor</button>':'<button class="btn mini sec" onclick="pilotoAtualizarGuia(\''+g.gid+'\')">Atualizar mapa dele</button>'):''))+'</div>', fS=l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>', fL=x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
+          +(x.status==="aberto"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'aceito\','+(x.sugerido||0)+')">Aceitar</button><button class="btn mini danger" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'negado\',0)">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(x.status==="aceito"?"var(--ok)":"var(--alerta)")+'">'+(x.status==="aceito"?"Aceito · "+brlP(x.valor):"Negado")+'</span>')+'</div>';
+          const cs=g.contestacoes||[], ls=g.lancamentos||[], st=(g.linhas||[]).filter(l=>/sem tarifa/i.test(l.obs||""));
+          const abC=cs.filter(c=>c.status==="aberta"), abL=ls.filter(x=>x.status==="aberto"), feitas=cs.filter(c=>c.status!=="aberta").length+ls.filter(x=>x.status!=="aberto").length;
+          const tit=(t)=>'<div style="font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:10px">'+t+'</div>';
+          return (abC.length||abL.length||st.length?tit("Precisa de resposta")+abC.map(fC).join("")+abL.map(fL).join("")+st.map(fS).join(""):"")
+            +(feitas?'<details style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">'+feitas+' resolvida'+(feitas>1?'s':'')+'</summary>'+cs.filter(c=>c.status!=="aberta").map(fC).join("")+ls.filter(x=>x.status!=="aberto").map(fL).join("")+'</details>':""); })()
+        +'<details class="rpbox" style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px" ontoggle="rpAbrir(\''+g.gid+'\',this)"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">Relatório do guia <span id="rpb-'+g.gid+'"></span></summary><div id="rp-'+g.gid+'" style="margin-top:8px"></div></details>'
         +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button></div>':'')
         +'</div>';
     }).join("");
@@ -4126,22 +4129,52 @@
     const alertas=conferirMapa([{...g,doc:""}],meus,ros)[0].alertas.filter(a=>a.tipo!=="zero"&&a.tipo!=="cnpj"&&a.tipo!=="nome");
     return {meus,alertas};
   }
-  function rpHtml(g,rel){
-    const {meus,alertas}=rpDoGuia(g,rel);
-    const dias=[...new Set([...(g.linhas||[]).map(l=>l.data),...meus.map(r=>r.data)])].sort();
-    if(!dias.length) return '<div style="font-size:.82rem;color:var(--muted)">Sem serviços nem relatórios na quinzena.</div>';
-    const th='font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em';
-    return '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 18px;font-size:.8rem"><div style="'+th+'">Phoenix (mapa)</div><div style="'+th+'">Relatório do guia</div></div>'
-      +dias.map(d=>{
-        const L=(g.linhas||[]).filter(l=>l.data===d).sort((a,b)=>String(a.hora).localeCompare(String(b.hora)));
-        const R=meus.filter(r=>r.data===d); const A=alertas.filter(a=>a.data===d);
-        const col1=L.length?L.map(l=>'<div style="display:flex;gap:6px;justify-content:space-between;padding:2px 0"><span><b>'+esc(l.hora||"—")+'</b> '+esc(l.servico)+(l.obs?' <span style="color:#8a4a0c">· '+esc(l.obs)+'</span>':'')+'</span><b style="white-space:nowrap">'+brlP(l.valor)+'</b></div>').join(""):'<span style="color:var(--muted)">—</span>';
-        const itens=R.flatMap(r=>r.itens||[]);
-        const col2=itens.length?itens.map(i=>'<div style="padding:2px 0">'+esc(relServico(i.servico))+' · '+(i.naoRealizado?'<span style="color:#8a4a0c;font-weight:700">não realizado'+(i.motivo?': '+esc(i.motivo):'')+'</span>':'<span style="color:var(--ok);font-weight:700">feito</span>')+(i.motorista?' <span style="color:var(--muted)">· '+esc(i.motorista)+'</span>':'')+(i.recIdioma?' · idioma REC '+esc(i.recIdioma):'')+'</div>').join(""):'<span style="color:var(--muted)">sem relatório neste dia</span>';
-        return '<div style="border-top:1px solid var(--linha);margin-top:6px;padding-top:6px"><div style="font-size:.78rem;font-weight:800;margin-bottom:2px">'+esc(dataBR(d).slice(0,5))+'</div><div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 18px;font-size:.8rem"><div>'+col1+'</div><div>'+col2+'</div></div>'
-          +A.map(a=>'<div style="font-size:.78rem;color:#b45309;margin-top:3px">⚠️ '+esc(a.servico?a.servico+": ":"")+esc(a.detalhe)+'</div>').join("")+'</div>';
-      }).join("");
+  // cada serviço do mapa que exige relatório (IN, OUT, transfer, apoio de ida) recebe um status:
+  // ok = relatado · nao = o guia marcou que não fez · sem = sem relatório. Casa primeiro pelo RO (app novo)
+  // e, se não tiver, pelo tipo; o "Transfer" do app antigo vale para qualquer IN/OUT/transfer do dia.
+  function rpPrecisa(l){
+    const S=String(l.servico||"").toUpperCase(); if(/^(MANUAL|BOX|SOL)-/.test(String(l.ro||""))) return false;
+    if(/GARAGEM|APOIO AO CITY/.test(S)) return false; const c=catMapa(S);
+    return c==="chegada"||c==="saida"||c==="trf"||c==="apoio-ida";
   }
+  function rpCasa(cl,ci){ if(!ci) return false; if(ci==="trf") return cl==="chegada"||cl==="saida"||cl==="trf";
+    if(ci==="apoio") return cl==="apoio-ida"; if(ci==="apoio-volta") return cl==="apoio-volta"; return ci===cl; }
+  function rpStatus(g,rel){
+    const [ini,fim]=PIL.qid.split("_"); const N=normP(g.nome); const noP=rel.filter(r=>r.data>=ini&&r.data<=fim);
+    let meus=noP.filter(r=>normP(r.guia)===N); if(!meus.length) meus=noP.filter(r=>nomeBate(g.nome,r.guia)||nomeBate(r.guia,g.nome));
+    const out=[], extras={};
+    const dias=[...new Set((g.linhas||[]).map(l=>l.data))].sort();
+    for(const d of dias){
+      const itens=meus.filter(r=>r.data===d).flatMap(r=>(r.itens||[]).map(i=>({...i,_c:catRel(i.servico)})));
+      const L=(g.linhas||[]).filter(l=>l.data===d).sort((a,b)=>String(a.hora).localeCompare(String(b.hora)));
+      const precisa=L.filter(rpPrecisa);
+      for(const l of precisa){ const i=itens.find(x=>!x._u&&x.ro&&x.ro===l.ro); if(i){ i._u=1; l._i=i; } else l._i=null; }
+      for(const l of precisa) if(!l._i){ const cl=catMapa(String(l.servico).toUpperCase()); const i=itens.find(x=>!x._u&&rpCasa(cl,x._c)); if(i){ i._u=1; l._i=i; } }
+      for(const l of L){ const p=rpPrecisa(l); out.push({l,precisa:p,st:!p?"":(l._i?(l._i.naoRealizado?"nao":"ok"):"sem"),motivo:l._i&&l._i.motivo||""}); delete l._i; }
+      const sobra=itens.filter(x=>!x._u&&x._c&&x._c!=="passeio"&&x._c!=="apoio-volta").length; if(sobra) extras[d]=sobra;
+    }
+    const prob=out.filter(x=>x.st==="sem"||(x.st==="nao"&&x.l.valor>0)).length+Object.keys(extras).length;
+    return {out,extras,prob};
+  }
+  function rpHtml(g,rel){
+    const {out,extras,prob}=rpStatus(g,rel); const todos=!!(RP.todos||{})[g.gid];
+    if(!out.length) return '<div style="font-size:.82rem;color:var(--muted)">Sem serviços na quinzena.</div>';
+    const prec=out.filter(x=>x.precisa), ok=prec.filter(x=>x.st==="ok").length, sem=prec.filter(x=>x.st==="sem").length, nao=prec.filter(x=>x.st==="nao").length;
+    const ST={ok:['✓ relatado','var(--ok)'],sem:['⚠ sem relatório','#b45309'],nao:['✕ marcou que não fez','var(--alerta)'],"":['não precisa','var(--muted)']};
+    const linha=(x,mostraData)=>'<span style="font-weight:800">'+(mostraData?esc(dataBR(x.l.data).slice(0,5)):'')+'</span><span>'+esc(x.l.hora||"—")+' '+esc(String(x.l.servico).replace(/^APOIO · /,"Apoio · "))+'</span>'
+      +'<span style="color:var(--muted);white-space:nowrap">'+brlP(x.l.valor)+(/motoguia/i.test(x.l.obs||"")?' · motoguia':'')+'</span>'
+      +'<span style="color:'+ST[x.st][1]+';font-weight:700;white-space:nowrap">'+ST[x.st][0]+(x.st==="nao"&&x.motivo?': '+esc(x.motivo):'')+'</span>';
+    const lista=todos?out:out.filter(x=>x.st==="sem"||(x.st==="nao"&&x.l.valor>0));
+    let ult=""; const grade=lista.map(x=>{ const m=x.l.data!==ult; ult=x.l.data; return linha(x,m); }).join("");
+    const ext=Object.entries(extras).map(([d,n])=>'<div style="font-size:.8rem;color:#b45309;margin-top:4px">⚠ '+esc(dataBR(d).slice(0,5))+': o relatório tem '+n+' serviço'+(n>1?'s':'')+' que não '+(n>1?'estão':'está')+' no mapa (confira se falta algo no Phoenix)</div>').join("");
+    return '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:.8rem;color:var(--muted);margin-bottom:6px"><span><b style="color:var(--tinta)">'+ok+' de '+prec.length+'</b> relatados'+(sem?' · <b style="color:#b45309">'+sem+' sem relatório</b>':'')+(nao?' · <b style="color:var(--alerta)">'+nao+' marcou que não fez</b>':'')+'</span>'
+      +'<a href="#" style="margin-left:auto;color:var(--acc-esc,var(--ok));font-weight:700" onclick="event.preventDefault();rpTodos(\''+g.gid+'\')">'+(todos?'ver só os problemas':'ver todos os dias')+'</a></div>'
+      +(lista.length?'<div style="display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:5px 12px;font-size:.8rem;align-items:baseline">'+grade+'</div>'
+        :(prob?'':'<div style="font-size:.82rem;color:var(--ok);font-weight:700">Tudo relatado ✓</div>'))
+      +ext+(todos?'':'<div style="font-size:.75rem;color:var(--muted);margin-top:6px">Passeios, apoio de volta e lançamentos da Central não precisam de relatório.</div>');
+  }
+  function rpTodos(gid){ RP.todos=RP.todos||{}; RP.todos[gid]=!RP.todos[gid]; const box=document.getElementById("rp-"+gid);
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(box&&g&&RP.rel) box.innerHTML=rpHtml(g,RP.rel); }
   async function rpAbrir(gid,el){
     if(!el.open) return; const box=document.getElementById("rp-"+gid); if(!box||box.dataset.ok) return;
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
@@ -4153,8 +4186,8 @@
     if(!RP.rel||RP.k!==PIL.qid) return;
     for(const g of (PIL.dados&&PIL.dados.guias||[])){
       const b=document.getElementById("rpb-"+g.gid); if(!b) continue;
-      const n=rpDoGuia(g,RP.rel).alertas.length;
-      b.innerHTML=n?'<span style="margin-left:6px;background:#fff1e0;color:#8a4a0c;border-radius:999px;padding:2px 8px;font-size:.7rem">'+n+' divergência'+(n>1?'s':'')+'</span>':'<span style="margin-left:6px;color:var(--ok)">✓ confere</span>';
+      const n=rpStatus(g,RP.rel).prob;
+      b.innerHTML=n?'<span style="margin-left:6px;background:#fff1e0;color:#8a4a0c;border-radius:999px;padding:2px 8px;font-size:.7rem">'+n+' para conferir</span>':'<span style="margin-left:6px;color:var(--ok)">✓ tudo relatado</span>';
     }
   }
   function rpPrepararBadges(){
