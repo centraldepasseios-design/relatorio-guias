@@ -3547,8 +3547,8 @@
   // Grupos A e B se alternam toda segunda. Os 2 que mais venderam na semana têm direito a 5 Maragogi; os outros, 3.
   const API_TRANSF="https://us-central1-operacional-luck.cloudfunctions.net/transferistas";
   const TRF={ semana:null, d:null, editando:false };
-  const TRF_COR={"Maragogi":["#dcefe9","#0b5c50"],"Carneiros":["#dbe7fb","#1e3a8a"],"São José":["#fde7d3","#8a3b0b"],"Folga":["#eef1f0","#5d7570"]};
-  const TRF_SEQ=["","Maragogi","Carneiros","São José","Folga"];
+  const TRF_COR={"Maragogi":["#dcefe9","#0b5c50"],"Carneiros":["#dbe7fb","#1e3a8a"],"São José":["#fde7d3","#8a3b0b"],"Evento":["#ece6fb","#4c2a8a"],"Folga":["#eef1f0","#5d7570"]};
+  const TRF_SEQ=["","Maragogi","Carneiros","São José","Evento","Folga"];
 
   // ================= REMANEJAMENTO DO BOX (fase 1: registro, sem mexer no Phoenix) =================
   const API_REMAN="https://us-central1-operacional-luck.cloudfunctions.net/remanejamento";
@@ -3905,7 +3905,7 @@
     h+='<div class="card" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:640px"><thead><tr><th></th>'+dias.map((d,k)=>'<th style="font-size:.78rem;color:var(--muted);padding:6px">'+nomesDia[k]+' '+d.slice(8,10)+'</th>').join("")+'</tr></thead><tbody>'
       +pessoas.map(n=>'<tr><td style="font-weight:700;padding:8px 6px;white-space:nowrap">'+esc(n)+'</td>'+dias.map(d=>{ const v=(D.dias[n]||{})[d]||"", c=TRF_COR[v]||["transparent","var(--muted)"];
         return '<td style="padding:4px"><button onclick="trfCiclo(\''+esc(n)+'\',\''+d+'\')" style="width:100%;min-height:34px;border-radius:9px;border:1px '+(v?'solid transparent':'dashed var(--linha)')+';background:'+c[0]+';color:'+c[1]+';font:inherit;font-size:.8rem;font-weight:700;cursor:pointer">'+(v||"—")+'</button></td>'; }).join("")+'</tr>').join("")
-      +'</tbody></table><p style="font-size:.76rem;color:var(--muted);margin:10px 0 0">Clique no dia para trocar: Maragogi → Carneiros → São José → Folga → vazio. Marque "top vendas" nos 2 que mais venderam (direito a 5 Maragogi; os outros, 3).</p></div>';
+      +'</tbody></table><p style="font-size:.76rem;color:var(--muted);margin:10px 0 0">Clique no dia para trocar: Maragogi → Carneiros → São José → Evento → Folga → vazio. Marque "top vendas" nos 2 que mais venderam (direito a 5 Maragogi; os outros, 3).</p></div>';
     box.innerHTML=h;
   }
   async function trfCiclo(nome,data){
