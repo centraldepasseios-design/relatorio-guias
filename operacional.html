@@ -4216,6 +4216,16 @@
     if(v) alert("Valores liberados."+(j.avisados?" "+j.avisados+" guia(s) avisados no WhatsApp.":""));
     atualizarPiloto();
   }
+  // atualizar o mapa de um guia: não deixa rodar duas vezes e não trava a tela se o servidor demorar ou falhar
+  let ATUALIZANDO_GUIA=false;
+  async function atualizarMapaGuia(g,dias){
+    if(ATUALIZANDO_GUIA){ alert("Já estou atualizando um mapa. Espere terminar."); return {ok:false,erro:"ocupado",silencio:true}; }
+    ATUALIZANDO_GUIA=true; const info=document.getElementById("pilPhxInfo");
+    if(info) info.textContent="Atualizando o mapa de "+g.nome+" pelo Phoenix... pode levar 1 a 2 minutos.";
+    try{ return await chamarPiloto("atualizarGuia",{gid:g.gid,...(dias?{dias}:{})}); }
+    catch(e){ return {ok:false,erro:"o servidor demorou demais ou caiu. Recarregue a página em 1 minuto e confira o mapa: às vezes a atualização termina mesmo assim."}; }
+    finally{ ATUALIZANDO_GUIA=false; if(info) info.textContent=""; }
+  }
   // contestação já aceita sem mexer no valor: corrige o serviço depois (mesmo "Definir valor" dos sem tarifa)
   async function pilotoCorrigirValor(gid,ro){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); const l=g&&(g.linhas||[]).find(x=>x.ro===ro);
@@ -4229,9 +4239,8 @@
   async function pilotoAtualizarGuia(gid){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
     if(!confirm("Atualizar o mapa de "+g.nome+" pelo Phoenix? Só dele, sem mandar WhatsApp. Pode levar 1 a 2 minutos.")) return;
-    const info=document.getElementById("pilPhxInfo"); if(info) info.textContent="Atualizando o mapa de "+g.nome+"...";
-    const j=await chamarPiloto("atualizarGuia",{gid}); if(info) info.textContent="";
-    if(!j.ok){ alert("Não consegui atualizar: "+j.erro); return; }
+    const j=await atualizarMapaGuia(g,[...new Set((g.contestacoes||[]).filter(c=>/faltou/i.test(c.tipo)&&c.data).map(c=>c.data))].slice(-3));
+    if(!j.ok){ if(!j.silencio) alert("Não consegui atualizar: "+j.erro); return; }
     alert("Mapa de "+g.nome+" atualizado: "+j.servicos+" serviços · "+brlP(j.totalMapa)+"."); atualizarPiloto();
   }
   async function pilotoLiberarGuia(gid,liberar){
@@ -4263,9 +4272,8 @@
       if(!(valorManual>0)){ alert("Valor inválido."); return; }
     }
     else if(status==="aceita"&&c&&/faltou/i.test(c.tipo)){
-      const info=document.getElementById("pilPhxInfo"); if(info) info.textContent="Atualizando o mapa de "+g.nome+" pelo Phoenix... pode levar 1 a 2 minutos.";
-      const a=await chamarPiloto("atualizarGuia",{gid}); if(info) info.textContent="";
-      if(!a.ok){ alert("Não consegui atualizar o mapa: "+a.erro); return; }
+      const a=await atualizarMapaGuia(g,c.data?[c.data]:null);
+      if(!a.ok){ if(!a.silencio) alert("Não consegui atualizar o mapa: "+a.erro); return; }
       if(!confirm("Mapa de "+g.nome+" atualizado: "+a.servicos+" serviços · "+brlP(a.totalMapa)+".\n\nConfira se o serviço novo entrou e clique OK para aceitar a contestação.")) { atualizarPiloto(); return; }
     }
     // aceitar contestação de um serviço do mapa: já corrige o valor (Não fiz = zera; Valor errado/Outro = pergunta o valor)
