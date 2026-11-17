@@ -4268,8 +4268,8 @@
     if(status==="aceita"&&c&&c.ro){
       const l=(g.linhas||[]).find(x=>x.ro===c.ro);
       if(l){
-        if(/n[ãa]o fiz/i.test(c.tipo)){ if(!confirm("Aceitar e zerar este serviço?\n\n"+l.servico+"\n"+brlP(l.valor)+" → R$ 0,00")) return; valor=0; }
-        else { const v=prompt("Novo valor deste serviço para o guia (R$).\n"+l.servico+"\nValor atual: "+brlP(l.valor)+"\n\nPara retirar, coloque 0. Deixe em branco para não mudar o valor.",String(l.valor).replace(".",","));
+        { const naoFez=/n[ãa]o fiz/i.test(c.tipo);
+          const v=prompt("Novo valor deste serviço para o guia (R$).\n"+l.servico+"\nValor atual: "+brlP(l.valor)+(c.obs?"\nO guia disse: "+c.obs:"")+"\n\n"+(naoFez?"Ele marcou que NÃO fez: o valor já vem 0. Se o problema era só o valor, digite o valor certo.":"Para retirar, coloque 0.")+" Deixe em branco para não mudar o valor.",naoFez?"0":String(l.valor).replace(".",","));
           if(v===null) return; if(v.trim()!==""){ valor=parseFloat(v.replace(/\./g,"").replace(",",".")); if(!(valor>=0)){ alert("Valor inválido."); return; } } }
       }
     }
