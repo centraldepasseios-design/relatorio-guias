@@ -4140,13 +4140,21 @@
   }
   async function pilotoValores(){
     const f=document.getElementById("pilPgg").files[0]; if(!f){ alert("Selecione a PGG."); return; }
-    await libsPagamentos(); const pgg=await lerPGG(f); const valores={}; const fora=[], duplos=[];
+    await libsPagamentos(); const pgg=await lerPGG(f); const valores={}; const fora=[], duplos=[], somar=[];
     for(const g of (PIL.dados?PIL.dados.guias:[])){
       let c=pgg.rows.filter(r=>normP(r.nome)===normP(g.nome)); if(!c.length) c=pgg.rows.filter(r=>nomeBate(r.nome,g.nome)||nomeBate(g.nome,r.nome));
       const comValor=c.filter(r=>(r.com||0)>0||(r.serv||0)>0||(r.liq||0)>0); if(comValor.length) c=comValor;
       if(!c.length){ fora.push(g); continue; }
+      if(c.length>1&&new Set(c.map(r=>normP(r.nome))).size===1){ somar.push({g,c}); continue; } // mesmo nome em várias linhas: soma (com confirmação)
       if(c.length>1){ duplos.push(g.nome+" ("+c.map(r=>r.nome).join(" / ")+")"); continue; }
       const r=c[0]; valores[g.gid]={serv:r.serv||0,com:r.com||0,reemb:r.reemb||0,maq:r.maq||0,liq:r.liq||0,nomePgg:r.nome};
+    }
+    if(somar.length){
+      const sm=(c,k)=>Math.round(c.reduce((t,r)=>t+(r[k]||0),0)*100)/100;
+      const txt=somar.map(({g,c})=>g.nome+" ("+c.length+" linhas): comissão "+c.map(r=>brlP(r.com||0)).join(" + ")+" = "+brlP(sm(c,"com"))+(sm(c,"reemb")?" · reembolso "+brlP(sm(c,"reemb")):"")+(sm(c,"maq")?" · maquineta "+brlP(sm(c,"maq")):"")).join("\n");
+      if(confirm("Estes guias aparecem em mais de uma linha da PGG, com o mesmo nome:\n\n"+txt+"\n\nOK = somar as linhas de cada um.\nCancelar = deixar sem valor para conferir a planilha."))
+        somar.forEach(({g,c})=>{ valores[g.gid]={serv:sm(c,"serv"),com:sm(c,"com"),reemb:sm(c,"reemb"),maq:sm(c,"maq"),liq:sm(c,"liq"),nomePgg:c[0].nome+" ("+c.length+" linhas somadas)"}; });
+      else somar.forEach(({g})=>duplos.push(g.nome));
     }
     // quem não está na PGG normalmente não vendeu: entra sem comissão, reembolso e maquineta (a Central confirma)
     if(fora.length&&confirm("Estes guias não estão na PGG:\n\n"+fora.map(g=>g.nome).join(", ")+"\n\nSe é porque não tiveram vendas, clique OK para lançar SEM comissão (R$ 0,00). O valor da nota deles fica só com os serviços.\n\nCancelar = deixar sem valor (confira se o nome não está diferente na PGG)."))
