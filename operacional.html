@@ -2583,18 +2583,33 @@
     }
     return out.join("\n");
   }
-  async function lerPGG(arquivo){
+  // a PGG tem uma aba por quinzena ("01 a 1511", "16 a 3011", "comissão de 16 a 311026"): usa a da quinzena escolhida
+  function abaDaQuinzena(nomes,qid){
+    if(!qid) return {aba:nomes[0]};
+    const [ini,fim]=qid.split("_"); const di=+ini.slice(8,10), df=+fim.slice(8,10), m=+ini.slice(5,7);
+    const ok=nomes.filter(n=>{ const x=String(n).match(/(\d{1,2})\s*a\s*(\d{2})(\d{2})/i); return x&&+x[1]===di&&+x[2]===df&&+x[3]===m; });
+    return ok.length===1?{aba:ok[0]}:{aba:null,achadas:ok};
+  }
+  async function lerPGG(arquivo,qid){
     const wb=XLSX.read(await arquivo.arrayBuffer());
-    const ws=wb.Sheets[wb.SheetNames[0]];
+    let {aba}=abaDaQuinzena(wb.SheetNames,qid);
+    if(!aba){
+      const q=qid.split("_").map(d=>dataBR(d).slice(0,5)).join(" a ");
+      const r=prompt("Não achei na PGG a aba da quinzena "+q+".\n\nAbas da planilha:\n"+wb.SheetNames.map((n,i)=>(i+1)+" · "+n).join("\n")+"\n\nDigite o número da aba certa:","");
+      const i=parseInt(r,10)-1; if(!(i>=0&&i<wb.SheetNames.length)) throw new Error("Nenhuma aba escolhida. Nada foi lançado.");
+      aba=wb.SheetNames[i];
+    }
+    const ws=wb.Sheets[aba];
     const linhas=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
     const periodo=String((linhas[0]||[])[0]||"");
+    const totalLinha=linhas.find(r=>/^TOTAL/i.test(String((r||[])[0]||"").trim()));
     const num=(v)=>v==null||v===""?null:(typeof v==="number"?v:parseFloat(String(v).replace(/[R$\s.]/g,"").replace(",",".")));
     const rows=[];
     for(const r of linhas.slice(1)){
       const nome=String(r[0]||"").trim(); if(!nome||/^TOTAL/i.test(nome)) continue;
       rows.push({nome, serv:num(r[1]), com:num(r[2]), reemb:num(r[3]), maq:num(r[4]), liq:num(r[5]), reembCli:num(r[6]), obs:r[7]||""});
     }
-    return {periodo, rows};
+    return {periodo, rows, aba, totalCom:totalLinha?num(totalLinha[2]):null};
   }
   async function lerPAAR(arquivo){
     const wb=XLSX.read(await arquivo.arrayBuffer()); const lista=[];
@@ -4160,7 +4175,7 @@
   }
   async function pilotoValores(){
     const f=document.getElementById("pilPgg").files[0]; if(!f){ alert("Selecione a PGG."); return; }
-    await libsPagamentos(); const pgg=await lerPGG(f); const valores={}; const fora=[], duplos=[], somar=[];
+    await libsPagamentos(); let pgg; try{ pgg=await lerPGG(f,PIL.qid); }catch(e){ alert(e.message); return; } const valores={}; const fora=[], duplos=[], somar=[];
     for(const g of (PIL.dados?PIL.dados.guias:[])){
       let c=pgg.rows.filter(r=>normP(r.nome)===normP(g.nome)); if(!c.length) c=pgg.rows.filter(r=>nomeBate(r.nome,g.nome)||nomeBate(g.nome,r.nome));
       const comValor=c.filter(r=>(r.com||0)>0||(r.serv||0)>0||(r.liq||0)>0); if(comValor.length) c=comValor;
@@ -4181,6 +4196,12 @@
       fora.forEach(g=>{ valores[g.gid]={serv:0,com:0,reemb:0,maq:0,liq:0,nomePgg:"(fora da PGG · sem comissão)"}; });
     const j=await chamarPiloto("valores",{valores}); if(!j.ok){ alert(j.erro); return; }
     if(duplos.length) alert("Achei mais de um nome na PGG para: "+duplos.join(", ")+". Confira a planilha.");
+    // resumo: aba usada, total da PGG × total lançado e quem tem comissão na PGG mas não tem serviço no mapa
+    const usados=new Set(Object.values(valores).map(v=>normP(String(v.nomePgg||"").replace(/\s*\(.*$/,""))));
+    const lancado=Object.values(valores).reduce((t,v)=>t+(v.com||0),0);
+    const sobra=pgg.rows.filter(r=>(r.com||0)>0&&!usados.has(normP(r.nome)));
+    alert("PGG lida da aba \""+pgg.aba+"\".\n\nTotal de comissão na PGG: "+(pgg.totalCom!=null?brlP(pgg.totalCom):"(sem linha TOTAL)")+"\nLançado para os guias: "+brlP(lancado)
+      +(sobra.length?"\n\nNa PGG com comissão, mas sem serviço no mapa desta quinzena:\n"+sobra.map(r=>r.nome+" · "+brlP(r.com)).join("\n"):""));
     atualizarPiloto();
   }
   async function pilotoFecharTodos(){
