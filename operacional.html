@@ -317,7 +317,7 @@
     else if(r.ok){ USUARIO=r; iniciarApp(); }
     else msg(r.erro||"Erro ao entrar.","erro");
   }
-  function sair(){ if(AVISOS_TIMER){ clearInterval(AVISOS_TIMER); AVISOS_TIMER=null; } PLANO.avisos=[]; pararAcompanhamento(); USUARIO=null; document.getElementById("app").classList.remove("ativo"); document.getElementById("telaAcesso").style.display="flex"; loginSenha.value=""; }
+  function sair(){ if(AVISOS_TIMER){ clearInterval(AVISOS_TIMER); AVISOS_TIMER=null; } if(SELO.timer){ clearInterval(SELO.timer); SELO.timer=null; } PLANO.avisos=[]; pararAcompanhamento(); USUARIO=null; document.getElementById("app").classList.remove("ativo"); document.getElementById("telaAcesso").style.display="flex"; loginSenha.value=""; }
 
   // ---- App ----
   const ABAS = {
@@ -373,6 +373,8 @@
     aplicarPrefSidebar();
     if(AVISOS_TIMER) clearInterval(AVISOS_TIMER);
     if(USUARIO.admin||(USUARIO.areas||[]).includes("central")){ atualizarAvisosPlano(); AVISOS_TIMER=setInterval(atualizarAvisosPlano,60000); }
+    if(SELO.timer) clearInterval(SELO.timer);
+    if(USUARIO.admin||(USUARIO.areas||[]).some(x=>x==="central"||x==="box")){ selosApoio(); SELO.timer=setInterval(selosApoio,60000); }
   }
 
   function montarMenu(){
@@ -3332,8 +3334,31 @@
     const r=await fetch(API_APOIOBOX,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,data:ABX.dia,...dados})});
     const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
   }
+  // ---- selos vermelhos do Apoio ao Box (hoje + 3 dias) ----
+  // Central (Solicitações): apoios pedidos pelo Box ainda sem guia. Box (Apoio ao Box): apoios em que a Central já colocou o guia e o Box ainda não viu.
+  const SELO={timer:null,apoios:[]};
+  const seloVistos=()=>{ try{ return JSON.parse(localStorage.getItem("abxVistos")||"[]"); }catch(e){ return []; } };
+  const seloChave=(a)=>a.data+"|"+a.id+"|"+normP(a.guia||"");
+  function seloMostrar(id,n){ const e=document.getElementById("selo-"+id); if(e){ e.textContent=n; e.style.display=n?"inline-block":"none"; } }
+  async function selosApoio(){
+    const hj=consHoje(); const dias=[0,1,2,3].map(n=>{ const d=new Date(hj+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); });
+    const todos=[];
+    await Promise.all(dias.map(async d=>{ try{
+      const r=await fetch(API_APOIOBOX,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"ler",token:USUARIO.token,data:d})});
+      const j=await r.json(); if(j&&j.ok) todos.push(...(j.apoios||[]).map(a=>({...a,data:d}))); }catch(e){} }));
+    SELO.apoios=todos;
+    seloMostrar("cen-solic",todos.filter(a=>!a.guia).length);
+    const vistos=seloVistos(); seloMostrar("box-apoio",todos.filter(a=>a.guia&&!vistos.includes(seloChave(a))).length);
+  }
+  // o Box abriu "Apoio ao Box": o que já tem guia passa a contar como visto
+  function selosBoxVistos(){
+    const ja=new Set(seloVistos()); SELO.apoios.filter(a=>a.guia).forEach(a=>ja.add(seloChave(a)));
+    try{ localStorage.setItem("abxVistos",JSON.stringify([...ja].slice(-300))); }catch(e){}
+    seloMostrar("box-apoio",0);
+  }
   function renderApoioBox(m){
     ABX.naCentral=false;
+    selosApoio().then(selosBoxVistos);
     if(!ABX.dia){ const d=new Date(consHoje()+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+1); ABX.dia=d.toISOString().slice(0,10); }
     cab("Peça aqui os apoios do dia; a Central coloca o guia","");
     const inp='style="height:42px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit"';
@@ -3393,10 +3418,10 @@
     for(const d of dias){ try{ const j=await chamarApoioBox("criar",{...corpo,data:d}); if(d===ABX.dia) ABX.apoios=j.apoios; }catch(e){ erros.push(dataBR(d).slice(0,5)+": "+e.message); } }
     if(erros.length) alert("Alguns dias não foram salvos:\n"+erros.join("\n"));
     else if(dias.length>1) alert("Pedido incluído em "+dias.length+" dias: "+dias.map(d=>dataBR(d).slice(0,5)).join(", ")+".");
-    v("abxObs").value=""; v("abxQtd").value=1; ABX.mais=[]; const m=document.getElementById("abxMais"); if(m) m.innerHTML=""; abxDesenhar();
+    selosApoio(); v("abxObs").value=""; v("abxQtd").value=1; ABX.mais=[]; const m=document.getElementById("abxMais"); if(m) m.innerHTML=""; abxDesenhar();
   }
-  async function abxGuia(id,guia){ try{ const j=await chamarApoioBox("guia",{id,guia}); ABX.apoios=j.apoios; abxDesenhar(); }catch(e){ alert(e.message); } }
-  async function abxRemover(id){ if(!confirm("Remover este apoio?")) return; try{ const j=await chamarApoioBox("remover",{id}); ABX.apoios=j.apoios; abxDesenhar(); }catch(e){ alert(e.message); } }
+  async function abxGuia(id,guia){ try{ const j=await chamarApoioBox("guia",{id,guia}); ABX.apoios=j.apoios; abxDesenhar(); selosApoio(); }catch(e){ alert(e.message); } }
+  async function abxRemover(id){ if(!confirm("Remover este apoio?")) return; try{ const j=await chamarApoioBox("remover",{id}); ABX.apoios=j.apoios; abxDesenhar(); selosApoio(); }catch(e){ alert(e.message); } }
   function abxMsg(a){
     const hj=consHoje(), am=(()=>{ const d=new Date(hj+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+1); return d.toISOString().slice(0,10); })();
     const quando=ABX.dia===am?"Amanhã ("+dataBR(ABX.dia).slice(0,5)+")":ABX.dia===hj?"Hoje ("+dataBR(ABX.dia).slice(0,5)+")":"No dia "+dataBR(ABX.dia).slice(0,5);
