@@ -4038,7 +4038,7 @@
         +(v?'<span>Serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
         +(dif?'<div style="font-size:.8rem;color:#b45309;margin-top:6px">ℹ️ A PGG tem '+brlP(v.servPgg)+' de serviços; o sistema calculou '+brlP(v.serv)+' pelo Phoenix. O valor da nota usa o do sistema.</div>':'')
         +(g.contestacoes||[]).map(c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
-          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita"+(c.valorDepois!=null?" · "+brlP(c.valorAntes)+" → "+brlP(c.valorDepois):""):"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>')+'</div>').join("")
+          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita"+(c.valorDepois!=null?" · "+brlP(c.valorAntes)+" → "+brlP(c.valorDepois):""):"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>'+(c.status==="aceita"&&c.valorDepois==null?(c.ro?'<button class="btn mini sec" onclick="pilotoCorrigirValor(\''+g.gid+'\',\''+esc(c.ro)+'\')">Corrigir valor</button>':'<button class="btn mini sec" onclick="pilotoAtualizarGuia(\''+g.gid+'\')">Atualizar mapa dele</button>'):''))+'</div>').join("")
         +(g.linhas||[]).filter(l=>/sem tarifa/i.test(l.obs||"")).map(l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>').join("")
         +(g.lancamentos||[]).map(x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
           +(x.status==="aberto"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'aceito\','+(x.sugerido||0)+')">Aceitar</button><button class="btn mini danger" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'negado\',0)">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(x.status==="aceito"?"var(--ok)":"var(--alerta)")+'">'+(x.status==="aceito"?"Aceito · "+brlP(x.valor):"Negado")+'</span>')+'</div>').join("")
@@ -4137,6 +4137,24 @@
     const j=await chamarPiloto("liberar",{liberado:v}); if(!j.ok){ alert(j.erro); return; }
     if(v) alert("Valores liberados."+(j.avisados?" "+j.avisados+" guia(s) avisados no WhatsApp.":""));
     atualizarPiloto();
+  }
+  // contestação já aceita sem mexer no valor: corrige o serviço depois (mesmo "Definir valor" dos sem tarifa)
+  async function pilotoCorrigirValor(gid,ro){
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); const l=g&&(g.linhas||[]).find(x=>x.ro===ro);
+    if(!l){ alert("Esse serviço não está mais no mapa do guia."); return; }
+    const v=prompt("Valor correto deste serviço para "+g.nome+" (R$):\n"+l.servico+"\nValor atual: "+brlP(l.valor)+"\n\nPara retirar, coloque 0.",String(l.valor).replace(".",","));
+    if(v===null||v.trim()==="") return; const valor=parseFloat(v.replace(/\./g,"").replace(",","."));
+    if(!(valor>=0)){ alert("Valor inválido."); return; }
+    const j=await chamarPiloto("ajustar",{gid,ro,valor,obs:"corrigido pela Central (contestação)"}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+  }
+  // "Faltou serviço" já aceito: monta de novo o mapa só desse guia pelo Phoenix (sem WhatsApp)
+  async function pilotoAtualizarGuia(gid){
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
+    if(!confirm("Atualizar o mapa de "+g.nome+" pelo Phoenix? Só dele, sem mandar WhatsApp. Pode levar 1 a 2 minutos.")) return;
+    const info=document.getElementById("pilPhxInfo"); if(info) info.textContent="Atualizando o mapa de "+g.nome+"...";
+    const j=await chamarPiloto("atualizarGuia",{gid}); if(info) info.textContent="";
+    if(!j.ok){ alert("Não consegui atualizar: "+j.erro); return; }
+    alert("Mapa de "+g.nome+" atualizado: "+j.servicos+" serviços · "+brlP(j.totalMapa)+"."); atualizarPiloto();
   }
   async function pilotoLiberarGuia(gid,liberar){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
