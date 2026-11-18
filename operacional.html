@@ -338,6 +338,9 @@
     solic: {nome:"Solicitações", itens:[
       {id:"sol-pedidos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/><path d=\"M12 14v4M10 16h4\"/></svg>", nome:"Pedidos de guia"},
     ]},
+    financeiro: {nome:"Financeiro", itens:[
+      {id:"fin-comissao", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6\"/></svg>", nome:"Comissão dos guias"},
+    ]},
     porto: {nome:"Operacional Porto", itens:[
       {id:"porto-consulta", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/></svg>", nome:"Consulta de reservas"},
       {id:"porto-vagas", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 17h4V5H2v12h3\"/><path d=\"M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1\"/><circle cx=\"7.5\" cy=\"17.5\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"17.5\" r=\"2.5\"/></svg>", nome:"Vagas"},
@@ -434,6 +437,7 @@
     if(id==="rec-obs"||id==="box-obs"){ renderObs(m); return; }
     if(id==="box-apoio"){ renderApoioBox(m); return; }
     if(id==="sol-pedidos"){ renderSol(m); return; }
+    if(id==="fin-comissao"){ renderFinanceiro(m); return; }
     if(id==="cen-solic"){ renderCenSolic(m); return; }
     if(id==="cen-transf"){ renderTransf(m); return; }
     if(id==="box-reman"||id==="cen-reman"){ renderReman(m); return; }
@@ -2688,6 +2692,74 @@
     if(dup.length) prob.push("nota repetida");
     return {ok,prob,info,dif};
   }
+  // ---- Financeiro: comissão, reembolso e maquineta de cada guia (no lugar de mandar a PGG) ----
+  const FIN={qid:"",dados:null,edit:{}};
+  async function chamarFin(acao,dados){ const r=await fetch(API_PILOTO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,qid:FIN.qid,...dados})}); const j=await r.json(); sessaoExpirou(j); return j; }
+  function renderFinanceiro(m){
+    cab("Comissão dos guias","Financeiro");
+    m.innerHTML='<div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">'
+      +'<label style="font-size:.8rem;font-weight:700">Quinzena<br><select id="finQ" onchange="FIN.qid=this.value;FIN.edit={};finCarregar()" style="margin-top:4px"></select></label>'
+      +'<label class="btn sec" style="cursor:pointer">Importar da PGG<input type="file" accept=".xlsx,.xls" style="display:none" onchange="finImportar(this)"></label>'
+      +'<span style="margin-left:auto;display:flex;gap:8px"><button class="btn sec" onclick="finSalvar()">Salvar</button><button class="btn" onclick="finConcluir()">Concluir e avisar a Central</button></span></div>'
+      +'<div id="finInfo" style="font-size:.8rem;color:var(--muted);margin-top:10px">Digite a comissão, o reembolso e a maquineta de cada guia, ou importe a PGG para preencher. Nada vale até clicar em Salvar.</div></div>'
+      +'<div id="finTab"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
+    finCarregar();
+  }
+  async function finCarregar(){
+    const j=await chamarFin("finLer",{}); const box=document.getElementById("finTab"); if(!box) return;
+    if(!j.ok){ box.innerHTML='<div class="card">'+esc(j.erro)+'</div>'; return; }
+    FIN.qid=j.qid; FIN.dados=j;
+    const sel=document.getElementById("finQ"); sel.innerHTML=j.quinzenas.map(q=>{ const [a,b]=q.split("_"); return '<option value="'+q+'"'+(q===j.qid?" selected":"")+'>'+dataBR(a).slice(0,5)+' a '+dataBR(b)+'</option>'; }).join("");
+    finDesenhar();
+  }
+  const finNum=(v)=>{ if(v==null||String(v).trim()==="") return null; if(typeof v==="number") return Math.round(v*100)/100; const n=parseFloat(String(v).replace(/[^\d,.-]/g,"").replace(/\./g,"").replace(",",".")); return isFinite(n)?Math.round(n*100)/100:NaN; };
+  function finValor(g,k){ const e=FIN.edit[g.gid]; return e&&e[k]!==undefined?e[k]:g[k]; }
+  function finDesenhar(){
+    const j=FIN.dados, box=document.getElementById("finTab"); if(!j||!box) return;
+    const f=j.financeiro;
+    const st=f?'<div class="card" style="border-left:4px solid var(--ok);font-size:.84rem">✓ Concluído e enviado à Central por <b>'+esc(f.por)+'</b> em '+new Date(f.em).toLocaleString("pt-BR")+' · comissão total '+brlP(f.totalComissao)+(f.faltam&&f.faltam.length?' · <span style="color:var(--alerta)">sem valor: '+esc(f.faltam.join(", "))+'</span>':'')+'. Se mudar algo, salve e conclua de novo.</div>':'';
+    const T={serv:0,com:0,reemb:0,maq:0,liq:0};
+    const inp=(g,k)=>{ const v=finValor(g,k); return '<input inputmode="decimal" style="width:96px;text-align:right" '+(g.travado?'disabled title="Nota já enviada: a Central precisa pedir nova nota antes de mudar"':'')+' value="'+(v==null?"":String(v).replace(".",","))+'" onchange="finMudou(\''+g.gid+'\',\''+k+'\',this.value)">'; };
+    const linhas=j.guias.map(g=>{ const c=finNum(finValor(g,"com")), r=finNum(finValor(g,"reemb"))||0, q=finNum(finValor(g,"maq"))||0; const liq=c==null||isNaN(c)?null:Math.round((g.serv+c-r-q)*100)/100;
+      if(liq!=null){ T.serv+=g.serv; T.com+=c; T.reemb+=r; T.maq+=q; T.liq+=liq; }
+      const mud=!!FIN.edit[g.gid];
+      return '<tr style="'+(mud?'background:rgba(245,158,11,.12)':'')+'"><td style="padding:6px 8px"><b>'+esc(g.nome)+'</b>'+(g.travado?'<div style="font-size:.72rem;color:var(--muted)">🔒 nota '+esc(g.nota.numero||"")+' enviada</div>':(!g.lancado&&!mud?'<div style="font-size:.72rem;color:var(--alerta)">sem valor</div>':''))+'</td>'
+        +'<td style="text-align:right;padding:6px 8px;white-space:nowrap">'+brlP(g.serv)+'</td><td style="padding:6px 8px">'+inp(g,"com")+'</td><td style="padding:6px 8px">'+inp(g,"reemb")+'</td><td style="padding:6px 8px">'+inp(g,"maq")+'</td>'
+        +'<td style="text-align:right;padding:6px 8px;font-weight:700;white-space:nowrap">'+(liq==null?"—":brlP(liq))+'</td></tr>'; }).join("");
+    const pend=Object.keys(FIN.edit).length;
+    box.innerHTML=st+'<div class="card"><div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.84rem;margin-bottom:8px"><span><b>'+j.guias.length+'</b> guias</span><span><b>'+j.guias.filter(g=>!g.lancado).length+'</b> sem valor</span>'+(pend?'<span style="color:#b45309"><b>'+pend+'</b> alteração(ões) não salva(s)</span>':'')+'<span style="margin-left:auto">Comissão total: <b>'+brlP(T.com)+'</b></span></div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.84rem"><thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase"><th style="padding:6px 8px">Guia</th><th style="padding:6px 8px;text-align:right">Serviços</th><th style="padding:6px 8px">Comissão</th><th style="padding:6px 8px">Reembolso</th><th style="padding:6px 8px">Maquineta</th><th style="padding:6px 8px;text-align:right">Nota</th></tr></thead><tbody>'+linhas
+      +'<tr style="border-top:2px solid var(--linha);font-weight:800"><td style="padding:6px 8px">Total</td><td style="text-align:right;padding:6px 8px">'+brlP(T.serv)+'</td><td style="padding:6px 8px">'+brlP(T.com)+'</td><td style="padding:6px 8px">'+brlP(T.reemb)+'</td><td style="padding:6px 8px">'+brlP(T.maq)+'</td><td style="text-align:right;padding:6px 8px">'+brlP(T.liq)+'</td></tr></tbody></table></div></div>';
+  }
+  function finMudou(gid,k,v){ const n=finNum(v); if(isNaN(n)||(n!=null&&n<0)){ alert("Valor inválido."); finDesenhar(); return; } (FIN.edit[gid]=FIN.edit[gid]||{})[k]=n; finDesenhar(); }
+  async function finImportar(inp){
+    const f=inp.files[0]; inp.value=""; if(!f||!FIN.dados) return;
+    try{ await libsPagamentos(); const pgg=await lerPGG(f,FIN.qid); let ach=0; const fora=[], duvida=[];
+      for(const g of FIN.dados.guias){ if(g.travado) continue;
+        let c=pgg.rows.filter(r=>normP(r.nome)===normP(g.nome)); if(!c.length) c=pgg.rows.filter(r=>nomeBate(r.nome,g.nome)||nomeBate(g.nome,r.nome));
+        const cv=c.filter(r=>(r.com||0)>0||(r.reemb||0)>0||(r.maq||0)>0); if(cv.length) c=cv;
+        if(!c.length){ fora.push(g.nome); FIN.edit[g.gid]={com:0,reemb:0,maq:0}; continue; }
+        if(new Set(c.map(r=>normP(r.nome))).size>1){ duvida.push(g.nome+" ("+c.map(r=>r.nome).join(" / ")+")"); continue; }
+        const sm=(k)=>Math.round(c.reduce((t,r)=>t+(r[k]||0),0)*100)/100; FIN.edit[g.gid]={com:sm("com"),reemb:sm("reemb"),maq:sm("maq")}; ach++; }
+      finDesenhar();
+      alert("PGG lida da aba \""+pgg.aba+"\". Preenchidos "+ach+" guia(s)."+(fora.length?"\n\nSem linha na PGG (ficaram com R$ 0, confira): "+fora.join(", "):"")+(duvida.length?"\n\nNome parecido com mais de uma linha (preencha à mão): "+duvida.join(", "):"")+"\n\nConfira a tabela e clique em Salvar.");
+    }catch(e){ alert(e.message); }
+  }
+  async function finSalvar(){
+    const valores={}; for(const [gid,e] of Object.entries(FIN.edit)){ const g=FIN.dados.guias.find(x=>x.gid===gid); if(!g||g.travado) continue;
+      const c=e.com!==undefined?e.com:g.com; if(c==null){ alert("Falta a comissão de "+g.nome+" (coloque 0 se não tem)."); return; }
+      valores[gid]={com:c,reemb:(e.reemb!==undefined?e.reemb:g.reemb)||0,maq:(e.maq!==undefined?e.maq:g.maq)||0}; }
+    if(!Object.keys(valores).length){ alert("Nenhuma alteração para salvar."); return; }
+    const j=await chamarFin("finSalvar",{valores}); if(!j.ok){ alert(j.erro); return; }
+    FIN.edit={}; await finCarregar();
+    alert("Salvo ✓ "+j.salvos.length+" guia(s)."+(j.travados.length?"\n\nNão alterados (nota já enviada): "+j.travados.join(", "):""));
+  }
+  async function finConcluir(){
+    if(Object.keys(FIN.edit).length&&!confirm("Há alterações não salvas. Elas NÃO vão junto. Continuar?")) return;
+    let j=await chamarFin("finConcluir",{});
+    if(!j.ok&&j.faltam){ if(!confirm("Ainda sem valor: "+j.faltam.join(", ")+".\n\nConcluir mesmo assim?")) return; j=await chamarFin("finConcluir",{mesmoAssim:true}); }
+    if(!j.ok){ alert(j.erro); return; } await finCarregar(); alert("Pronto! A Central foi avisada de que os valores estão lançados.");
+  }
   function renderPagamentos(m){
     const aba=["quinzena","comissao","tarifario","notas"].includes(PAG.aba)?PAG.aba:"quinzena";
     const abas=segmento([["quinzena","Quinzena dos guias"],["comissao","Comissão"],["tarifario","Tarifário"],["notas","Notas recebidas por fora"]],aba,"PAG.aba='$v';renderPagamentos(document.getElementById('mainConteudo'))");
@@ -3990,9 +4062,9 @@
       +'<label style="display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)">Quinzena<select id="qSel" onchange="PIL.qid=this.value;renderPagamentos(document.getElementById(\'mainConteudo\'))" style="height:44px;padding:0 12px;font-weight:700"><option value="'+PIL.qid+'">'+nomeQ(PIL.qid)+'</option></select></label>'
       +'<div style="flex:1;min-width:240px;font-size:.84rem;color:var(--muted)">'+(aberta?'Quinzena em andamento: os guias veem a prévia no app. O mapa final é montado sozinho no dia '+(fim.slice(8)==="15"?"16":"1")+', às 8h, e eles recebem o aviso no WhatsApp.':'O mapa é montado sozinho pelo Phoenix no fechamento. Se corrigirem algo no Phoenix, atualize aqui.')+'</div>'
       +'<button class="btn sec" onclick="pilotoFecharTodos()">Atualizar mapa pelo Phoenix</button></div>'
-      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Comissão</h3><p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">A comissão de cada guia vem do Phoenix (vendas pagas e conciliadas na quinzena), atualizada a cada 2 horas, e os guias já acompanham no app. Para fechar: use a do Phoenix ou suba a PGG do financeiro (que também traz reembolso e maquineta), e libere. Cada guia recebe o aviso no WhatsApp.</p>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span id="comInfo" style="font-size:.82rem;color:var(--muted)"></span><button class="btn sec" onclick="comissaoAgora()">Buscar comissão no Phoenix</button><button class="btn sec" onclick="usarComissaoPhoenix()">Usar a comissão do Phoenix</button></div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilPgg" accept=".xlsx,.xls"><button class="btn" onclick="pilotoValores()">Atualizar valores</button><span id="pilLib"></span><span id="pilPhxInfo" style="font-size:.8rem;color:var(--muted)"></span></div></div>'
+      +'<div class="card"><h3 style="font-size:1rem;margin-bottom:8px">Comissão</h3><p style="font-size:.82rem;color:var(--muted);margin-bottom:6px">A comissão, o reembolso e a maquineta de cada guia são lançados pelo Financeiro (menu Financeiro → Comissão dos guias). Confira na aba <b>Comissão</b> da lista abaixo e libere. Se precisar, a Central também pode subir a PGG aqui.</p>'
+      +'<div id="pilFin" style="margin-bottom:10px"></div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="pilPgg" accept=".xlsx,.xls"><button class="btn sec" onclick="pilotoValores()">Atualizar pela PGG</button><span id="pilLib"></span><span id="pilPhxInfo" style="font-size:.8rem;color:var(--muted)"></span></div></div>'
       +'<div id="pilStatus"><div class="card" style="color:var(--muted)">Carregando...</div></div>';
   }
   async function comissaoAgora(){ const i=document.getElementById("comInfo"); if(i) i.textContent="Buscando no Phoenix...";
@@ -4065,6 +4137,7 @@
     if(!j.ok){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro)+'</div>'; return; }
     PIL.dados=JSON.parse(JSON.stringify(PIL.bruto));
     const lib=!!(j.quinzena&&j.quinzena.liberado);
+    { const fi=document.getElementById("pilFin"), f=j.quinzena&&j.quinzena.financeiro; if(fi) fi.innerHTML=f?'<div style="font-size:.82rem;color:var(--ok);font-weight:700">✓ Financeiro concluiu os valores ('+esc(f.por)+', '+new Date(f.em).toLocaleString("pt-BR")+') · comissão total '+brlP(f.totalComissao)+'</div>':'<div style="font-size:.82rem;color:#b45309;font-weight:700">Financeiro ainda não concluiu os valores desta quinzena.</div>'; }
     const ci=document.getElementById("comInfo"); if(ci) ci.innerHTML=j.comissaoEm?'Comissão do Phoenix lida até <b>'+dataBR(j.comissaoAte).slice(0,5)+'</b> · '+new Date(j.comissaoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):'Comissão do Phoenix ainda não lida nesta quinzena.';
     document.getElementById("pilLib").innerHTML='<button class="btn '+(lib?"sec":"")+'" onclick="pilotoLiberar('+(!lib)+')">'+(lib?"Valores liberados ✓ (desfazer)":"Liberar valores para os guias")+'</button>';
     if(!j.guias.length){ box.innerHTML='<div class="em-breve"><div class="ic">🗓️</div><h3>Mapa ainda não montado</h3><p>Ele é montado sozinho no fechamento da quinzena. Para montar agora, use "Atualizar mapa pelo Phoenix".</p></div>'; return; }
@@ -4943,8 +5016,8 @@
     lista.innerHTML=html;
   }
   function linhaUsuario(u, pendente){
-    const areas=["recife","porto","central","box","solic"];
-    const nomes={recife:"Recife",porto:"Porto",central:"Central",box:"Box",solic:"Solicitações"};
+    const areas=["recife","porto","central","box","solic","financeiro"];
+    const nomes={recife:"Recife",porto:"Porto",central:"Central",box:"Box",solic:"Solicitações",financeiro:"Financeiro"};
     const chips=areas.map(a=>'<span class="chip '+(u.areas&&u.areas.includes(a)?"on":"")+'" onclick="toggleArea(this)" data-area="'+a+'">'+nomes[a]+'</span>').join("");
     const acao = pendente
       ? '<button class="btn mini" onclick="aprovarUsuario(\''+u.email+'\',this)">Aprovar</button> <button class="btn mini danger" onclick="recusarUsuario(\''+u.email+'\')">Recusar</button>'
