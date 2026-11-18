@@ -289,9 +289,11 @@ function lerNota(texto) {
       const texto=await textoPdf(arq);
       if(/Gerado pelo app da Central de Guias|Servi[çc]os da quinzena para emiss[ãa]o da NFS-e/i.test(texto)){ const x=document.getElementById("lendo"); if(x) x.remove();
         alert("Esse é o PDF de serviços para o contador, não a nota fiscal.\n\nEnvie o PDF da nota fiscal emitida (NFS-e ou nota avulsa)."); inp.value=""; return; }
+      const semTexto=String(texto||"").replace(/\s+/g,"").length<40; // PDF com as letras em imagem: a Central confere na mão
       const leitura=lerNota(texto);
       const b64=await new Promise((ok,er)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=er; r.readAsDataURL(arq); });
-      const j=await api("nota",{pdf:b64,nomeArquivo:arq.name,leitura:{numero:leitura.numero,valor:leitura.valor,tipo:leitura.tipo,prestadorDoc:leitura.prestadorDoc,prestadorNome:leitura.prestadorNome,competencia:leitura.competencia,luck:leitura.luck}});
+      const j=await api("nota",{pdf:b64,nomeArquivo:arq.name,leitura:{numero:leitura.numero,valor:leitura.valor,tipo:leitura.tipo,prestadorDoc:leitura.prestadorDoc,prestadorNome:leitura.prestadorNome,competencia:leitura.competencia,luck:leitura.luck,semTexto}});
+      if(j.ok&&semTexto) alert("Nota enviada! Esse PDF não tem texto para o app ler (as letras estão como imagem), então a Central vai conferir olhando o arquivo. Você será avisado se precisar de algo.");
       if(!j.ok){ alert(j.erro); } await carregar();
     }catch(e){ alert("Não consegui ler esse PDF. Envie o PDF da nota baixado do emissor."); const x=document.getElementById("lendo"); if(x) x.remove(); }
   }

@@ -4099,7 +4099,7 @@
           return (abC.length||abL.length||st.length?tit("Precisa de resposta")+abC.map(fC).join("")+abL.map(fL).join("")+st.map(fS).join(""):"")
             +(feitas?'<details style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">'+feitas+' resolvida'+(feitas>1?'s':'')+'</summary>'+cs.filter(c=>c.status!=="aberta").map(fC).join("")+ls.filter(x=>x.status!=="aberto").map(fL).join("")+'</details>':""); })()
         +'<details class="rpbox" style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px" ontoggle="rpAbrir(\''+g.gid+'\',this)"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">Relatório do guia <span id="rpb-'+g.gid+'"></span></summary><div id="rp-'+g.gid+'" style="margin-top:8px"></div></details>'
-        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button><button class="btn mini danger" onclick="pilotoNovaNota(\''+g.gid+'\')">Pedir nova nota</button></span></div>':'')
+        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena"+(g.nota.conferidaManual?" (conferida na mão por "+esc(g.nota.conferidaManual.por)+")":""):"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button><button class="btn mini danger" onclick="pilotoNovaNota(\''+g.gid+'\')">Pedir nova nota</button>'+(g.nota.ok?'':'<button class="btn mini" title="Abriu o PDF e conferiu na mão" onclick="pilotoConfirmarNota(\''+g.gid+'\')">Conferi: está certa</button>')+'</span></div>':'')
         +(!g.nota&&g.novaNota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;color:#9f2a15"><b>Nova nota pedida</b> · '+esc(g.novaNota.motivo)+'</div>':'')
         +'</div>';
     }).join("");
@@ -4306,6 +4306,16 @@
     alert("Mapa de "+g.nome+" atualizado: "+j.servicos+" serviços · "+brlP(j.totalMapa)+"."+((j.phoenixLento&&j.phoenixLento.length)?"\n\n⚠️ O Phoenix não respondeu a tempo: foi usada a cópia guardada. Tente de novo em 2 ou 3 minutos.":"")); atualizarPiloto();
   }
   // a nota enviada tem erro: guarda a anterior, avisa o guia no app e libera o envio de uma nota nova
+  // nota que o sistema não conseguiu ler (ex.: PDF sem texto): a Central abre o PDF, confere e confirma
+  async function pilotoConfirmarNota(gid){
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g||!g.nota) return;
+    if(!confirm("Antes de confirmar, abra o PDF (Baixar PDF) e confira:\n\n• Tomador: AGENCIA LUCK VIAGENS E TURISMO · CNPJ 10.866.549/0001-17\n• Prestador: "+g.nome+"\n• Valor da nota: "+brlP(g.valores?g.valores.liq:0)+"\n\nJá conferiu o PDF?")) return;
+    const numero=prompt("Número da nota (como está no PDF):",g.nota.numero||""); if(numero===null) return;
+    const v=prompt("Valor total da nota (como está no PDF):",""); if(v===null) return;
+    const valor=parseFloat(v.replace(/[^\d,.-]/g,"").replace(/\./g,"").replace(",","."));
+    const j=await chamarPiloto("confirmarNota",{gid,numero:numero.trim(),valor}); if(!j.ok){ alert(j.erro); return; }
+    alert("Nota "+numero.trim()+" de "+g.nome+" conferida ✓ (registrado que foi conferida na mão)."); atualizarPiloto();
+  }
   async function pilotoNovaNota(gid){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g||!g.nota) return;
     const m=prompt("Pedir uma nova nota para "+g.nome+".\nA nota atual ("+(g.nota.numero||"sem número")+" · "+brlP(g.nota.valor)+") fica guardada no histórico e ele poderá enviar outra pelo app.\n\nMotivo (aparece para o guia):",g.nota.ok?"":(g.nota.problemas||[]).join(" · "));
