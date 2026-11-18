@@ -4074,6 +4074,7 @@
     const bq=normP(PIL.busca||""); if(bq) vis=vis.filter(g=>normP(g.nome).includes(bq));
     vis.sort((a,b)=>(pend(b)?1:0)-(pend(a)?1:0)||a.nome.localeCompare(b.nome));
     const topo='<div class="cards-resumo"><div class="resumo"><div class="num">'+cont.todos+'</div><div class="lbl">Guias com serviço</div></div><div class="resumo'+(cont.pend?' alerta':'')+'"><div class="num">'+cont.pend+'</div><div class="lbl">Com pendência pra vocês</div></div><div class="resumo ok"><div class="num">'+cont.ok+'</div><div class="lbl">Notas conferidas</div></div><div class="resumo'+(cont.prob?' alerta':'')+'"><div class="num">'+cont.prob+'</div><div class="lbl">Notas com problema</div></div><div class="resumo"><div class="num">'+cont.sem+'</div><div class="lbl">Sem nota</div></div></div>'
+      +'<div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button class="btn sec" onclick="pilotoPacote()" title="Baixa um .zip com todas as notas renomeadas pelo nome do guia e a planilha da quinzena">📦 Baixar pacote final (notas + planilha)</button></div>'
       +'<div class="filtros">'+campoBusca("qBusca","Buscar guia",PIL.busca,"PIL.busca=this.value;atualizarPiloto(true);setTimeout(()=>{const e=document.getElementById(\'qBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")
       +segmento([["todos","Todos"],["pend","Pendências"],["sem","Sem nota"],["prob","Nota com problema"],["ok","Nota conferida"],["com","Comissão"]],PIL.filtro,"PIL.filtro='$v';atualizarPiloto(true)")+'</div>';
     j.guias=vis;
@@ -4393,6 +4394,44 @@
   async function amostraPhoenix(){
     const pre=document.getElementById("amoRes"); pre.textContent="Lendo...";
     try{ const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"amostraPhoenix",token:USUARIO.token,data:document.getElementById("amoData").value})}); const j=await r.json(); pre.textContent=j.ok?JSON.stringify(j.amostra,null,2):j.erro; }catch(e){ pre.textContent=e.message; }
+  }
+  // pacote final da quinzena: um .zip com as notas renomeadas pelo nome do guia e a planilha no formato da PGG
+  async function pilotoPacote(){
+    const gs=(PIL.dados&&PIL.dados.guias||[]).slice().sort((a,b)=>a.nome.localeCompare(b.nome)); if(!gs.length) return;
+    const [ini,fim]=PIL.qid.split("_"); const per=dataBR(ini).slice(0,5).replace("/","-")+" a "+dataBR(fim).slice(0,5).replace("/","-");
+    const comNota=gs.filter(g=>g.nota), prob=comNota.filter(g=>!g.nota.ok).length, sem=gs.filter(g=>!g.nota&&g.valores).length;
+    if(!confirm("Gerar o pacote da quinzena "+per+":\n\n• "+comNota.length+" nota(s) em PDF"+(prob?" ("+prob+" com problema, numa pasta separada)":"")+"\n• planilha com todos os guias"+(sem?"\n\n⚠️ "+sem+" guia(s) com valor ainda sem nota.":"")+"\n\nContinuar?")) return;
+    const info=document.getElementById("pilPhxInfo");
+    try{
+      await libsPagamentos(); const zip=new JSZip();
+      const limpo=(t)=>String(t||"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
+      const num=(v)=>Math.round((v||0)*100)/100;
+      let n=0;
+      for(const g of comNota){
+        n++; if(info) info.textContent="Baixando as notas: "+n+" de "+comNota.length+"...";
+        const j=await chamarPiloto("pdf",{gid:g.gid}); if(!j.ok) continue;
+        const bin=atob(j.base64), arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+        const nome=limpo(g.nome)+" - NF "+limpo(g.nota.numero||"sem numero")+".pdf";
+        zip.file((g.nota.ok?"Notas conferidas/":"Notas com problema/")+nome,arr);
+      }
+      if(info) info.textContent="Montando a planilha...";
+      const cab=["GUIA","VALOR DO SERVIÇO","COMISSÃO","REEMBOLSO","MAQUINETA","VALOR LIQUIDO A PAGAR","Nº DA NOTA","VALOR DA NOTA","SITUAÇÃO DA NOTA","OBSERVAÇÃO"];
+      const linhas=gs.filter(g=>g.valores||g.nota).map(g=>{ const v=g.valores||{};
+        return [g.nome,num(v.serv),num(v.com),num(v.reemb),num(v.maq),num(v.liq),g.nota?(g.nota.numero||""):"",g.nota?num(g.nota.valor):"",
+          g.nota?(g.nota.ok?"Conferida"+(g.nota.conferidaManual?" (na mão)":""):"Com problema"):"Sem nota",
+          g.nota&&!g.nota.ok?(g.nota.problemas||[]).join(" · "):(g.nomePgg&&/fora da PGG|somadas/.test(g.nomePgg)?g.nomePgg:"")]; });
+      const tot=(k)=>num(linhas.reduce((t,l)=>t+(Number(l[k])||0),0));
+      const aoa=[cab,...linhas,[],["TOTAL",tot(1),tot(2),tot(3),tot(4),tot(5),"",tot(7),"",""]];
+      const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!cols"]=[{wch:28},{wch:16},{wch:12},{wch:12},{wch:12},{wch:20},{wch:12},{wch:14},{wch:22},{wch:40}];
+      for(let r=1;r<aoa.length;r++) for(const c of [1,2,3,4,5,7]){ const ref=XLSX.utils.encode_cell({r,c}); if(ws[ref]&&typeof ws[ref].v==="number") ws[ref].z='"R$" #,##0.00'; }
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,(dataBR(ini).slice(0,2)+" a "+dataBR(fim).slice(0,2)+dataBR(fim).slice(3,5)));
+      zip.file("Pagamento guias "+per+".xlsx",XLSX.write(wb,{bookType:"xlsx",type:"array"}));
+      if(info) info.textContent="Compactando...";
+      const blob=await zip.generateAsync({type:"blob"});
+      baixarArquivo("Pagamento guias "+per+".zip",blob);
+      if(info) info.textContent="";
+      alert("Pacote baixado ✓\n\nDentro do .zip: as pastas de notas (cada PDF com o nome do guia e o número da nota) e a planilha. É só descompactar e arrastar para a pasta do Drive.");
+    }catch(e){ if(info) info.textContent=""; alert("Não consegui montar o pacote: "+e.message); }
   }
   async function pilotoPdf(gid){
     const j=await chamarPiloto("pdf",{gid}); if(!j.ok){ alert(j.erro); return; }
