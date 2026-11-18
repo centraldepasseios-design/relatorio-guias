@@ -2695,6 +2695,14 @@
   // ---- Financeiro: comissão, reembolso e maquineta de cada guia (no lugar de mandar a PGG) ----
   const FIN={qid:"",dados:null,edit:{}};
   async function chamarFin(acao,dados){ const r=await fetch(API_PILOTO,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,qid:FIN.qid,...dados})}); const j=await r.json(); sessaoExpirou(j); return j; }
+  (function(){ if(document.getElementById("finCss")) return; const st=document.createElement("style"); st.id="finCss"; st.textContent=
+    ".fin-tab{width:100%;border-collapse:collapse;font-size:.86rem}.fin-tab th{text-align:left;color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--linha)}"
+    +".fin-tab td{padding:8px 10px;border-bottom:1px solid var(--linha);vertical-align:middle}.fin-tab tr.fin-mud td{background:rgba(245,158,11,.08)}.fin-tot td{font-weight:800;border-bottom:none;padding-top:12px}"
+    +".fin-sub{font-size:.72rem;color:var(--muted);margin-top:2px}"
+    +".fin-campo{display:flex;align-items:center;gap:6px;width:150px;height:38px;padding:0 12px;border:1px solid var(--linha);border-radius:10px;background:rgba(127,127,127,.06);transition:border-color .15s,box-shadow .15s}"
+    +".fin-campo span{font-size:.75rem;color:var(--muted);font-weight:700}.fin-campo input{flex:1;min-width:0;border:none;outline:none;background:transparent;color:inherit;font:inherit;font-weight:700;text-align:right;padding:0;height:100%}"
+    +".fin-campo:focus-within{border-color:var(--ok);box-shadow:0 0 0 3px rgba(20,160,130,.18)}.fin-campo.trav{opacity:.55}.fin-campo.trav input{cursor:not-allowed}";
+    document.head.appendChild(st); })();
   function renderFinanceiro(m){
     cab("Comissão dos guias","Financeiro");
     m.innerHTML='<div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">'
@@ -2718,18 +2726,18 @@
     const j=FIN.dados, box=document.getElementById("finTab"); if(!j||!box) return;
     const f=j.financeiro;
     const st=f?'<div class="card" style="border-left:4px solid var(--ok);font-size:.84rem">✓ Concluído e enviado à Central por <b>'+esc(f.por)+'</b> em '+new Date(f.em).toLocaleString("pt-BR")+' · comissão total '+brlP(f.totalComissao)+(f.faltam&&f.faltam.length?' · <span style="color:var(--alerta)">sem valor: '+esc(f.faltam.join(", "))+'</span>':'')+'. Se mudar algo, salve e conclua de novo.</div>':'';
-    const T={serv:0,com:0,reemb:0,maq:0,liq:0};
-    const inp=(g,k)=>{ const v=finValor(g,k); return '<input inputmode="decimal" style="width:96px;text-align:right" '+(g.travado?'disabled title="Nota já enviada: a Central precisa pedir nova nota antes de mudar"':'')+' value="'+(v==null?"":String(v).replace(".",","))+'" onchange="finMudou(\''+g.gid+'\',\''+k+'\',this.value)">'; };
-    const linhas=j.guias.map(g=>{ const c=finNum(finValor(g,"com")), r=finNum(finValor(g,"reemb"))||0, q=finNum(finValor(g,"maq"))||0; const liq=c==null||isNaN(c)?null:Math.round((g.serv+c-r-q)*100)/100;
-      if(liq!=null){ T.serv+=g.serv; T.com+=c; T.reemb+=r; T.maq+=q; T.liq+=liq; }
+    const T={com:0,reemb:0,maq:0};
+    const fmt=(v)=>v==null||isNaN(v)?"":Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+    const inp=(g,k)=>'<div class="fin-campo'+(g.travado?' trav':'')+'"><span>R$</span><input inputmode="decimal" '+(g.travado?'disabled title="Nota já enviada: a Central precisa pedir nova nota antes de mudar"':'')+' value="'+fmt(finNum(finValor(g,k)))+'" onfocus="this.select()" onchange="finMudou(\''+g.gid+'\',\''+k+'\',this.value)"></div>';
+    const linhas=j.guias.map(g=>{ const c=finNum(finValor(g,"com")), r=finNum(finValor(g,"reemb"))||0, q=finNum(finValor(g,"maq"))||0;
+      if(c!=null&&!isNaN(c)){ T.com+=c; T.reemb+=r; T.maq+=q; }
       const mud=!!FIN.edit[g.gid];
-      return '<tr style="'+(mud?'background:rgba(245,158,11,.12)':'')+'"><td style="padding:6px 8px"><b>'+esc(g.nome)+'</b>'+(g.travado?'<div style="font-size:.72rem;color:var(--muted)">🔒 nota '+esc(g.nota.numero||"")+' enviada</div>':(!g.lancado&&!mud?'<div style="font-size:.72rem;color:var(--alerta)">sem valor</div>':''))+'</td>'
-        +'<td style="text-align:right;padding:6px 8px;white-space:nowrap">'+brlP(g.serv)+'</td><td style="padding:6px 8px">'+inp(g,"com")+'</td><td style="padding:6px 8px">'+inp(g,"reemb")+'</td><td style="padding:6px 8px">'+inp(g,"maq")+'</td>'
-        +'<td style="text-align:right;padding:6px 8px;font-weight:700;white-space:nowrap">'+(liq==null?"—":brlP(liq))+'</td></tr>'; }).join("");
+      return '<tr class="'+(mud?'fin-mud':'')+'"><td><b>'+esc(g.nome)+'</b>'+(g.travado?'<div class="fin-sub">🔒 nota '+esc(g.nota.numero||"")+' enviada</div>':(!g.lancado&&!mud?'<div class="fin-sub" style="color:var(--alerta)">sem valor</div>':(mud?'<div class="fin-sub" style="color:#b45309">alterado, falta salvar</div>':'')))+'</td>'
+        +'<td>'+inp(g,"com")+'</td><td>'+inp(g,"reemb")+'</td><td>'+inp(g,"maq")+'</td></tr>'; }).join("");
     const pend=Object.keys(FIN.edit).length;
     box.innerHTML=st+'<div class="card"><div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.84rem;margin-bottom:8px"><span><b>'+j.guias.length+'</b> guias</span><span><b>'+j.guias.filter(g=>!g.lancado).length+'</b> sem valor</span>'+(pend?'<span style="color:#b45309"><b>'+pend+'</b> alteração(ões) não salva(s)</span>':'')+'<span style="margin-left:auto">Comissão total: <b>'+brlP(T.com)+'</b></span></div>'
-      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.84rem"><thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase"><th style="padding:6px 8px">Guia</th><th style="padding:6px 8px;text-align:right">Serviços</th><th style="padding:6px 8px">Comissão</th><th style="padding:6px 8px">Reembolso</th><th style="padding:6px 8px">Maquineta</th><th style="padding:6px 8px;text-align:right">Nota</th></tr></thead><tbody>'+linhas
-      +'<tr style="border-top:2px solid var(--linha);font-weight:800"><td style="padding:6px 8px">Total</td><td style="text-align:right;padding:6px 8px">'+brlP(T.serv)+'</td><td style="padding:6px 8px">'+brlP(T.com)+'</td><td style="padding:6px 8px">'+brlP(T.reemb)+'</td><td style="padding:6px 8px">'+brlP(T.maq)+'</td><td style="text-align:right;padding:6px 8px">'+brlP(T.liq)+'</td></tr></tbody></table></div></div>';
+      +'<div style="overflow-x:auto"><table class="fin-tab"><thead><tr><th>Guia</th><th>Comissão</th><th>Reembolso</th><th>Maquineta</th></tr></thead><tbody>'+linhas
+      +'<tr class="fin-tot"><td>Total</td><td>'+brlP(T.com)+'</td><td>'+brlP(T.reemb)+'</td><td>'+brlP(T.maq)+'</td></tr></tbody></table></div></div>';
   }
   function finMudou(gid,k,v){ const n=finNum(v); if(isNaN(n)||(n!=null&&n<0)){ alert("Valor inválido."); finDesenhar(); return; } (FIN.edit[gid]=FIN.edit[gid]||{})[k]=n; finDesenhar(); }
   async function finImportar(inp){
