@@ -4099,7 +4099,8 @@
           return (abC.length||abL.length||st.length?tit("Precisa de resposta")+abC.map(fC).join("")+abL.map(fL).join("")+st.map(fS).join(""):"")
             +(feitas?'<details style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">'+feitas+' resolvida'+(feitas>1?'s':'')+'</summary>'+cs.filter(c=>c.status!=="aberta").map(fC).join("")+ls.filter(x=>x.status!=="aberto").map(fL).join("")+'</details>':""); })()
         +'<details class="rpbox" style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px" ontoggle="rpAbrir(\''+g.gid+'\',this)"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">Relatório do guia <span id="rpb-'+g.gid+'"></span></summary><div id="rp-'+g.gid+'" style="margin-top:8px"></div></details>'
-        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button></div>':'')
+        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena":"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button><button class="btn mini danger" onclick="pilotoNovaNota(\''+g.gid+'\')">Pedir nova nota</button></span></div>':'')
+        +(!g.nota&&g.novaNota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;color:#9f2a15"><b>Nova nota pedida</b> · '+esc(g.novaNota.motivo)+'</div>':'')
         +'</div>';
     }).join("");
     rpPrepararBadges();
@@ -4303,6 +4304,14 @@
     const j=await atualizarMapaGuia(g,[...new Set((g.contestacoes||[]).filter(c=>c.data).map(c=>c.data))].slice(-6));
     if(!j.ok){ if(!j.silencio) alert("Não consegui atualizar: "+j.erro); return; }
     alert("Mapa de "+g.nome+" atualizado: "+j.servicos+" serviços · "+brlP(j.totalMapa)+"."+((j.phoenixLento&&j.phoenixLento.length)?"\n\n⚠️ O Phoenix não respondeu a tempo: foi usada a cópia guardada. Tente de novo em 2 ou 3 minutos.":"")); atualizarPiloto();
+  }
+  // a nota enviada tem erro: guarda a anterior, avisa o guia no app e libera o envio de uma nota nova
+  async function pilotoNovaNota(gid){
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g||!g.nota) return;
+    const m=prompt("Pedir uma nova nota para "+g.nome+".\nA nota atual ("+(g.nota.numero||"sem número")+" · "+brlP(g.nota.valor)+") fica guardada no histórico e ele poderá enviar outra pelo app.\n\nMotivo (aparece para o guia):",g.nota.ok?"":(g.nota.problemas||[]).join(" · "));
+    if(m===null) return; if(!m.trim()){ alert("Escreva o motivo para o guia."); return; }
+    const j=await chamarPiloto("novaNota",{gid,motivo:m.trim()}); if(!j.ok){ alert(j.erro); return; }
+    alert("Pronto. "+g.nome+" já pode enviar a nota nova pelo app. Avise ele no WhatsApp."); atualizarPiloto();
   }
   async function pilotoLiberarGuia(gid,liberar){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;

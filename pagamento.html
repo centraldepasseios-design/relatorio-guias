@@ -185,6 +185,7 @@ function lerNota(texto) {
     if(!conferido) h+='<button class="btn" onclick="confirmar()">Meus serviços estão certos</button>';
     if(D.liberado&&conferido){
       h+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:800;color:var(--muted)">DESCRIÇÃO PRONTA PARA A NOTA</span><b style="font-size:12px;color:var(--acc-esc)">'+brl(D.valores.liq)+'</b></div><p class="desc" id="desc">'+esc(descricao())+'</p><button class="btn sec" onclick="copiar()">Copiar descrição</button><button class="btn sec" style="margin-top:8px" id="btnContador" onclick="pdfContador()">Baixar PDF para o contador</button></div>';
+      if(!D.nota&&D.novaNota) h+='<div style="background:#fdf2ef;color:#9f2a15;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:14px"><b>A Central pediu uma nova nota.</b><div style="margin-top:4px">'+esc(D.novaNota.motivo)+'</div></div>';
       if(D.nota) h+=(D.nota.ok?'<div class="ok"><b style="font-size:15px">✓ Nota '+esc(D.nota.numero)+' conferida</b><div style="font-size:13px;margin-top:6px">Valor '+brl(D.nota.valor)+' bate com a quinzena. Não precisa fazer mais nada.</div></div>':'<div class="prob"><b style="font-size:15px">⚠ Nota '+esc(D.nota.numero)+' com problema</b><div style="font-size:13px;margin-top:6px">'+D.nota.problemas.map(esc).join("<br>")+'</div><div style="font-size:13px;margin-top:6px">Corrija no emissor e envie a nota nova.</div></div>');
       if(!(D.nota&&D.nota.ok)) h+='<label class="btn" style="display:flex;align-items:center;justify-content:center;flex-direction:row">'+(D.nota?'Enviar a nota corrigida (PDF)':'Enviar minha nota (PDF)')+'<input type="file" accept="application/pdf" style="display:none" onchange="enviarNota(this)"></label>';
     }
@@ -285,7 +286,10 @@ function lerNota(texto) {
     if(arq.size>650000){ alert("O PDF está muito grande. Envie o PDF da nota baixado do emissor."); return; }
     const app=document.getElementById("app"); app.insertAdjacentHTML("beforeend",'<div class="espera" id="lendo">Lendo a nota...</div>');
     try{
-      const leitura=lerNota(await textoPdf(arq));
+      const texto=await textoPdf(arq);
+      if(/Gerado pelo app da Central de Guias|Servi[çc]os da quinzena para emiss[ãa]o da NFS-e/i.test(texto)){ const x=document.getElementById("lendo"); if(x) x.remove();
+        alert("Esse é o PDF de serviços para o contador, não a nota fiscal.\n\nEnvie o PDF da nota fiscal emitida (NFS-e ou nota avulsa)."); inp.value=""; return; }
+      const leitura=lerNota(texto);
       const b64=await new Promise((ok,er)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=er; r.readAsDataURL(arq); });
       const j=await api("nota",{pdf:b64,nomeArquivo:arq.name,leitura:{numero:leitura.numero,valor:leitura.valor,tipo:leitura.tipo,prestadorDoc:leitura.prestadorDoc,prestadorNome:leitura.prestadorNome,competencia:leitura.competencia,luck:leitura.luck}});
       if(!j.ok){ alert(j.erro); } await carregar();
