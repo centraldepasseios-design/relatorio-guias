@@ -4240,7 +4240,20 @@
     // quem não está na PGG normalmente não vendeu: entra sem comissão, reembolso e maquineta (a Central confirma)
     if(fora.length&&confirm("Estes guias não estão na PGG:\n\n"+fora.map(g=>g.nome).join(", ")+"\n\nSe é porque não tiveram vendas, clique OK para lançar SEM comissão (R$ 0,00). O valor da nota deles fica só com os serviços.\n\nCancelar = deixar sem valor (confira se o nome não está diferente na PGG)."))
       fora.forEach(g=>{ valores[g.gid]={serv:0,com:0,reemb:0,maq:0,liq:0,nomePgg:"(fora da PGG · sem comissão)"}; });
+    // só manda quem mudou; quem já enviou nota e teria o valor alterado precisa de confirmação
+    const porGid=Object.fromEntries((PIL.dados?PIL.dados.guias:[]).map(g=>[g.gid,g]));
+    const igual=(a,b)=>Math.abs((a||0)-(b||0))<0.01;
+    const mudou=(g,v)=>{ const a=g.valores; return !a||!igual(a.com,v.com)||!igual(a.reemb,v.reemb)||!igual(a.maq,v.maq); };
+    for(const gid of Object.keys(valores)) if(porGid[gid]&&!mudou(porGid[gid],valores[gid])) delete valores[gid];
+    const comNota=Object.keys(valores).filter(gid=>porGid[gid]&&porGid[gid].nota);
+    if(comNota.length){
+      const txt=comNota.map(gid=>{ const g=porGid[gid], a=g.valores||{}, v=valores[gid]; return g.nome+": comissão "+brlP(a.com||0)+" → "+brlP(v.com||0)+(igual(a.reemb,v.reemb)?"":" · reembolso "+brlP(a.reemb||0)+" → "+brlP(v.reemb||0))+(igual(a.maq,v.maq)?"":" · maquineta "+brlP(a.maq||0)+" → "+brlP(v.maq||0)); }).join("\n");
+      if(!confirm("Estes guias JÁ ENVIARAM A NOTA e o valor deles mudaria com esta PGG:\n\n"+txt+"\n\nOK = atualizar mesmo assim (eles vão precisar emitir a nota de novo).\nCancelar = manter o valor deles como está e atualizar só os outros."))
+        comNota.forEach(gid=>delete valores[gid]);
+    }
+    if(!Object.keys(valores).length){ alert("Nenhum valor mudou em relação ao que já estava lançado. Nada foi alterado."); return; }
     const j=await chamarPiloto("valores",{valores}); if(!j.ok){ alert(j.erro); return; }
+    alert("Valores atualizados para "+Object.keys(valores).length+" guia(s): "+Object.keys(valores).map(gid=>porGid[gid]?porGid[gid].nome:gid).join(", ")+".");
     if(duplos.length) alert("Achei mais de um nome na PGG para: "+duplos.join(", ")+". Confira a planilha.");
     // resumo: aba usada, total da PGG × total lançado e quem tem comissão na PGG mas não tem serviço no mapa
     const usados=new Set(Object.values(valores).map(v=>normP(String(v.nomePgg||"").replace(/\s*\(.*$/,""))));
