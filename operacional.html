@@ -3174,13 +3174,17 @@
   // o que o guia escreveu ou marcou no relatório: observação, serviço não realizado, REC que não veio, REC a mais, intercorrência
   const MOT_REC={noshow:"no show",box:"mudança do Box",voo:"voo alterado"};
   function relRecados(d){
-    const out=[];
+    const out=[]; const porRo={}; (d.linhas||[]).forEach(l=>{ if(l.escala&&!porRo[l.escala+"|"+l.data]) porRo[l.escala+"|"+l.data]=l; });
+    const esc_=(r,i)=>{ const l=porRo[(i.ro||"")+"|"+r.data]; if(!l) return i.ro?{ro:i.ro}:null;
+      return {ro:l.escala,hora:String(l.apresentacao||l.inicio||"").slice(0,5),veiculo:l.veiculo||"",motorista:l.motorista||""}; };
+    const recTxt=(x)=>"REC-"+String(x||"").replace(/^REC-?/i,"");
     for(const r of d.rel){ const guia=r.guia||"";
       for(const i of r.itens||[]){ const sv=i.servicoNome||relServico(i.servico)||"";
-        if(i.naoRealizado) out.push({data:r.data,guia,servico:sv,tipo:"Não realizado",texto:i.motivo||"(sem motivo)",cor:"var(--alerta)"});
-        (i.recsFora||[]).forEach(x=>out.push({data:r.data,guia,servico:sv,tipo:"Não veio com o guia",texto:"REC-"+x.rec+(x.motivo?" · "+(MOT_REC[x.motivo]||x.motivo):""),cor:"#b45309"}));
-        if(i.recExtra) out.push({data:r.data,guia,servico:sv,tipo:"REC a mais",texto:i.recExtra,cor:"#1e3a8a"});
-        if(i.obs) out.push({data:r.data,guia,servico:sv,tipo:"Observação",texto:i.obs,cor:"var(--verde-esc,var(--ok))"}); }
+        const e=esc_(r,i);
+        if(i.naoRealizado) out.push({data:r.data,guia,servico:sv,esc:e,tipo:"Não realizado",texto:i.motivo||"(sem motivo)",cor:"var(--alerta)"});
+        (i.recsFora||[]).forEach(x=>out.push({data:r.data,guia,servico:sv,esc:e,tipo:"Não veio com o guia",texto:recTxt(x.rec)+(x.motivo?" · "+(MOT_REC[x.motivo]||x.motivo):""),cor:"#b45309"}));
+        if(i.recExtra) out.push({data:r.data,guia,servico:sv,esc:e,tipo:"REC a mais",texto:String(i.recExtra).replace(/REC-REC-/g,"REC-"),cor:"#1e3a8a"});
+        if(i.obs) out.push({data:r.data,guia,servico:sv,esc:e,tipo:"Observação",texto:i.obs,cor:"var(--verde-esc,var(--ok))"}); }
       for(const x of r.intercorrencias||[]) out.push({data:r.data,guia,servico:x.servico,tipo:"Intercorrência"+(x.tipo?" · "+x.tipo:""),texto:x.texto,cor:"var(--alerta)"});
     }
     return out.sort((a,b)=>String(b.data).localeCompare(String(a.data))||a.guia.localeCompare(b.guia));
@@ -3189,7 +3193,8 @@
     const L=relRecados(d).filter(x=>!bq||normP(x.guia).includes(bq));
     if(!L.length) return '<div class="card" style="color:var(--muted)">Nenhum recado dos guias nesse período.</div>';
     return '<div class="card" style="padding:6px 16px">'+L.map(x=>'<div style="display:grid;grid-template-columns:56px minmax(0,1fr) minmax(0,1.2fr) minmax(0,2fr);gap:12px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--linha);font-size:.82rem">'
-      +'<b>'+esc(dataBR(x.data).slice(0,5))+'</b><b>'+esc(x.guia)+'</b><span><span style="color:'+x.cor+';font-weight:800">'+esc(x.tipo)+'</span><br><span style="color:var(--muted)">'+esc(x.servico)+'</span></span><span>'+esc(x.texto)+'</span></div>').join("")+'</div>';
+      +'<b>'+esc(dataBR(x.data).slice(0,5))+'</b><b>'+esc(x.guia)+'</b><span><span style="color:'+x.cor+';font-weight:800">'+esc(x.tipo)+'</span><br><span style="color:var(--muted)">'+esc(x.servico)+'</span>'
+      +(x.esc?'<br><span style="font-size:.76rem;color:var(--muted)">'+[x.esc.ro,x.esc.hora,x.esc.veiculo,x.esc.motorista?"<b style=\"color:var(--tinta)\">Mot. "+esc(x.esc.motorista)+"</b>":""].filter(Boolean).map((t,k)=>k===3?t:esc(t)).join(" · ")+'</span>':'')+'</span><span>'+esc(x.texto)+'</span></div>').join("")+'</div>';
   }
   function relCartao(g,d){
     const chave=normP(g.nome), ab=!!RELT.abertos[chave];
@@ -4817,7 +4822,7 @@
     const servs=DSP.internos.filter(x=>(DSP.filtro==="b"?x.tipo==="servico":DSP.filtro==="n"?x.tipo==="naoConvidar":DSP.filtro==="todos")&&(!b||normP(x.guia).includes(b))).filter(x=>x.fim>=hojeISO()).sort((a,c)=>a.inicio.localeCompare(c.inicio));
     if(servs.length) h+='<h3 style="font-size:1.1rem;font-weight:800;margin:22px 0 10px">Bloqueios e "não convidar" registrados</h3><div style="display:flex;flex-direction:column;gap:8px">'+servs.map(x=>'<div class="card" style="margin:0;padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><b>'+esc(titulo(x.guia))+'</b><span class="pill" style="background:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][0]+';color:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][1]+'">'+(x.tipo==="naoConvidar"?"Não convidar":"Bloqueado")+'</span><span style="font-size:.86rem">'+dataBR(x.inicio).slice(0,5)+(x.fim!==x.inicio?' a '+dataBR(x.fim).slice(0,5):'')+(x.horario?' · '+esc(x.horario):'')+'</span>'
       +(x.tipo==="servico"?'<span style="font-size:.86rem">'+esc(x.descricao||"")+(x.rec?' · <b style="color:#1e3a8a">REC-'+esc(x.rec)+'</b>':'')+(x.quemPediu?' · pedido por '+esc(x.quemPediu):'')+'</span>':'<span style="font-size:.86rem;color:var(--muted)">'+esc(x.motivo||"")+'</span>')
-      +'<button class="btn mini danger" style="margin-left:auto" onclick="removerInternoDisp(\''+x.id+'\')">Remover</button></div>').join("")+'</div>';
+      +'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="editarInternoDisp(\''+x.id+'\')">Editar</button><button class="btn mini danger" onclick="removerInternoDisp(\''+x.id+'\')">Remover</button></span></div>').join("")+'</div>';
     box.innerHTML=h;
   }
   // formulário de bloqueio / não convidar: vários guias de uma vez (evento) e dias separados (ex.: 07, 09 e 11)
@@ -4829,7 +4834,7 @@
     const chipsG=DSP.fGuias.map((g,k)=>'<span class="chip on">'+esc(titulo(g))+' <a href="#" style="margin-left:4px" onclick="DSP.fGuias.splice('+k+',1);desenharDisp();return false">✕</a></span>').join("");
     const chipsD=DSP.fDias.slice().sort().map(d=>'<span class="chip on">'+esc(dataBR(d).slice(0,5))+' <a href="#" style="margin-left:4px" onclick="DSP.fDias=DSP.fDias.filter(x=>x!==\''+d+'\');desenharDisp();return false">✕</a></span>').join("");
     return '<div class="card" style="border:2px solid var(--verde)"><div style="margin-bottom:12px">'+segmento([["servico","Bloquear para serviço"],["naoConvidar","Não convidar"]],DSP.form,"DSP.form='$v';desenharDisp()")+'</div>'
-      +'<h3 style="margin-bottom:4px">'+(sv?"Bloquear guias para um serviço":"Não convidar")+'</h3><p style="font-size:.84rem;color:var(--muted);margin-bottom:14px">'+(sv?"Os guias aparecem como bloqueados nos dias escolhidos. Dá para incluir vários guias (ex.: um evento) e dias separados.":"Os guias não aparecem como opção para convite no período.")+'</p>'
+      +'<h3 style="margin-bottom:4px">'+(DSP.editId?"Editar registro · ":"")+(sv?"Bloquear guias para um serviço":"Não convidar")+'</h3><p style="font-size:.84rem;color:var(--muted);margin-bottom:14px">'+(sv?"Os guias aparecem como bloqueados nos dias escolhidos. Dá para incluir vários guias (ex.: um evento) e dias separados.":"Os guias não aparecem como opção para convite no período.")+'</p>'
       // guias
       +'<div style="'+lb+';margin-bottom:12px">Guias'+(DSP.fGuias.length?' ('+DSP.fGuias.length+')':'')
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+chipsG
@@ -4847,7 +4852,7 @@
       +'</div><div id="dfProg" style="font-size:.82rem;color:var(--muted);margin-top:10px"></div>'
       +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="dspFecharForm()">Cancelar</button><button class="btn" id="dfSalvar" onclick="salvarInternoDisp()">Salvar</button></div></div>';
   }
-  function dspFecharForm(){ DSP.form=null; DSP.fGuias=[]; DSP.fDias=[]; DSP.fv={}; desenharDisp(); }
+  function dspFecharForm(){ DSP.editId=null; DSP.form=null; DSP.fGuias=[]; DSP.fDias=[]; DSP.fv={}; desenharDisp(); }
   function dspAddGuia(){ const e=document.getElementById("dfGuia"); const v=e?e.value.trim():""; if(!v) return;
     if(!DSP.fGuias.some(g=>g.toUpperCase()===v.toUpperCase())) DSP.fGuias.push(v); desenharDisp(); setTimeout(()=>{ const n=document.getElementById("dfGuia"); if(n) n.focus(); },0); }
   function dspAddDia(){ const e=document.getElementById("dfDia"); const v=e?e.value:""; if(!v) return; if(!DSP.fDias.includes(v)) DSP.fDias.push(v); desenharDisp(); }
@@ -4867,6 +4872,11 @@
     let blocos;
     if(DSP.fModo==="dias"){ const solta=v("dfDia"); const dias=DSP.fDias.length?DSP.fDias:(solta?[solta]:[]); if(!dias.length){ alert("Inclua pelo menos um dia."); return; } blocos=dspBlocos(dias); }
     else { const ini=v("dfIni"), fim=v("dfFim")||ini; if(!ini){ alert("Informe o dia."); return; } if(fim<ini){ alert("A data final é antes da inicial."); return; } blocos=[[ini,fim]]; }
+    if(DSP.editId){ // editando um registro: um guia e um período
+      if(guias.length!==1||blocos.length!==1){ alert("Ao editar, deixe um guia e um período só."); return; }
+      try{ await chamarDisp("editarInterno",{...base,id:DSP.editId,guia:guias[0],inicio:blocos[0][0],fim:blocos[0][1]}); }catch(e){ alert(e.message); return; }
+      DSP.editId=null; DSP.form=null; DSP.fGuias=[]; DSP.fDias=[]; DSP.fv={}; await carregarDisp(); return;
+    }
     const total=guias.length*blocos.length;
     if(total>1&&!confirm("Salvar "+total+" registro(s): "+guias.length+" guia(s) × "+blocos.length+" período(s)?")) return;
     const bt=document.getElementById("dfSalvar"), pr=document.getElementById("dfProg"); if(bt) bt.disabled=true;
@@ -4877,6 +4887,13 @@
     }
     if(erros.length){ alert("Alguns não foram salvos:\n"+erros.join("\n")); if(bt) bt.disabled=false; if(pr) pr.textContent=""; await carregarDisp(); return; }
     DSP.form=null; DSP.fGuias=[]; DSP.fDias=[]; DSP.fv={}; await carregarDisp();
+  }
+  // abre o formulário já preenchido com o registro, para corrigir (ex.: mês errado)
+  function editarInternoDisp(id){
+    const x=(DSP.internos||[]).find(y=>y.id===id); if(!x) return;
+    DSP.editId=id; DSP.form=x.tipo==="naoConvidar"?"naoConvidar":"servico"; DSP.fGuias=[x.guia]; DSP.fDias=[]; DSP.fModo="periodo";
+    DSP.fv={ini:x.inicio,fim:x.fim,hor:x.horario||"",rec:x.rec||"",desc:x.descricao||"",quem:x.quemPediu||"",mot:x.motivo||""};
+    desenharDisp(); window.scrollTo({top:0,behavior:"smooth"});
   }
   async function removerInternoDisp(id){ if(!confirm("Remover este registro?")) return; try{ await chamarDisp("removerInterno",{id}); await carregarDisp(); }catch(e){ alert(e.message); } }
 
