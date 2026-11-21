@@ -1739,6 +1739,29 @@
     const para=ESC.turno==="noite"?"dia":"noite";
     return '<button class="btn sec mini" style="padding:2px 8px;font-size:.72rem" title="Mover este serviço para a escala '+(para==="dia"?"do dia":"da noite")+'" onclick="event.stopPropagation();moverTurno(\''+data+'\',\''+esc(chave)+'\',\''+para+'\')">'+(para==="dia"?"☀️ mover p/ dia":"🌙 mover p/ noite")+'</button>';
   }
+  // PDF da escala montada: os guias que estão na tela (com o turno, a busca e os ajustes de turno aplicados)
+  async function escalaPdf(){
+    const guias=ESC.guiasTela||[]; if(!guias.length){ alert("Nenhum guia na tela."); return; }
+    try{
+      await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+      await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
+      const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:"mm",format:"a4"}); const verde=[13,59,48];
+      const turno=ESC.turno==="noite"?"Noite":"Dia", dia=dataLonga(ESC.data);
+      doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(...verde); doc.text("Escala dos guias · "+turno,14,16);
+      doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(70); doc.text(dia+" · "+guias.length+" guia(s) · IN, OUT, transfer e apoio",14,22);
+      const hr=(l)=>String(l.apresentacao||((l.inicio&&l.inicio!=="00:00")?l.inicio:"")).replace(/\s*\(dia anterior\)/i,"").slice(0,5)||"—";
+      const tp=(l)=>l.auxiliar||/APOIO/i.test(l.servico)?"Apoio":(TIPO_TXT[l.tipo]||l.tipo||"");
+      const corpo=[];
+      for(const g of guias){
+        corpo.push([{content:g.nome+"  ("+g.itens.length+" serviço"+(g.itens.length>1?"s":"")+")",colSpan:6,styles:{fillColor:[227,242,238],textColor:verde,fontStyle:"bold"}}]);
+        for(const l of g.itens) corpo.push([hr(l)+(l._prox?" (+1)":""),tp(l),String(l.servico||""),String(l.veiculo||""),String(l.motorista||""),l.pax==null?"":String(l.pax)]);
+      }
+      doc.autoTable({startY:27,head:[["Hora","Tipo","Serviço","Veículo","Motorista","Pax"]],body:corpo,styles:{fontSize:8.5,cellPadding:1.8},headStyles:{fillColor:verde},
+        columnStyles:{0:{cellWidth:16},1:{cellWidth:14},3:{cellWidth:28},4:{cellWidth:32},5:{cellWidth:11,halign:"right"}},margin:{left:12,right:12},
+        didDrawPage:(x)=>{ doc.setFontSize(8); doc.setTextColor(140); doc.text("Gerado em "+new Date().toLocaleString("pt-BR")+" · página "+doc.internal.getNumberOfPages(),12,290); }});
+      const blob=doc.output("blob"); baixarArquivo("Escala "+turno.toLowerCase()+" "+dataBR(ESC.data).slice(0,5).replace("/","-")+".pdf",blob);
+    }catch(e){ alert("Não consegui gerar o PDF: "+e.message); }
+  }
   function htmlGuias(L){
     L=L.filter(l=>l.guia);
     L=L.filter(l=>l.tipo!=="TOUR"||l.auxiliar); // só IN, OUT, transfer e apoio
@@ -1756,7 +1779,7 @@
     const comTrf=guias.filter(g=>g.itens.some(l=>l.tipo!=="TOUR"||l.auxiliar));
     // cabeçalho: botão de envio; resumo: guias, serviços, enviadas, mudaram depois do envio
     const topo=document.getElementById("escEnviarTopo");
-    if(topo) topo.innerHTML=comTrf.length?'<button class="btn" onclick="enviarEscalaTodos()">'+(ESC.turno==="noite"?"🌙 Enviar noite":"☀️ Enviar dia")+' para '+comTrf.length+' guia(s)</button>':'';
+    if(topo) topo.innerHTML=comTrf.length?'<span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" onclick="escalaPdf()" title="Baixa a escala montada (todos os guias da tela) em PDF">📄 Baixar PDF</button><button class="btn" onclick="enviarEscalaTodos()">'+(ESC.turno==="noite"?"🌙 Enviar noite":"☀️ Enviar dia")+' para '+comTrf.length+' guia(s)</button></span>':'';
     const enviadas=comTrf.filter(g=>envioDe(ESC.data,tipoEnvioEscala(),g.nome));
     const mudaram=enviadas.filter(g=>{ const e=envioDe(ESC.data,tipoEnvioEscala(),g.nome); return e.hash&&e.hash!==assinatura(msgEscala(g,ESC.data)); });
     const rs=document.getElementById("escResumo");
@@ -3005,8 +3028,8 @@
     if(s.startsWith("chegada")) return "IN"; if(s.startsWith("saida")) return "OUT";
     if(s==="apoio-recife-tarde") return "Apoio (volta)"; if(s.startsWith("apoio")) return "Apoio";
     if(s==="passeio") return "Passeio"; if(s==="so-vendas") return "Só vendas"; if(!s) return "—"; return "Transfer"; }
-  async function relChamar(acao,ini,fim){
-    const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,inicio:ini,fim})});
+  async function relChamar(acao,ini,fim,extra){
+    const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,inicio:ini,fim,...(extra||{})})});
     const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro"); return j;
   }
   // lê Phoenix + relatórios do período e faz a conferência
@@ -3017,17 +3040,21 @@
     info("Lendo as escalas no Phoenix de "+dataBR(ini)+(ini===fim?"":" a "+dataBR(fim))+"... pode levar 1 a 2 minutos na primeira vez");
     // escala lida na hora do Phoenix, dia a dia (a mesma leitura da tela Escala dos guias),
     // para não usar uma cópia guardada antes de alguma mudança na escala
-    const dias=[]; for(let d=ini; d<=fim; d=relSomaDias(d,1)) dias.push(d);
+    let dias=[]; for(let d=ini; d<=fim; d=relSomaDias(d,1)) dias.push(d);
     const linhas=[], falhou=[]; let feitos=0;
+    // poupa o Phoenix: dias que já passaram vêm da cópia guardada (relida toda madrugada); só o "Conferir" lê ao vivo
+    const passados=RELT.aoVivo?[]:dias.filter(d=>d<relHoje());
+    if(passados.length){ try{ const g=(await relChamar("linhas",passados[0],passados[passados.length-1],{guardada:true})).linhas||[];
+      g.filter(l=>passados.includes(l.data)).forEach(l=>linhas.push(l)); dias=dias.filter(d=>!passados.includes(d)); }catch(e){ console.log("[relatorio] cópia guardada",e.message); } }
     const lerDia=async(d)=>{
       try{
-        const r=await fetch(API_ESCALA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:d,token:USUARIO.token})});
+        const r=await fetch(API_ESCALA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:d,token:USUARIO.token,forcar:!!RELT.aoVivo})});
         const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro||"erro");
         (j.linhas||[]).forEach(l=>linhas.push({...l,data:d}));
       }catch(e){ if(/sessão expirada/.test(e.message)) throw e; console.log("[relatorio] escala de",d,e.message); falhou.push(d); }
       feitos++; info("Lendo as escalas no Phoenix: "+feitos+" de "+dias.length+" dia(s)...");
     };
-    const fila=[...dias]; await Promise.all([0,1,2].map(async()=>{ while(fila.length) await lerDia(fila.shift()); }));
+    const fila=[...dias]; while(fila.length) await lerDia(fila.shift()); // um dia de cada vez
     if(falhou.length){ // dia que não carregou: usa a leitura da conferência só para ele
       try{ const resto=(await relChamar("linhas",falhou.sort()[0],falhou.sort().slice(-1)[0])).linhas||[]; resto.filter(l=>falhou.includes(l.data)).forEach(l=>linhas.push(l)); }
       catch(e){ throw new Error("não consegui ler a escala de "+falhou.map(d=>dataBR(d).slice(0,5)).join(", ")); }
@@ -3114,7 +3141,7 @@
   function relPeriodo(){ if(RELT.aba==="dia") return [RELT.dia,RELT.dia]; const [i,f]=RELT.qid.split("_"); const h=relHoje(); return [i,f<h?f:h]; }
   async function relAtualizar(forcar){
     const [ini,fim]=relPeriodo(); const k=ini+"_"+fim; const info=(t)=>{ const e=document.getElementById("relInfo"); if(e) e.textContent=t; };
-    if(forcar) delete RELT.dados[k];
+    if(forcar) delete RELT.dados[k]; RELT.aoVivo=!!forcar;
     const corpo=document.getElementById("relCorpo"); if(!corpo) return;
     if(!RELT.dados[k]) corpo.innerHTML='<div class="card" style="color:var(--muted)">Carregando...</div>';
     try{ await relCarregar(ini,fim,info); const d=RELT.dados[k];
@@ -3135,12 +3162,34 @@
     h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'
       +'<span class="chip '+(RELT.filtro==="pend"?"on":"")+'" onclick="RELT.filtro=\'pend\';relDesenhar()">Com divergência ('+comPend.length+')</span>'
       +'<span class="chip '+(RELT.filtro==="todos"?"on":"")+'" onclick="RELT.filtro=\'todos\';relDesenhar()">Todos ('+d.resultado.length+')</span>'
+      +'<span class="chip '+(RELT.filtro==="recados"?"on":"")+'" onclick="RELT.filtro=\'recados\';relDesenhar()">Recados dos guias ('+relRecados(d).length+')</span>'
       +'<button class="btn sec mini" style="margin-left:auto" onclick="relBaixar()">Baixar planilha</button></div>';
     h+='<p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">Corrija no Phoenix e clique em Conferir de novo até zerar. Passeio não entra: não precisa de relatório.</p>';
+    if(RELT.filtro==="recados"){ corpo.innerHTML=h+relRecadosHtml(d,bq); return; }
     const lista=(RELT.filtro==="pend"?R.filter(g=>g.alertas.length):R).slice().sort((a,b)=>b.alertas.length-a.alertas.length||a.nome.localeCompare(b.nome));
     if(!lista.length) h+='<div class="card" style="color:var(--muted)">'+(R.length?"Nenhuma divergência. Tudo batendo com o Phoenix.":"Nenhum guia encontrado.")+'</div>';
     h+=lista.map(g=>relCartao(g,d)).join("");
     corpo.innerHTML=h;
+  }
+  // o que o guia escreveu ou marcou no relatório: observação, serviço não realizado, REC que não veio, REC a mais, intercorrência
+  const MOT_REC={noshow:"no show",box:"mudança do Box",voo:"voo alterado"};
+  function relRecados(d){
+    const out=[];
+    for(const r of d.rel){ const guia=r.guia||"";
+      for(const i of r.itens||[]){ const sv=i.servicoNome||relServico(i.servico)||"";
+        if(i.naoRealizado) out.push({data:r.data,guia,servico:sv,tipo:"Não realizado",texto:i.motivo||"(sem motivo)",cor:"var(--alerta)"});
+        (i.recsFora||[]).forEach(x=>out.push({data:r.data,guia,servico:sv,tipo:"Não veio com o guia",texto:"REC-"+x.rec+(x.motivo?" · "+(MOT_REC[x.motivo]||x.motivo):""),cor:"#b45309"}));
+        if(i.recExtra) out.push({data:r.data,guia,servico:sv,tipo:"REC a mais",texto:i.recExtra,cor:"#1e3a8a"});
+        if(i.obs) out.push({data:r.data,guia,servico:sv,tipo:"Observação",texto:i.obs,cor:"var(--verde-esc,var(--ok))"}); }
+      for(const x of r.intercorrencias||[]) out.push({data:r.data,guia,servico:x.servico,tipo:"Intercorrência"+(x.tipo?" · "+x.tipo:""),texto:x.texto,cor:"var(--alerta)"});
+    }
+    return out.sort((a,b)=>String(b.data).localeCompare(String(a.data))||a.guia.localeCompare(b.guia));
+  }
+  function relRecadosHtml(d,bq){
+    const L=relRecados(d).filter(x=>!bq||normP(x.guia).includes(bq));
+    if(!L.length) return '<div class="card" style="color:var(--muted)">Nenhum recado dos guias nesse período.</div>';
+    return '<div class="card" style="padding:6px 16px">'+L.map(x=>'<div style="display:grid;grid-template-columns:56px minmax(0,1fr) minmax(0,1.2fr) minmax(0,2fr);gap:12px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--linha);font-size:.82rem">'
+      +'<b>'+esc(dataBR(x.data).slice(0,5))+'</b><b>'+esc(x.guia)+'</b><span><span style="color:'+x.cor+';font-weight:800">'+esc(x.tipo)+'</span><br><span style="color:var(--muted)">'+esc(x.servico)+'</span></span><span>'+esc(x.texto)+'</span></div>').join("")+'</div>';
   }
   function relCartao(g,d){
     const chave=normP(g.nome), ab=!!RELT.abertos[chave];
