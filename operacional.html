@@ -1954,6 +1954,14 @@
       PLANO.plano=j.plano; PLANO.sugestoes=j.sugestoes||[]; desenharPlano();
     }catch(e){ if(!silencioso) box.innerHTML='<div class="card" style="color:var(--alerta)">Erro de conexão. Tente de novo.</div>'; }
   }
+  // aviso no carro: guia que marcou indisponível/restrição (ou "não convidar") para o dia
+  function avisoCarro(nome){
+    const c=DISPQ[PLANO.data];
+    if(!c||Date.now()-c.em>=180000){ dispDoDia(PLANO.data).then((r)=>{ if(r&&document.querySelector(".carro-card")) desenharPlano(); }); return ""; }
+    if(!c.r||!nome) return "";
+    const a=c.r.m[normP(c.r.of(nome))]; if(!a) return "";
+    return '<div style="font-size:.74rem;font-weight:800;color:#9f2a15;margin-top:4px">⚠ Marcou '+esc(a.tipo)+(a.obs?': '+esc(a.obs):'')+'</div>';
+  }
   function desenharPlano(){
     const box=document.getElementById("planoConteudo"); if(!box||!PLANO.plano) return;
     if((podeGuia()||PLANO.area==="porto")&&envPrecisaCarregar(PLANO.data)){ envCarregar(PLANO.data).then(desenharPlano); }
@@ -2015,14 +2023,28 @@
         }
         const acoes=(c.guia?'<button class="btn mini sec" style="padding:3px 9px" title="Avisar só '+esc(c.guia)+' do passeio dele" onclick="avisarGuiaPasseio(\''+esc(c.guia).replace(/'/g,"")+'\')">📲</button>':'')+(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')
           +(dono?'<button class="btn mini danger" style="padding:3px 9px" title="Cancelar este carro" onclick="removerCarro(\''+p.id+'\',\''+c.id+'\','+(i+1)+')">✕</button>':'');
-        h+='<div class="carro-card'+(c.guia?'':' vazio')+'">'+rot+guia
+        h+='<div class="carro-card'+(c.guia?'':' vazio')+'">'+rot+guia+(c.guia?avisoCarro(c.guia):'')
           +((st||acoes)?'<div style="display:flex;align-items:center;gap:6px;min-height:26px">'+st+'<span style="margin-left:auto;display:flex;gap:4px">'+acoes+'</span></div>':'')+'</div>';
       });
       h+='</div></section>';
     }
     box.innerHTML=h;
   }
+  // disponibilidade de um dia para a aba Passeios (lida uma vez por dia aberto, guardada por 3 minutos)
+  const DISPQ={};
+  function dispDoDia(data){
+    const c=DISPQ[data]; if(c&&Date.now()-c.em<180000) return c.p;
+    const p=Promise.all([chamarDisp("disponibilidade",{inicio:data,fim:data}),chamarDisp("internos",{}).catch(()=>({itens:[]})),chamarEnvios("contatos",{}).catch(()=>null)])
+      .then(([d,i,ct])=>{ const of=montarOficial((ct&&ct.contatos)||[]), m={};
+        (d.disp||[]).filter(x=>x.data===data&&(x.status==="nao"||x.status==="restricao")).forEach(x=>{ m[normP(of(x.guia))]={tipo:x.status==="nao"?"Indisponível":"Restrição",obs:x.obs||""}; });
+        (i.itens||[]).filter(x=>x.tipo==="naoConvidar"&&x.inicio<=data&&data<=x.fim).forEach(x=>{ m[normP(of(x.guia))]={tipo:"Não convidar",obs:x.motivo||""}; });
+        const r={of,m}; if(DISPQ[data]) DISPQ[data].r=r; return r; }).catch(()=>null);
+    DISPQ[data]={em:Date.now(),p}; return p;
+  }
+  async function avisoDispGuia(nome,data){ const r=await dispDoDia(data); if(!r||!nome) return null; return r.m[normP(r.of(nome))]||null; }
   async function salvarGuia(passeioId, carroId, el){
+    if(el.value.trim()){ const av=await avisoDispGuia(el.value.trim(),PLANO.data);
+      if(av&&!confirm(titulo(el.value.trim())+" marcou "+av.tipo.toUpperCase()+" para "+dataBR(PLANO.data)+(av.obs?" ("+av.obs+")":"")+".\n\nColocar no carro mesmo assim?")){ el.value=""; return; } }
     el.disabled=true; const antes=el.style.borderColor;
     const j=await chamarPlano("guia",{passeioId,carroId,guia:el.value});
     el.disabled=false;
@@ -4713,7 +4735,7 @@
   // ======================= DISPONIBILIDADE (lida do app dos guias) =======================
   const DSP={ data:null, dados:null, internos:[], filtro:"todos", busca:"", form:null };
   // grupos iguais aos do painel antigo
-  const DSP_GRUPOS=[["Guias Porto",["JUNIOR", "POLLY", "NATALIA", "GEORGE", "KATARINA", "EDMILTON", "EVILAZIO", "LUCIENE", "VITOR", "ERLON", "HENRIQUE JUNIOR", "FELIPE", "EDSON", "TATIANA", "TOM", "ADRIANE", "GUILHERME", "FABIO", "DANIEL", "NEIDE", "JUAN", "EUGENIO", "VALTER", "GONÇALVES", "ANTONIO", "GERARDO", "HUGO", "JOEL", "HENRIQUE FARIAS", "CHICO DINIZ", "MARI", "WIRON", "IANNE", "ADIANES", "MADSON", "CAMILLA", "ANDRE", "ANA FLAVIA", "RENATINHA", "GESSYCA", "TAVARES", "MATHEUS", "ALICE", "LIDIANE", "CARLA", "ALBERTO", "XIMENES", "SIDNEI", "DRIELLY", "RAISSA", "ISADORA", "SANTIAGO", "ARTHUR", "GIL", "HUMBERTO", "FABIO COZZI", "BRENO", "LUIZ CARLOS", "RODRIGO", "JOELMA", "OLIVEIRA", "BRUNO MICHELOTI", "CRIS", "TALES", "FRANCINALDO", "AMAURY", "ARLENE", "JACIANE", "FRANCA", "FREITAS", "LUIZ FELIPE", "RAFAEL", "ELANE"]],["Estagiários",["JULIANA", "DEYVISON", "ALEX", "RUTH", "CAMILA DOS PRAZERES"]],["Guias Recife",["GLORINHA", "ELISIO", "REBECA", "ENEZIANE", "BRUNO", "ALVARO", "ZENA", "CARLOS", "CHICO LIMA", "SERGIO", "LUCIA VERONICA", "MARCOS", "MADALENA", "ARLINDO"]]];
+  const DSP_GRUPOS=[["Guias Porto",["JUNIOR", "POLLY", "NATALIA", "GEORGE", "KATARINA", "EDMILTON", "EVILAZIO", "LUCIENE", "VITOR", "ERLON", "HENRIQUE JUNIOR", "FELIPE", "EDSON", "TATIANA", "TOM", "ADRIANE", "GUILHERME", "FABIO", "DANIEL", "NEIDE", "JUAN", "EUGENIO", "VALTER", "GONÇALVES", "ANTONIO", "GERARDO", "HUGO", "JOEL", "HENRIQUE FARIAS", "CHICO DINIZ", "MARI", "WIRON", "IANNE", "ADIANES", "MADSON", "CAMILLA", "ANDRE", "ANA FLAVIA", "RENATINHA", "GESSYCA", "TAVARES", "MATHEUS", "ALICE", "LIDIANE", "CARLA", "ALBERTO", "XIMENES", "SIDNEI", "DRIELLY", "RAISSA", "ISADORA", "SANTIAGO", "ARTHUR", "GIL", "HUMBERTO", "FABIO COZZI", "BRENO", "LUIZ CARLOS", "RODRIGO", "JOELMA", "OLIVEIRA", "BRUNO MICHELOTI", "CRIS", "TALES", "FRANCINALDO", "AMAURY", "ARLENE", "JACIANE", "FRANCA", "FREITAS", "LUIZ FELIPE", "RAFAEL", "ELANE", "ALLAN"]],["Estagiários",["JULIANA", "DEYVISON", "ALEX", "RUTH", "CAMILA DOS PRAZERES"]],["Guias Recife",["GLORINHA", "ELISIO", "REBECA", "ENEZIANE", "BRUNO", "ALVARO", "ZENA", "CARLOS", "CHICO LIMA", "SERGIO", "LUCIA VERONICA", "MARCOS", "MADALENA", "ARLINDO"]]];
   const DSP_COR={d:["#dff1ea","#0b4f44","Disponível"],r:["#fff1e0","#8a4a0c","Restrição"],i:["#fde4df","#9f2a15","Indisponível"],b:["#4338ca","#ffffff","Bloqueado"],p:["#e3f2ee","#0b4f44","Em passeio"],n:["#2b3a37","#ffffff","Não convidar"]};
   const somaDias=(iso,n)=>{ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
   async function chamarDisp(acao,dados){ const r=await fetch(API_CONFERENCIA,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,token:USUARIO.token,...dados})}); const j=await r.json(); if(sessaoExpirou(j)) throw new Error("sessão expirada"); if(!j.ok) throw new Error(j.erro); return j; }
@@ -4737,14 +4759,32 @@
       // pedidos de guia (evento, famtour, navio) contam como apoio: bloqueiam o dia e entram no último serviço
       ((sl&&sl.itens)||[]).forEach(x=>DSP.abx.push({data:x.data,guia:x.guia,inicio:x.inicio,rotulo:(SOL_TIPOS[x.tipo]||"Pedido")+" · "+x.descricao+" "+x.inicio+(x.fim?"–"+x.fim:"")}));
       // apelidos do cadastro de contatos: "FABIO" (app antigo) = "FABIO GOMES" (Phoenix)
-      DSP.oficial={}; ((ct&&ct.contatos)||[]).forEach(x=>{ DSP.oficial[normP(x.nome)]=x.nome.toUpperCase(); (x.apelidos||[]).forEach(a=>DSP.oficial[normP(a)]=x.nome.toUpperCase()); });
+      DSP.ofic=montarOficial((ct&&ct.contatos)||[]);
       const dl=document.getElementById("dspGuias"); if(dl) dl.innerHTML=d.guias.map(g=>'<option value="'+esc(g)+'">').join("");
       desenharDisp();
     }catch(e){ const box=document.getElementById("dspConteudo"); if(box) box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+(/chave/i.test(e.message)?'<br><span style="color:var(--muted)">A Disponibilidade lê o app dos guias: precisa do arquivo relatorio-guias-chave.json na pasta functions.</span>':'')+'</div>'; }
   }
   // situação de um guia num dia: registros internos > bloqueios do painel > o que o guia marcou no app
-  const oficialDe=(n)=>(DSP.oficial||{})[normP(n)]||String(n||"").trim().toUpperCase();
+  const oficialDe=(n)=>DSP.ofic?DSP.ofic(n):String(n||"").trim().toUpperCase();
+  // nome oficial de um guia: o do contato, pelos apelidos ("também aparece como") e, para nome de 2 palavras ou mais
+  // que não é contato, o único contato que começa por ele ("LUIZ FELIPE" = "LUIZ FELIPE DA SILVA SANTOS"),
+  // desde que esse contato não seja outro nome das listas ("BRUNO" não vira "BRUNO MICHELOTI")
+  function montarOficial(contatos){
+    const m={}, nomes=[], cache=new Map();
+    contatos.forEach(x=>{ const o=String(x.nome||"").toUpperCase(); m[normP(x.nome)]=o; nomes.push(normP(x.nome)); (x.apelidos||[]).forEach(a=>{ m[normP(a)]=o; }); });
+    const dasListas=new Set(DSP_GRUPOS.flatMap(g=>g[1]).map(normP));
+    return (n)=>{ const k=normP(n); if(cache.has(k)) return cache.get(k);
+      let r=m[k];
+      if(!r&&k.split(" ").length>=2){ const c=nomes.filter(x=>x.startsWith(k+" ")&&!dasListas.has(x)); if(c.length===1) r=m[c[0]]; }
+      r=r||String(n||"").trim().toUpperCase(); cache.set(k,r); return r; };
+  }
   function situacaoDisp(guia,dia){
+    const r=situacaoBase(guia,dia);
+    if(r.s==="p"||r.s==="b"){ const G=normP(oficialDe(guia)); const ds=(DSP.dados.disp||[]).find(x=>x.data===dia&&normP(oficialDe(x.guia))===G);
+      if(ds&&(ds.status==="nao"||ds.status==="restricao")) r.conf={tipo:ds.status==="nao"?"Indisponível":"Restrição",obs:ds.obs||"",em:ds.em}; }
+    return r;
+  }
+  function situacaoBase(guia,dia){
     const G=normP(oficialDe(guia)), cobre=(x)=>x.inicio<=dia&&dia<=x.fim&&normP(oficialDe(x.guia))===G;
     const nc=DSP.internos.find(x=>x.tipo==="naoConvidar"&&cobre(x)); if(nc) return {s:"n",det:"Não convidar até "+dataBR(nc.fim).slice(0,5)+(nc.motivo?" · "+nc.motivo:""),x:nc};
     const sv=DSP.internos.find(x=>x.tipo==="servico"&&cobre(x)); if(sv) return {s:"b",det:(sv.descricao||"Serviço")+(sv.rec?" · REC-"+sv.rec:"")+(sv.horario?" · "+sv.horario:""),x:sv};
@@ -4793,25 +4833,29 @@
     const box=document.getElementById("dspConteudo"); if(!box||!DSP.dados) return;
     const dias=[0,1,2,3,4,5,6].map(k=>somaDias(DSP.data,k)), dia=DSP.data;
     const nomes=[...new Set([...DSP.dados.guias,...DSP.dados.disp.map(x=>x.guia),...DSP_GRUPOS.flatMap(g=>g[1])].map(x=>oficialDe(x)).filter(Boolean))].sort();
-    const linhas=nomes.map(n=>({nome:n,sit:situacaoDisp(n,dia),sem:dias.map(d=>situacaoDisp(n,d).s)}));
+    const linhas=nomes.map(n=>{ const sd=dias.map(d=>situacaoDisp(n,d)); return {nome:n,sit:sd[0],sem:sd.map(x=>x.s),semConf:sd.map(x=>!!x.conf)}; });
+    const conflitos=linhas.filter(l=>l.semConf.some(Boolean));
     const cont={}; linhas.forEach(l=>cont[l.sit.s]=(cont[l.sit.s]||0)+1);
-    const tarde=linhas.filter(l=>(l.sit.s==="r"||l.sit.s==="i")&&avisoTarde(l.sit,dia));
+    const tarde=linhas.filter(l=>((l.sit.s==="r"||l.sit.s==="i")&&avisoTarde(l.sit,dia))||(l.sit.conf&&avisoTarde(l.sit.conf,dia)));
     let vis=linhas.filter(l=>DSP.filtro==="todos"||l.sit.s===DSP.filtro); const b=normP(DSP.busca); if(b) vis=vis.filter(l=>normP(l.nome).includes(b));
     const ord={i:0,r:1,b:2,n:3,p:4,d:5}; vis.sort((a,c)=>ord[a.sit.s]-ord[c.sit.s]||a.nome.localeCompare(c.nome));
     const kpi=(k,t)=>'<div class="resumo"><div class="num" style="color:'+(k==="d"?"var(--ok)":k==="i"?"#9f2a15":k==="r"?"#b45309":k==="b"?"#1e3a8a":"var(--tinta)")+'">'+(cont[k]||0)+'</div><div class="lbl">'+t+'</div></div>';
     let h='<div class="cards-resumo">'+kpi("d","Disponíveis")+kpi("r","Com restrição")+kpi("i","Indisponíveis")+kpi("b","Bloqueados")+kpi("n","Não convidar")+'</div>';
+    if(conflitos.length) h+='<div class="card" style="background:#fde4df;border-color:#f3b9ab;padding:14px 18px"><b style="color:#9f2a15">⚠ '+conflitos.length+' guia(s) escalado(s) que marcaram Indisponível ou Restrição no app</b> <span style="font-size:.86rem;color:#5a1d12">'
+      +conflitos.map(l=>esc(titulo(l.nome))+' ('+l.semConf.map((c,k)=>c?dataBR(dias[k]).slice(0,5):"").filter(Boolean).join(", ")+')').join(" · ")+'</span></div>';
     if(tarde.length) h+='<div class="card" style="background:#fff5f0;border-color:#f3c6b5;padding:14px 18px"><b style="color:#8a2f17">'+tarde.length+' restrição(ões) chegaram depois das 13h do dia anterior</b> <span style="font-size:.86rem;color:#5a2b1d">'+tarde.map(l=>esc(titulo(l.nome))).join(", ")+'</span></div>';
     h+='<div class="filtros">'+campoBusca("dspBusca","Buscar guia",DSP.busca,"DSP.busca=this.value;desenharDisp();setTimeout(()=>{const e=document.getElementById(\'dspBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")
       +segmento([["todos","Todos"],["d","Disponíveis"],["r","Restrição"],["i","Indisponíveis"],["b","Bloqueados"],["n","Não convidar"]],DSP.filtro,"DSP.filtro='$v';desenharDisp()")+'</div>';
-    const sq=(s,d)=>{ const c=DSP_COR[s]; return '<span title="'+dataBR(d).slice(0,5)+': '+c[2]+'" style="width:28px;height:28px;border-radius:8px;background:'+c[0]+';color:'+c[1]+';font-size:.7rem;font-weight:800;display:flex;align-items:center;justify-content:center">'+d.slice(8)+'</span>'; };
+    const sq=(s,d,cf)=>{ const c=DSP_COR[s]; return '<span title="'+dataBR(d).slice(0,5)+': '+c[2]+(cf?' · marcou indisponível/restrição no app':'')+'" style="width:28px;height:28px;border-radius:8px;'+(cf?'outline:2px solid #c2410c;outline-offset:-2px;':'')+'background:'+c[0]+';color:'+c[1]+';font-size:.7rem;font-weight:800;display:flex;align-items:center;justify-content:center">'+d.slice(8)+'</span>'; };
     const linhaDisp=(l)=>{ const c=DSP_COR[l.sit.s], t=avisoTarde(l.sit,dia)&&(l.sit.s==="r"||l.sit.s==="i");
       return '<div class="card" style="margin:0;padding:12px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:14px;'+(t?'border-color:#f3b9ab':'')+'">'
         +'<span style="width:38px;height:38px;border-radius:19px;background:var(--verde-claro);color:var(--verde-esc);font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center">'+esc(l.nome.split(" ").slice(0,2).map(p=>p[0]).join(""))+'</span>'
         +'<div style="width:170px;display:flex;flex-direction:column"><b style="color:var(--tinta)">'+esc(titulo(l.nome))+'</b>'+(l.sit.em?'<span style="font-size:.74rem;'+(t?'color:#9f2a15;font-weight:800':'color:var(--muted)')+'">'+new Date(l.sit.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(t?' · depois das 13h':'')+'</span>':'')+'</div>'
         +ultCol(l.nome)
         +'<span class="pill" style="background:'+c[0]+';color:'+c[1]+';min-width:96px;text-align:center">'+c[2]+'</span>'
-        +'<span style="flex:1 1 200px;font-size:.88rem;font-weight:600">'+(detRepetido(l.sit.det,c[2])?'':esc(l.sit.det))+'</span>'
-        +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k])).join("")+'</div></div>'; };
+        +'<span style="flex:1 1 200px;font-size:.88rem;font-weight:600">'+(detRepetido(l.sit.det,c[2])?'':esc(l.sit.det))
+        +(l.sit.conf?'<span style="display:block;color:#9f2a15;font-weight:800;font-size:.8rem;margin-top:2px">⚠ No app marcou '+l.sit.conf.tipo+(l.sit.conf.obs?': '+esc(l.sit.conf.obs):'')+(l.sit.conf.em?' · '+new Date(l.sit.conf.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):'')+'</span>':'')+'</span>'
+        +'<div style="display:grid;grid-template-columns:repeat(7,28px);gap:4px">'+l.sem.map((s,k)=>sq(s,dias[k],l.semConf[k])).join("")+'</div></div>'; };
     // seções um embaixo da outra: Porto, Estagiários, Recife (e quem não está em nenhuma lista)
     const usados=new Set();
     // dentro de cada grupo, a ordem é fixa, a mesma do painel (não muda com o status)
