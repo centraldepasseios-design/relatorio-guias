@@ -70,6 +70,7 @@ function lerNota(texto) {
 
   if (/DANFSe/i.test(plano) || /Documento Auxiliar da NFS-e/i.test(plano)) r.tipo = "nfse";
   else if (/NOTA FISCAL AVULSA/i.test(plano)) r.tipo = "avulsa";
+  else if (/\bRECIBO\b/i.test(plano)) r.tipo = "recibo"; // guias que recebem por recibo (Word/PDF com serviços e total)
 
   // documentos (CNPJ/CPF) na ordem em que aparecem; o 1º que não é da Luck é o do prestador
   const docs = [...plano.matchAll(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2})\b/g)].map((m) => so(m[1]));
@@ -147,7 +148,7 @@ function lerNota(texto) {
     const passo=D.nota&&D.nota.ok?3:(D.liberado&&conferido?(D.nota?2:1):0);
     const cls=(i)=>i<passo?"passo feito":(i===passo?"passo atual":"passo");
     let h=NO_APP?'<span class="sub">Quinzena de '+dBR(ini)+' a '+dBR(fim)+'</span>':'<div style="display:flex;flex-direction:column;gap:2px"><span class="sub">'+dBR(ini)+' a '+dBR(fim)+'</span><h1>Olá, '+esc(D.nome.split(" ")[0].charAt(0)+D.nome.split(" ")[0].slice(1).toLowerCase())+'</h1></div>';
-    h+='<div class="passos"><div class="'+cls(0)+'">1. Conferir</div><div class="'+cls(1)+'">2. Emitir nota</div><div class="'+cls(2)+'">3. Enviar</div></div>';
+    h+='<div class="passos"><div class="'+cls(0)+'">1. Conferir</div><div class="'+cls(1)+'">2. '+(D.recibo?'Fazer recibo':'Emitir nota')+'</div><div class="'+cls(2)+'">3. Enviar</div></div>';
     if(D.liberado){ const v=D.valores;
       h+='<section class="valor"><div><div class="lbl">VALOR DA SUA NOTA</div><div class="num">'+brl(v.liq)+'</div></div><div class="grade"><span>Serviços</span><b>'+brl(v.serv)+'</b><span>Comissão</span><b>'+brl(v.com)+'</b>'+(v.reemb?'<span>Reembolso</span><b>− '+brl(v.reemb)+'</b>':'')+(v.maq?'<span>Maquineta</span><b>− '+brl(v.maq)+'</b>':'')+'</div></section>';
     } else h+='<div class="espera">Confira seus serviços abaixo. O valor da nota aparece aqui quando o financeiro lançar a comissão da quinzena.</div>';
@@ -180,14 +181,15 @@ function lerNota(texto) {
       +'<button class="btn sec" style="margin-top:8px" onclick="abrirLancar()">＋ Adicionar</button></div>';
     if(D.contestacoes.length){
       const ST={aberta:["Em análise","var(--aviso-bg)","var(--aviso)"],aceita:["Aceita","var(--claro)","var(--acc-esc)"],negada:["Negada","var(--alerta-bg)","var(--alerta)"]};
-      h+='<div class="card"><b style="font-size:14px">Suas contestações</b>'+D.contestacoes.map(c=>{const s=ST[c.status]||ST.aberta;return '<div style="padding:10px 0;border-top:1px solid #edf2f0;margin-top:8px;font-size:13px"><span class="tag" style="background:'+s[1]+';color:'+s[2]+'">'+s[0]+'</span> <b>'+esc(c.tipo)+'</b> · '+esc(c.data?dBR(c.data):"")+' '+esc(c.servico)+(c.obs?'<div style="color:var(--muted);margin-top:4px">'+esc(c.obs)+'</div>':'')+(c.resposta?'<div style="margin-top:4px">Central: '+esc(c.resposta)+'</div>':'')+(c.status==="aberta"?'<div style="margin-top:6px"><button class="mini" onclick="desfazerContestacao(\''+c.id+'\')">Desfazer esta contestação</button></div>':'')+'</div>';}).join("")+'</div>';
+      h+='<div class="card"><b style="font-size:14px">Suas contestações</b>'+D.contestacoes.map(c=>{const s=ST[c.status]||ST.aberta;return '<div style="padding:10px 0;border-top:1px solid #edf2f0;margin-top:8px;font-size:13px"><span class="tag" style="background:'+s[1]+';color:'+s[2]+'">'+s[0]+'</span> <b>'+esc(c.tipo)+'</b> · '+esc(c.data?dBR(c.data):"")+' '+esc(c.servico)+(c.valorPedido?'<div style="margin-top:4px">Valor pedido: <b>'+brl(c.valorPedido)+'</b></div>':'')+(c.obs?'<div style="color:var(--muted);margin-top:4px">'+esc(c.obs)+'</div>':'')+(c.resposta?'<div style="margin-top:4px">Central: '+esc(c.resposta)+'</div>':'')+(c.status==="aberta"?'<div style="margin-top:6px"><button class="mini" onclick="desfazerContestacao(\''+c.id+'\')">Desfazer esta contestação</button></div>':'')+'</div>';}).join("")+'</div>';
     }
     if(!conferido) h+='<button class="btn" onclick="confirmar()">Meus serviços estão certos</button>';
     if(D.liberado&&conferido){
-      h+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:800;color:var(--muted)">DESCRIÇÃO PRONTA PARA A NOTA</span><b style="font-size:12px;color:var(--acc-esc)">'+brl(D.valores.liq)+'</b></div><p class="desc" id="desc">'+esc(descricao())+'</p><button class="btn sec" onclick="copiar()">Copiar descrição</button><button class="btn sec" style="margin-top:8px" id="btnContador" onclick="pdfContador()">Baixar PDF para o contador</button></div>';
+      h+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:800;color:var(--muted)">'+(D.recibo?'SERVIÇOS PARA O RECIBO':'DESCRIÇÃO PRONTA PARA A NOTA')+'</span><b style="font-size:12px;color:var(--acc-esc)">'+brl(D.valores.liq)+'</b></div><p class="desc" id="desc">'+esc(descricao())+'</p><button class="btn sec" onclick="copiar()">Copiar descrição</button><button class="btn sec" style="margin-top:8px" id="btnContador" onclick="pdfContador()">Baixar PDF para o contador</button></div>';
       if(!D.nota&&D.novaNota) h+='<div style="background:#fdf2ef;color:#9f2a15;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:14px"><b>A Central pediu uma nova nota.</b><div style="margin-top:4px">'+esc(D.novaNota.motivo)+'</div></div>';
-      if(D.nota) h+=(D.nota.ok?'<div class="ok"><b style="font-size:15px">✓ Nota '+esc(D.nota.numero)+' conferida</b><div style="font-size:13px;margin-top:6px">Valor '+brl(D.nota.valor)+' bate com a quinzena. Não precisa fazer mais nada.</div></div>':'<div class="prob"><b style="font-size:15px">⚠ Nota '+esc(D.nota.numero)+' com problema</b><div style="font-size:13px;margin-top:6px">'+D.nota.problemas.map(esc).join("<br>")+'</div><div style="font-size:13px;margin-top:6px">Corrija no emissor e envie a nota nova.</div></div>');
-      if(!(D.nota&&D.nota.ok)) h+='<label class="btn" style="display:flex;align-items:center;justify-content:center;flex-direction:row">'+(D.nota?'Enviar a nota corrigida (PDF)':'Enviar minha nota (PDF)')+'<input type="file" accept="application/pdf" style="display:none" onchange="enviarNota(this)"></label>';
+      const nomeDoc=(D.recibo||(D.nota&&D.nota.tipo==="recibo"))?"Recibo":"Nota "+esc((D.nota&&D.nota.numero)||"");
+      if(D.nota) h+=(D.nota.ok?'<div class="ok"><b style="font-size:15px">✓ '+nomeDoc+' conferido</b><div style="font-size:13px;margin-top:6px">Valor '+brl(D.nota.valor)+' bate com a quinzena. Não precisa fazer mais nada.</div></div>':'<div class="prob"><b style="font-size:15px">⚠ '+nomeDoc+' com problema</b><div style="font-size:13px;margin-top:6px">'+D.nota.problemas.map(esc).join("<br>")+'</div><div style="font-size:13px;margin-top:6px">Corrija no emissor e envie a nota nova.</div></div>');
+      if(!(D.nota&&D.nota.ok)) h+='<label class="btn" style="display:flex;align-items:center;justify-content:center;flex-direction:row">'+(D.recibo?(D.nota?'Enviar o recibo corrigido (PDF)':'Enviar meu recibo (PDF)'):(D.nota?'Enviar a nota corrigida (PDF)':'Enviar minha nota (PDF)'))+'<input type="file" accept="application/pdf" style="display:none" onchange="enviarNota(this)"></label>';
     }
     h+='<p class="sub" style="text-align:center">Dúvidas? Fale com a Central de Guias.</p>';
     document.getElementById("app").innerHTML=h;
@@ -219,7 +221,7 @@ function lerNota(texto) {
   function abrirContestar(i){
     const l=i>=0?D.linhas[i]:null; const f=document.createElement("div"); f.className="fundo"; f.id="fundo";
     f.innerHTML='<div class="folha"><b style="font-size:18px">'+(l?'O que está errado?':'Qual serviço faltou?')+'</b>'
-      +(l?'<div class="sub">'+dBR(l.data)+' · '+esc(String(l.hora||"").slice(0,5))+' · '+esc(titulo(l.servico))+' · '+brl(l.valor)+(l.motorista?'<br>'+esc(titulo(l.veiculo||""))+' · Mot. '+esc(titulo(l.motorista)):'')+'</div><label>Motivo<select id="cTipo"><option>Não fiz esse serviço</option><option>Valor errado</option><option>Outro</option></select></label>'
+      +(l?'<div class="sub">'+dBR(l.data)+' · '+esc(String(l.hora||"").slice(0,5))+' · '+esc(titulo(l.servico))+' · '+brl(l.valor)+(l.motorista?'<br>'+esc(titulo(l.veiculo||""))+' · Mot. '+esc(titulo(l.motorista)):'')+'</div><label>Motivo<select id="cTipo" onchange="document.getElementById(\'cValBox\').style.display=this.value===\'Valor errado\'?\'flex\':\'none\'"><option>Não fiz esse serviço</option><option>Valor errado</option><option>Outro</option></select></label><label id="cValBox" style="display:none">Qual é o valor certo? (R$)<input type="text" inputmode="decimal" id="cVal" placeholder="ex.: 108"></label>'
          :'<input type="hidden" id="cTipo" value="Faltou serviço"><label>Data<input type="date" id="cData" min="'+D.periodo[0]+'" max="'+D.periodo[1]+'"></label><label>Serviço<input type="text" id="cServ" placeholder="ex.: IN Porto de Galinhas"></label><div style="display:flex;gap:10px"><label style="flex:1">Horário<input type="time" id="cHora"></label><label style="flex:1.4">Motorista<input type="text" id="cMot" placeholder="ex.: Josias"></label></div>')
       +'<label>Explique (opcional)<textarea id="cObs" rows="3" placeholder="Ex.: o voo foi cancelado, fiz com o motorista X..."></textarea></label>'
       +'<button class="btn" id="cBtn">Enviar para a Central</button><button class="btn sec" onclick="document.getElementById(\'fundo\').remove()">Cancelar</button></div>';
@@ -230,7 +232,10 @@ function lerNota(texto) {
       if(!l){ data=document.getElementById("cData").value; const hora=document.getElementById("cHora").value, mot=document.getElementById("cMot").value.trim();
         if(!data||!serv||!hora||!mot){alert("Preencha a data, o serviço, o horário e o motorista.");return;}
         obs="Horário: "+hora+" · Motorista: "+mot+(obs?" · "+obs:""); }
-      const j=await api("contestar",{tipo:document.getElementById("cTipo").value,data,servico:serv,ro:l?l.ro:"",obs});
+      const tipo=document.getElementById("cTipo").value; let valorPedido;
+      if(tipo==="Valor errado"){ valorPedido=parseFloat(String(document.getElementById("cVal").value).replace(/[^\d,.]/g,"").replace(/\.(?=\d{3}(\D|$))/g,"").replace(",","."));
+        if(!(valorPedido>0)){ alert("Digite o valor certo do serviço."); return; } }
+      const j=await api("contestar",{tipo,data,servico:serv,ro:l?l.ro:"",obs,...(valorPedido?{valorPedido}:{})});
       if(!j.ok){alert(j.erro);return;} f.remove(); carregar();
     };
   }

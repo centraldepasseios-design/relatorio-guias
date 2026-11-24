@@ -2828,8 +2828,8 @@
     if(!j.ok){ alert(j.erro); return; } await finCarregar(); alert("Pronto! A Central foi avisada de que os valores estão lançados.");
   }
   function renderPagamentos(m){
-    const aba=["quinzena","comissao","tarifario","notas"].includes(PAG.aba)?PAG.aba:"quinzena";
-    const abas=segmento([["quinzena","Quinzena dos guias"],["comissao","Comissão"],["tarifario","Tarifário"],["notas","Notas recebidas por fora"]],aba,"PAG.aba='$v';renderPagamentos(document.getElementById('mainConteudo'))");
+    const aba=["quinzena","comissao","tarifario"].includes(PAG.aba)?PAG.aba:"quinzena";
+    const abas=segmento([["quinzena","Quinzena dos guias"],["comissao","Comissão"],["tarifario","Tarifário"]],aba,"PAG.aba='$v';renderPagamentos(document.getElementById('mainConteudo'))");
     cab("Mapa pelo Phoenix, comissão da PGG e notas fiscais","");
     if(aba==="quinzena"){ m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div>'+htmlQuinzena(); carregarQuinzenas(); atualizarPiloto(); return; }
     if(aba==="comissao"){ m.innerHTML='<div style="margin-bottom:16px">'+abas+'</div><div class="card" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center"><label style="display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)">Quinzena<select id="qSel" onchange="PIL.qid=this.value;renderPagamentos(document.getElementById(\'mainConteudo\'))" style="height:44px;padding:0 12px;font-weight:700"><option value="'+PIL.qid+'">'+nomeQ(PIL.qid)+'</option></select></label><span id="comInfo" style="flex:1;font-size:.82rem;color:var(--muted)"></span><button class="btn sec" onclick="comissaoAgora().then(carregarComissaoCentral)">Buscar no Phoenix agora</button></div><div id="comBox"><div class="card" style="color:var(--muted)">Carregando...</div></div>'; carregarQuinzenas(); carregarComissaoCentral(); return; }
@@ -4642,7 +4642,7 @@
     else { j=await chamarPiloto("status",{}); if(j.ok) PIL.bruto=JSON.parse(JSON.stringify(j)); }
     const box=document.getElementById("pilStatus"); if(!box) return;
     if(!j.ok){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro)+'</div>'; return; }
-    PIL.dados=JSON.parse(JSON.stringify(PIL.bruto));
+    PIL.dados=JSON.parse(JSON.stringify(PIL.bruto)); PIL.recibo=j.recibo||["MADSON","MADALENA"];
     const lib=!!(j.quinzena&&j.quinzena.liberado);
     { const fi=document.getElementById("pilFin"), f=j.quinzena&&j.quinzena.financeiro; if(fi) fi.innerHTML=f?'<div style="font-size:.82rem;color:var(--ok);font-weight:700">✓ Financeiro concluiu os valores ('+esc(f.por)+', '+new Date(f.em).toLocaleString("pt-BR")+') · comissão total '+brlP(f.totalComissao)+'</div>':'<div style="font-size:.82rem;color:#b45309;font-weight:700">Financeiro ainda não concluiu os valores desta quinzena.</div>'; }
     const ci=document.getElementById("comInfo"); if(ci) ci.innerHTML=j.comissaoEm?'Comissão do Phoenix lida até <b>'+dataBR(j.comissaoAte).slice(0,5)+'</b> · '+new Date(j.comissaoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):'Comissão do Phoenix ainda não lida nesta quinzena.';
@@ -4666,21 +4666,21 @@
       const abertas=(g.contestacoes||[]).filter(c=>c.status==="aberta");
       return '<div class="card" style="padding:14px 18px">'
         +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1rem">'+esc(g.nome)+'</b><span style="font-size:.72rem;font-weight:800;background:'+st[1]+';color:'+st[2]+';border-radius:999px;padding:3px 10px">'+st[0]+'</span>'+(()=>{ const n=abertas.length+(g.lancamentos||[]).filter(x=>x.status==="aberto").length; return n?'<span style="font-size:.72rem;font-weight:800;background:#fff1e0;color:#8a4a0c;border-radius:999px;padding:3px 10px">'+n+' em aberto</span>':''; })()
-        +'<span style="margin-left:auto;display:flex;gap:6px">'+(lib&&g.valores&&!g.liberadoGuia?'':(g.liberadoGuia?'<button class="btn mini sec" title="Só este guia vê o valor da nota" onclick="pilotoLiberarGuia(\''+g.gid+'\',false)">Liberado só p/ ele ✓ (desfazer)</button>':'<button class="btn mini sec" onclick="pilotoLiberarGuia(\''+g.gid+'\',true)">Liberar só este guia</button>'))+'<button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
+        +'<span style="margin-left:auto;display:flex;gap:6px">'+(lib&&g.valores&&!g.liberadoGuia?'':(g.liberadoGuia?'<button class="btn mini sec" title="Só este guia vê o valor da nota" onclick="pilotoLiberarGuia(\''+g.gid+'\',false)">Liberado só p/ ele ✓ (desfazer)</button>':'<button class="btn mini sec" onclick="pilotoLiberarGuia(\''+g.gid+'\',true)">Liberar só este guia</button>'))+'<button class="btn mini sec" title="Guia que não emite nota fiscal: envia recibo com os serviços e o total" onclick="pilotoRecibo(\''+g.gid+'\','+(!ehReciboP(g.nome))+')">'+(ehReciboP(g.nome)?'Recebe por recibo ✓':'Recibo?')+'</button><button class="btn mini sec" onclick="pilotoLink(\''+g.gid+'\')">Copiar link do guia</button></span></div>'
         +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;margin-top:8px;color:var(--muted)"><span>'+(g.linhas||[]).length+' serviços no mapa · '+brlP(g.totalMapa)+'</span>'
         +(v?'<span>Serviços '+brlP(v.serv)+' · comissão '+brlP(v.com)+(v.reemb?' · reembolso '+brlP(v.reemb):'')+(v.maq?' · maquineta '+brlP(v.maq):'')+' · <b style="color:var(--tinta)">nota '+brlP(v.liq)+'</b></span>':'<span>PGG ainda não carregada</span>')+'</div>'
         +(dif?'<div style="font-size:.8rem;color:#b45309;margin-top:6px">ℹ️ A PGG tem '+brlP(v.servPgg)+' de serviços; o sistema calculou '+brlP(v.serv)+' pelo Phoenix. O valor da nota usa o do sistema.</div>':'')
-        +(()=>{ const fC=c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'
+        +(()=>{ const fC=c=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(c.tipo)+'</b><span>'+esc(c.data?dataBR(c.data):"")+' '+esc(c.servico)+'</span><span style="color:var(--muted)">'+esc(c.obs||"")+'</span>'+(c.valorPedido?'<span style="font-weight:700">'+(()=>{ const l=(g.linhas||[]).find(x=>x.ro===c.ro); return (l?'de '+brlP(c.status==="aceita"&&c.valorAntes!=null?c.valorAntes:l.valor)+' ':'')+'para '+brlP(c.valorPedido); })()+'</span>':'')
           +(c.status==="aberta"&&/faltou/i.test(c.tipo)&&c.data&&(g.linhas||[]).some(l=>l.data===c.data)?'<div style="flex-basis:100%;font-size:.78rem;color:var(--ok)">✓ No mapa neste dia: '+(g.linhas||[]).filter(l=>l.data===c.data).map(l=>esc((l.hora||"")+" "+String(l.servico).replace(/^APOIO · /,"Apoio · ")+" ("+brlP(l.valor)+")")).join(" · ")+'</div>':'')
-          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px">'+(/faltou/i.test(c.tipo)&&c.data&&(g.linhas||[]).some(l=>l.data===c.data)?'<button class="btn mini sec" title="O serviço já está no mapa: fecha a contestação sem mexer em nada" onclick="pilotoJaConsta(\''+g.gid+'\',\''+c.id+'\')">Já consta ✓</button>':'')+'<button class="btn mini" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita"+(c.valorDepois!=null?" · "+brlP(c.valorAntes)+" → "+brlP(c.valorDepois):""):"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>'+(c.status==="aceita"&&c.valorDepois==null?(c.ro?'<button class="btn mini sec" onclick="pilotoCorrigirValor(\''+g.gid+'\',\''+esc(c.ro)+'\')">Corrigir valor</button>':'<button class="btn mini sec" onclick="pilotoAtualizarGuia(\''+g.gid+'\')">Atualizar mapa dele</button>'):''))+'</div>', fS=l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>', fL=x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
+          +(c.status==="aberta"?'<span style="margin-left:auto;display:flex;gap:6px">'+(/faltou/i.test(c.tipo)&&c.data&&(g.linhas||[]).some(l=>l.data===c.data)?'<button class="btn mini sec" title="O serviço já está no mapa: fecha a contestação sem mexer em nada" onclick="pilotoJaConsta(\''+g.gid+'\',\''+c.id+'\')">Já consta ✓</button>':'')+(c.valorPedido&&c.ro?'<button class="btn mini" title="O guia está certo: o serviço passa a valer o valor pedido, para ele e para vocês" onclick="pilotoOkValor(\''+g.gid+'\',\''+c.id+'\')">OK · '+brlP(c.valorPedido)+'</button>':'')+'<button class="btn mini'+(c.valorPedido&&c.ro?' sec':'')+'" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'aceita\')">Aceitar</button><button class="btn mini danger" onclick="pilotoResponder(\''+g.gid+'\',\''+c.id+'\',\'negada\')">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(c.status==="aceita"?"var(--ok)":"var(--alerta)")+'">'+(c.status==="aceita"?"Aceita"+(c.valorDepois!=null?" · "+brlP(c.valorAntes)+" → "+brlP(c.valorDepois):""):"Negada")+(c.resposta?": "+esc(c.resposta):"")+'</span>'+(c.status==="aceita"&&c.valorDepois==null?(c.ro?'<button class="btn mini sec" onclick="pilotoCorrigirValor(\''+g.gid+'\',\''+esc(c.ro)+'\')">Corrigir valor</button>':'<button class="btn mini sec" onclick="pilotoAtualizarGuia(\''+g.gid+'\')">Atualizar mapa dele</button>'):''))+'</div>', fS=l=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b style="color:#b45309">Sem tarifa</b><span>'+esc(dataBR(l.data).slice(0,5))+' '+esc(l.servico)+' <span style="color:var(--muted)">'+esc(l.ro)+'</span></span><button class="btn mini sec" style="margin-left:auto" onclick="pilotoAjustar(\''+g.gid+'\',\''+esc(l.ro)+'\')">Definir valor</button></div>', fL=x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem"><b>'+esc(x.nome)+(x.idioma?' · idioma':'')+'</b><span>'+esc(dataBR(x.data).slice(0,5))+'</span><span style="color:var(--muted)">'+esc(x.obs||"")+'</span>'
           +(x.status==="aberto"?'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'aceito\','+(x.sugerido||0)+')">Aceitar</button><button class="btn mini danger" onclick="pilotoLanc(\''+g.gid+'\',\''+x.id+'\',\'negado\',0)">Negar</button></span>':'<span style="margin-left:auto;font-weight:700;color:'+(x.status==="aceito"?"var(--ok)":"var(--alerta)")+'">'+(x.status==="aceito"?"Aceito · "+brlP(x.valor):"Negado")+'</span>')+'</div>';
           const cs=g.contestacoes||[], ls=g.lancamentos||[], st=(g.linhas||[]).filter(l=>/sem tarifa/i.test(l.obs||""));
           const abC=cs.filter(c=>c.status==="aberta"), abL=ls.filter(x=>x.status==="aberto"), feitas=cs.filter(c=>c.status!=="aberta").length+ls.filter(x=>x.status!=="aberto").length;
           const tit=(t)=>'<div style="font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:10px">'+t+'</div>';
           return (abC.length||abL.length||st.length?tit("Precisa de resposta")+abC.map(fC).join("")+abL.map(fL).join("")+st.map(fS).join(""):"")
             +(feitas?'<details style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">'+feitas+' resolvida'+(feitas>1?'s':'')+'</summary>'+cs.filter(c=>c.status!=="aberta").map(fC).join("")+ls.filter(x=>x.status!=="aberto").map(fL).join("")+'</details>':""); })()
-        +'<details class="rpbox" style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px" ontoggle="rpAbrir(\''+g.gid+'\',this)"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">Relatório do guia <span id="rpb-'+g.gid+'"></span></summary><div id="rp-'+g.gid+'" style="margin-top:8px"></div></details>'
-        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Nota '+esc(g.nota.numero)+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena"+(g.nota.conferidaManual?" (conferida na mão por "+esc(g.nota.conferidaManual.por)+")":""):"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button><button class="btn mini danger" onclick="pilotoNovaNota(\''+g.gid+'\')">Pedir nova nota</button>'+(g.nota.ok?'':'<button class="btn mini" title="Abriu o PDF e conferiu na mão" onclick="pilotoConfirmarNota(\''+g.gid+'\')">Conferi: está certa</button>')+'</span></div>':'')
+        +'<details class="rpbox" style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px" ontoggle="rpAbrir(\''+g.gid+'\',this)"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">Conferir serviços: Phoenix × relatório <span id="rpb-'+g.gid+'"></span></summary><div id="rp-'+g.gid+'" style="margin-top:8px"></div></details>'
+        +(g.nota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>'+((g.nota.tipo==="recibo"||ehReciboP(g.nome))?'Recibo':'Nota '+esc(g.nota.numero||""))+' · '+brlP(g.nota.valor)+'</b><span style="color:'+(g.nota.ok?"var(--ok)":"var(--alerta)")+';font-weight:700">'+(g.nota.ok?"✅ bate com o valor da quinzena"+(g.nota.conferidaManual?" (conferida na mão por "+esc(g.nota.conferidaManual.por)+")":""):"⚠️ "+esc((g.nota.problemas||[]).join(" · ")))+'</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="pilotoPdf(\''+g.gid+'\')">Baixar PDF</button><button class="btn mini danger" onclick="pilotoNovaNota(\''+g.gid+'\')">Pedir nova nota</button>'+(g.nota.ok?'':'<button class="btn mini" title="Abriu o PDF e conferiu: fica OK sem digitar número nem valor" onclick="pilotoConfirmarNota(\''+g.gid+'\')">OK, conferi</button>')+'</span></div>':'')
         +(!g.nota&&g.novaNota?'<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:8px;font-size:.82rem;color:#9f2a15"><b>Nova nota pedida</b> · '+esc(g.novaNota.motivo)+'</div>':'')
         +'</div>';
     }).join("");
@@ -4746,27 +4746,38 @@
       for(const l of precisa){ const i=itens.find(x=>!x._u&&x.ro&&x.ro===l.ro); if(i){ i._u=1; l._i=i; } else l._i=null; }
       for(const l of precisa) if(!l._i){ const cl=catMapa(String(l.servico).toUpperCase()); const i=itens.find(x=>!x._u&&rpCasa(cl,x._c)); if(i){ i._u=1; l._i=i; } }
       for(const l of L){ const p=rpPrecisa(l); out.push({l,precisa:p,st:!p?"":(l._i?(l._i.naoRealizado?"nao":"ok"):"sem"),motivo:l._i&&l._i.motivo||""}); delete l._i; }
-      const sobra=itens.filter(x=>!x._u&&x._c&&x._c!=="passeio"&&x._c!=="apoio-volta").length; if(sobra) extras[d]=sobra;
+      const sobra=itens.filter(x=>!x._u&&x._c&&x._c!=="passeio"&&x._c!=="apoio-volta"); if(sobra.length) extras[d]=sobra.map(x=>x.servico||x._c);
     }
     const prob=out.filter(x=>x.st==="sem"||(x.st==="nao"&&x.l.valor>0)).length+Object.keys(extras).length;
     return {out,extras,prob};
   }
   function rpHtml(g,rel){
-    const {out,extras,prob}=rpStatus(g,rel); const todos=!!(RP.todos||{})[g.gid];
+    const {out,extras}=rpStatus(g,rel); const soProb=!!(RP.todos||{})[g.gid];
     if(!out.length) return '<div style="font-size:.82rem;color:var(--muted)">Sem serviços na quinzena.</div>';
     const prec=out.filter(x=>x.precisa), ok=prec.filter(x=>x.st==="ok").length, sem=prec.filter(x=>x.st==="sem").length, nao=prec.filter(x=>x.st==="nao").length;
-    const ST={ok:['✓ relatado','var(--ok)'],sem:['⚠ sem relatório','#b45309'],nao:['✕ marcou que não fez','var(--alerta)'],"":['não precisa','var(--muted)']};
-    const linha=(x,mostraData)=>'<span style="font-weight:800">'+(mostraData?esc(dataBR(x.l.data).slice(0,5)):'')+'</span><span>'+esc(x.l.hora||"—")+' '+esc(String(x.l.servico).replace(/^APOIO · /,"Apoio · "))+'</span>'
-      +'<span style="color:var(--muted);white-space:nowrap">'+brlP(x.l.valor)+(/motoguia/i.test(x.l.obs||"")?' · motoguia':'')+'</span>'
-      +'<span style="color:'+ST[x.st][1]+';font-weight:700;white-space:nowrap">'+ST[x.st][0]+(x.st==="nao"&&x.motivo?': '+esc(x.motivo):'')+'</span>';
-    const lista=todos?out:out.filter(x=>x.st==="sem"||(x.st==="nao"&&x.l.valor>0));
-    let ult=""; const grade=lista.map(x=>{ const m=x.l.data!==ult; ult=x.l.data; return linha(x,m); }).join("");
-    const ext=Object.entries(extras).map(([d,n])=>'<div style="font-size:.8rem;color:#b45309;margin-top:4px">⚠ '+esc(dataBR(d).slice(0,5))+': o relatório tem '+n+' serviço'+(n>1?'s':'')+' que não '+(n>1?'estão':'está')+' no mapa (confira se falta algo no Phoenix)</div>').join("");
-    return '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:.8rem;color:var(--muted);margin-bottom:6px"><span><b style="color:var(--tinta)">'+ok+' de '+prec.length+'</b> relatados'+(sem?' · <b style="color:#b45309">'+sem+' sem relatório</b>':'')+(nao?' · <b style="color:var(--alerta)">'+nao+' marcou que não fez</b>':'')+'</span>'
-      +'<a href="#" style="margin-left:auto;color:var(--acc-esc,var(--ok));font-weight:700" onclick="event.preventDefault();rpTodos(\''+g.gid+'\')">'+(todos?'ver só os problemas':'ver todos os dias')+'</a></div>'
-      +(lista.length?'<div style="display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:5px 12px;font-size:.8rem;align-items:baseline">'+grade+'</div>'
-        :(prob?'':'<div style="font-size:.82rem;color:var(--ok);font-weight:700">Tudo relatado ✓</div>'))
-      +ext+(todos?'':'<div style="font-size:.75rem;color:var(--muted);margin-top:6px">Passeios, apoio de volta e lançamentos da Central não precisam de relatório.</div>');
+    const ST={ok:['✓ relatado','#e3f2ee','#0b4f44'],sem:['⚠ sem relatório','#fff1e0','#8a4a0c'],nao:['✕ marcou que não fez','#fde4df','#9f2a15']};
+    const DS=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+    const problema=(x)=>x.st==="sem"||(x.st==="nao"&&x.l.valor>0);
+    const dias=[...new Set([...out.map(x=>x.l.data),...Object.keys(extras)])].sort().filter(d=>!soProb||out.some(x=>x.l.data===d&&problema(x))||extras[d]);
+    const card=(d)=>{ const xs=out.filter(x=>x.l.data===d), dt=new Date(d+"T12:00:00");
+      return '<div style="border:1px solid var(--linha);border-radius:14px;padding:2px 14px;margin-bottom:10px;background:#fff">'
+        +'<div style="display:flex;justify-content:space-between;padding:10px 0 6px"><b>'+DS[dt.getDay()]+', '+esc(dataBR(d).slice(0,5))+'</b><span style="color:var(--muted);font-size:.8rem">'+brlP(xs.reduce((s,x)=>s+(+x.l.valor||0),0))+'</span></div>'
+        +xs.map(x=>{ const l=x.l, s=ST[x.st], ct=(g.contestacoes||[]).find(c=>c.ro&&c.ro===l.ro);
+          return '<div style="border-top:1px solid #edf2f0;padding:10px 0;display:flex;gap:12px;align-items:flex-start;'+(soProb&&!problema(x)?'opacity:.45':'')+'">'
+            +'<div style="width:46px;flex-shrink:0"><b style="font-size:.95rem;color:var(--verde-esc,#0b4f44)">'+esc(String(l.hora||"").slice(0,5)||"—")+'</b></div>'
+            +'<div style="flex:1;min-width:0;font-size:.8rem;line-height:1.4"><b style="font-size:.86rem">'+esc(nomeServ(String(l.servico||"").replace(/^APOIO · /,"Apoio · ")))+'</b>'
+            +'<div style="color:var(--muted)">'+esc(titulo(l.veiculo||""))+(l.motorista?' · Mot. '+esc(titulo(l.motorista)):'')+(l.ro&&!/^(MANUAL|BOX|SOL)-/.test(l.ro)?' · Escala '+esc(l.ro):'')+'</div>'
+            +(l.obs?'<div style="font-weight:700;color:#8a4a0c">'+esc(l.obs)+'</div>':'')
+            +(x.st==="nao"&&x.motivo?'<div style="color:#9f2a15">Motivo no relatório: '+esc(x.motivo)+'</div>':'')
+            +(ct?'<div style="color:'+(ct.status==="aberta"?'#8a4a0c':'var(--muted)')+'">Contestou: '+esc(ct.tipo)+(ct.valorPedido?' · pediu '+brlP(ct.valorPedido):'')+' · '+(ct.status==="aberta"?'em aberto':ct.status)+'</div>':'')+'</div>'
+            +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0"><b style="font-size:.9rem">'+brlP(l.valor)+'</b>'
+            +(s?'<span style="font-size:.7rem;font-weight:800;background:'+s[1]+';color:'+s[2]+';border-radius:999px;padding:2px 9px;white-space:nowrap">'+s[0]+'</span>':'<span style="font-size:.7rem;color:var(--muted)">não pede relatório</span>')+'</div></div>'; }).join("")
+        +(extras[d]?'<div style="border-top:1px solid #edf2f0;padding:9px 0;font-size:.8rem;color:#8a4a0c"><b>⚠ No relatório, mas não no Phoenix:</b> '+extras[d].map(n=>esc(nomeServ(String(n)))).join(" · ")+'<div style="color:var(--muted)">Confira se falta escala no Phoenix para este guia.</div></div>':'')
+        +'</div>'; };
+    return '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:.8rem;color:var(--muted);margin-bottom:8px"><span><b style="color:var(--tinta)">'+ok+' de '+prec.length+'</b> relatados'+(sem?' · <b style="color:#b45309">'+sem+' sem relatório</b>':'')+(nao?' · <b style="color:var(--alerta)">'+nao+' marcou que não fez</b>':'')+(Object.keys(extras).length?' · <b style="color:#b45309">'+Object.keys(extras).length+' dia(s) com relatório a mais</b>':'')+'</span>'
+      +'<a href="#" style="margin-left:auto;color:var(--ok);font-weight:700" onclick="event.preventDefault();rpTodos(\''+g.gid+'\')">'+(soProb?'ver todos os dias':'ver só os dias com problema')+'</a></div>'
+      +(dias.length?'<div style="max-width:620px">'+dias.map(card).join("")+'</div>':'<div style="font-size:.82rem;color:var(--ok);font-weight:700">Tudo relatado ✓</div>')
+      +'<div style="font-size:.75rem;color:var(--muted);margin-top:4px">Passeios, apoio de volta e lançamentos da Central não pedem relatório.</div>';
   }
   function rpTodos(gid){ RP.todos=RP.todos||{}; RP.todos[gid]=!RP.todos[gid]; const box=document.getElementById("rp-"+gid);
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(box&&g&&RP.rel) box.innerHTML=rpHtml(g,RP.rel); }
@@ -4890,12 +4901,10 @@
   // nota que o sistema não conseguiu ler (ex.: PDF sem texto): a Central abre o PDF, confere e confirma
   async function pilotoConfirmarNota(gid){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g||!g.nota) return;
-    if(!confirm("Antes de confirmar, abra o PDF (Baixar PDF) e confira:\n\n• Tomador: AGENCIA LUCK VIAGENS E TURISMO · CNPJ 10.866.549/0001-17\n• Prestador: "+g.nome+"\n• Valor da nota: "+brlP(g.valores?g.valores.liq:0)+"\n\nJá conferiu o PDF?")) return;
-    const numero=prompt("Número da nota (como está no PDF):",g.nota.numero||""); if(numero===null) return;
-    const v=prompt("Valor total da nota (como está no PDF):",""); if(v===null) return;
-    const valor=parseFloat(v.replace(/[^\d,.-]/g,"").replace(/\./g,"").replace(",","."));
-    const j=await chamarPiloto("confirmarNota",{gid,numero:numero.trim(),valor}); if(!j.ok){ alert(j.erro); return; }
-    alert("Nota "+numero.trim()+" de "+g.nome+" conferida ✓ (registrado que foi conferida na mão)."); atualizarPiloto();
+    const rec=g.nota.tipo==="recibo"||ehReciboP(g.nome);
+    if(!confirm("Marcar "+(rec?"o recibo":"a nota")+" de "+g.nome+" como conferid"+(rec?"o":"a")+"?\n\nValor da quinzena: "+brlP(g.valores?g.valores.liq:0)+"\n\nFica registrado que foi conferid"+(rec?"o":"a")+" por você.")) return;
+    const j=await chamarPiloto("confirmarNota",{gid}); if(!j.ok){ alert(j.erro); return; }
+    atualizarPiloto();
   }
   async function pilotoNovaNota(gid){
     const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g||!g.nota) return;
@@ -4960,6 +4969,19 @@
     if(valorManual!==undefined) valor=valorManual;
     const j=await chamarPiloto("responder",{gid,cid,status,resposta,...(valor!==undefined?{valor}:{})}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
   }
+  // contestação "Valor errado" em que o guia informou o valor certo: um clique aceita e corrige o serviço (vale no mapa e no link dele)
+  async function pilotoOkValor(gid,cid){
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); const c=g&&(g.contestacoes||[]).find(x=>x.id===cid); if(!c) return;
+    const l=(g.linhas||[]).find(x=>x.ro===c.ro);
+    if(!confirm("Corrigir "+(c.data?dataBR(c.data).slice(0,5)+" · ":"")+c.servico+(l?"\nde "+brlP(l.valor):"")+" para "+brlP(c.valorPedido)+"?\n\nO valor muda no mapa de "+g.nome+" e no link dele, e continua valendo se o mapa for montado de novo.")) return;
+    const j=await chamarPiloto("responder",{gid,cid,status:"aceita",resposta:"Valor corrigido para "+brlP(c.valorPedido)+" ✓",valor:c.valorPedido}); if(!j.ok){ alert(j.erro); return; } atualizarPiloto();
+  }
+  function ehReciboP(nome){ const n=normP(nome); return (PIL.recibo||[]).some(x=>{ const k=normP(x); return !!k&&(n===k||(" "+n+" ").includes(" "+k+" ")); }); }
+  async function pilotoRecibo(gid,v){
+    const g=(PIL.dados&&PIL.dados.guias||[]).find(x=>x.gid===gid); if(!g) return;
+    if(!confirm(v?g.nome+" recebe por RECIBO (sem nota fiscal)?\n\nNo link dele vai aparecer \"Enviar meu recibo\" e o sistema confere só o valor total (sem tomador, CNPJ ou número).":g.nome+" volta a enviar NOTA FISCAL?")) return;
+    const j=await chamarPiloto("recibo",{nome:g.nome,recibo:v}); if(!j.ok){ alert(j.erro); return; } PIL.recibo=j.recibo; atualizarPiloto(true);
+  }
   async function pilotoAjustar(gid,ro){
     const v=prompt("Valor deste serviço para o guia (R$):",""); if(v===null) return;
     const valor=parseFloat(String(v).replace(/\./g,"").replace(",",".")); if(!(valor>=0)){ alert("Valor inválido."); return; }
@@ -4991,7 +5013,7 @@
         n++; if(info) info.textContent="Baixando as notas: "+n+" de "+comNota.length+"...";
         const j=await chamarPiloto("pdf",{gid:g.gid}); if(!j.ok) continue;
         const bin=atob(j.base64), arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-        const nome=limpo(g.nome)+" - NF "+limpo(g.nota.numero||"sem numero")+".pdf";
+        const nome=limpo(g.nome)+((g.nota.tipo==="recibo"||ehReciboP(g.nome))?" - Recibo":" - NF "+limpo(g.nota.numero||"sem numero"))+".pdf";
         zip.file((g.nota.ok?"Notas conferidas/":"Notas com problema/")+nome,arr);
       }
       if(info) info.textContent="Montando a planilha...";
