@@ -4270,7 +4270,16 @@
           vei:String(r[cV]||"").trim(), mot:titulo(String(r[cM]||"").trim()), guia:g?normP(g):"", voos, dest:chgHN(dest), txt, pax, res:[]});
       });
     });
-    return carros;
+    // serviços juntados no mesmo carro (mesmo veículo, horários a até 30 min e mesmo guia) viram um carro só
+    const juntos=[];
+    carros.forEach(c=>{
+      const j=c.vei&&juntos.find(x=>x.vei===c.vei&&x.min!=null&&c.min!=null&&Math.abs(x.min-c.min)<=30&&(!x.guia||!c.guia||x.guia===c.guia));
+      if(!j){ juntos.push(c); return; }
+      j.hoteis=[...j.hoteis,...c.hoteis.filter(h=>!j.hoteis.includes(h))]; j.hot=j.hoteis.join(" + ");
+      j.voos=[...new Set([...j.voos,...c.voos])]; j.txt+="\n"+c.txt; j.pax+=c.pax; j.guia=j.guia||c.guia; j.mot=j.mot||c.mot;
+      if(c.min<j.min){ j.min=c.min; j.h=c.h; } j.juntos=(j.juntos||1)+1;
+    });
+    return juntos;
   }
   function chgLerTour(wb){
     const out=[];
@@ -4485,7 +4494,7 @@
       const sg=sug.get(c);
       h+='<tr style="border-top:1px solid var(--linha);cursor:pointer" onclick="CHG.abertos[\''+c.id+'\']=!CHG.abertos[\''+c.id+'\'];chgDesenhar()">'
         +'<td style="padding:9px 6px">'+chgSelo(c.cls)+'</td><td style="font-variant-numeric:tabular-nums;font-weight:700">'+c.h+'</td>'
-        +'<td><b>'+esc(c.vei||"—")+'</b><div style="font-size:.74rem;color:var(--muted)">'+esc(c.mot||"")+' · '+esc(c.voos.join(", ")||c.dest)+'</div></td>'
+        +'<td><b>'+esc(c.vei||"—")+'</b>'+(c.juntos?' <span title="Serviços juntados neste carro" style="font-size:.7rem;color:var(--muted);border:1px solid var(--linha);border-radius:6px;padding:0 4px">'+c.juntos+' serviços</span>':'')+'<div style="font-size:.74rem;color:var(--muted)">'+esc(c.mot||"")+' · '+esc(c.voos.join(", ")||c.dest)+'</div></td>'
         +'<td style="max-width:280px;font-size:.78rem">'+esc(c.hoteis.map(x=>titulo(x.split(" (")[0])).join(" + "))+flags+'</td>'
         +'<td style="text-align:right">'+c.pax+'</td><td style="text-align:right;font-weight:800"'+(c.aiPax&&c.cls!=="-"?' title="'+c.potBruto+' sem o desconto de all inclusive ('+Math.round(c.aiFatia*100)+'% dos pax em AI)"':'')+'>'+(c.cls==="-"?"–":c.pot)+(c.aiPax&&c.cls!=="-"&&c.pot<c.potBruto?'<div style="font-size:.68rem;font-weight:600;color:var(--muted)">de '+c.potBruto+' · AI −'+Math.round(c.aiFatia*50)+'%</div>':'')+'</td>'
         +'<td style="text-align:right;color:'+(c.cob<0.6?'var(--aviso)':'var(--muted)')+'">'+(c.cls==="-"?"–":Math.round(c.cob*100)+"%")+'</td>'
