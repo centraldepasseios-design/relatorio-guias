@@ -359,6 +359,7 @@
       {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z\"/><path d=\"M9 4v14M15 6v14\"/></svg>", nome:"Passeios"},
       {id:"cen-solic", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"m16 11 2 2 4-4\"/></svg>", nome:"Solicitações"},
       {id:"cen-transf", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18M3 15h18M9 3v18M15 3v18\"/></svg>", nome:"Transferistas"},
+      {id:"cen-chegadas", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 22h20\"/><path d=\"M6.36 17.4 4 17l-2-4 1.1-.55a2 2 0 0 1 1.8 0l.17.1a2 2 0 0 0 1.8 0L8 12 5 6l.9-.45a2 2 0 0 1 2.09.2l4.02 3a2 2 0 0 0 2.1.2l4.19-2.06a2.41 2.41 0 0 1 1.73-.17L21 7a1.4 1.4 0 0 1 .87 1.99l-.38.76c-.23.46-.6.84-1.07 1.08L7.58 17.2a2 2 0 0 1-1.22.18Z\"/></svg>", nome:"Melhores chegadas"},
       {id:"cen-reman", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7 4v16M7 20l-4-4M7 20l4-4M17 20V4M17 4l-4 4M17 4l4 4\"/></svg>", nome:"Remanejamento do Box"},
       {id:"cen-voos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 16l20-6-3-3-6 2-6-5-2 1 4 6-5 2-2-2-2 1z\"/></svg>", nome:"Voos e atrasos (Box)"},
       {id:"cen-desc", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19 5L5 19\"/><circle cx=\"6.5\" cy=\"6.5\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"17.5\" r=\"2.5\"/></svg>", nome:"Descontos"},
@@ -440,6 +441,7 @@
     if(id==="fin-comissao"){ renderFinanceiro(m); return; }
     if(id==="cen-solic"){ renderCenSolic(m); return; }
     if(id==="cen-transf"){ renderTransf(m); return; }
+    if(id==="cen-chegadas"){ renderChegadas(m); return; }
     if(id==="box-reman"||id==="cen-reman"){ renderReman(m); return; }
     if(id==="box-voos"||id==="cen-voos"){ renderVoos(m); return; }
     if(id==="cen-desc"){ renderDescontos(m); return; }
@@ -4138,6 +4140,315 @@
     const g=(x)=>[0,1,2,3].map(k=>{ const e=document.getElementById("trf"+x+k); return e?e.value.trim():""; }).filter(Boolean);
     try{ TRF.d=await chamarTransf("salvarConfig",{grupos:{A:g("A"),B:g("B")},refSemana:TRF.semana,refGrupo:document.getElementById("trfRefG").value}); TRF.editando=false; trfDesenhar(); }
     catch(e){ alert(e.message); }
+  }
+
+
+  // ======================= MELHORES CHEGADAS =======================
+  // Cruza a prévia (carros de IN) com o Utopia (dias livres por reserva) e com o ranking de vendas,
+  // para que as chegadas com mais potencial fiquem com quem mais vende: A = transferistas da semana,
+  // B = guias vendedores, C = os demais. Prévia vazia -> sugere guias; prévia preenchida -> sugere trocas.
+  const CHG_PADRAO={ vend:{"GEORGE":[197,2052],"BRUNO MICHELOTI":[147,2382],"JUNIOR":[159,2189],"GESSYCA":[135,2281],"ARTHUR":[115,2516],"LUCIENE":[118,2259],"EDMILTON":[133,1990],"TATIANA":[108,2360],"FABIO":[103,2320],"FABIO COZZI":[116,2050],"RENATINHA":[129,1840],"KATARINA":[114,2049],"CAMILLA":[92,2500],"TALES":[101,2141],"DANIEL":[92,2090],"EDSON":[89,2164],"GIL":[54,2954],"VALTER":[54,2668],"XIMENES":[57,2485],"HENRIQUE FARIAS":[98,1337],"ALBERTO":[45,2829],"RODRIGO":[48,2236],"EVILAZIO":[52,2030],"LUIZ CARLOS":[66,1580],"NATALIA":[29,3536],"FRANCINALDO":[48,1940],"MATHEUS":[50,1799],"GONCALVES":[34,2228],"POLLY":[50,1484],"HENRIQUE JUNIOR":[73,968],"OLIVEIRA":[49,1442],"FELIPE":[24,2748],"SIDNEI":[25,2423],"VITOR":[37,1530],"LUIZ FELIPE DA SILVA SANTOS":[31,1720],"ANDRE":[27,1920],"HUMBERTO":[34,1503],"JOELMA":[41,1228],"JOEL":[77,650],"TAVARES":[25,1916],"BRENO":[21,2208],"ERLON":[39,1201],"AMAURY":[32,1482],"GLORINHA":[241,184],"SANTIAGO":[58,764],"ALICE":[51,874],"ADRIANE":[27,1568],"CHICO DINIZ":[41,1006],"NEIDE":[28,1497],"ADIANES":[28,1429],"IANNE":[29,1386],"FREITAS":[73,543],"HUGO":[33,1219],"ANA FLAVIA":[35,1015],"JACIANE":[35,979],"RAFAEL DA SILVA LIMA":[65,524],"LIDIANE":[26,1272],"ZENA":[138,228],"JUAN":[35,878],"GERARDO":[27,1039],"WIRON":[13,1924],"GUILHERME":[19,1258],"TOM":[14,1780],"ARLENE":[23,991],"ELISIO":[186,105],"SERGIO":[176,106],"MARI":[19,998],"REBECA":[80,196],"ALVARO":[58,258],"ISADORA":[22,680],"ENEZIANE":[44,324],"ANTONIO":[10,1334],"MARIANA":[44,279],"DRIELLY":[14,794],"RAISSA":[9,1068],"EUGENIO":[10,937],"ARLINDO":[44,218],"BRUNO":[158,46],"MARCOS":[34,124],"FRANCA":[11,382],"CRIS":[8,448],"ELANE":[18,154],"MADALENA":[32,81],"CARLOS":[14,98],"IZO":[5,120],"CHICO LIMA":[7,45],"ALLAN":[15,20],"DEYVISON":[12,13]}, vendAte:"01/01 a 30/11/2026",
+    idiomas:{ es:["CAMILA","GUILHERME","HENRIQUE FARIAS","CHICO DINIZ","HUMBERTO","RAFAEL","JUAN","GERARDO","ELISIO","IANNE","JOEL~","EDSON~"] },
+    ai:["ENOTEL","VILA GALE","SUMMERVILLE","MARUPIARA","WESTIN","OCAPORA"], gap:5, corteA:60, corteB:30, corteVend:85 };
+  const CHG={ data:null, previa:null, nomeP:"", utopia:null, nomeU:"", cfg:null, cfgLocal:false, trf:null, disp:null, filtro:"A", modo:null, ajustes:false, feitas:{}, abertos:{} };
+  const CHG_STOP=new Set(["POUSADA","HOTEL","FLAT","FLATS","BY","AFT","RESORT","RESORTS","PORTO","GALINHAS","BEACH","DAS","DOS","DE","DO","DA","MAI","GAV","E","EX","R"]);
+  const chgHN=(s)=>String(s==null?"":s).normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().trim();
+  const chgCanon=(s)=>normP(s).replace(/(.)\1+/g,"$1");
+  const chgBate=(cfg,g)=>{ const a=chgCanon(String(cfg).replace("~","")), b=chgCanon(g); return !!a&&(a===b||b.startsWith(a+" ")); };
+  const chgTok=(s)=>new Set(chgHN(s).replace(/\([^)]*\)/g," ").replace(/[^A-Z0-9 ]/g," ").split(/\s+/).filter(w=>w&&!CHG_STOP.has(w)));
+  const chgMin=(h)=>{ const m=String(h||"").match(/(\d{1,2}):(\d{2})/); if(!m) return null; const v=+m[1]*60+ +m[2]; return v<300?v+1440:v; };
+  function chgAmanha(){ const d=new Date(consHoje()+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+1); return d.toISOString().slice(0,10); }
+
+  async function renderChegadas(m){
+    if(!CHG.data) CHG.data=chgAmanha();
+    cab("Chegadas com mais potencial para quem mais vende",'<button class="btn sec" onclick="CHG.ajustes=!CHG.ajustes;chgDesenhar()">Ajustes</button>');
+    m.innerHTML='<div id="chgCorpo"><div class="card" style="color:var(--muted)">Carregando…</div></div>';
+    await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js").catch(()=>{});
+    if(!CHG.cfg) await chgCarregarCfg();
+    await chgCarregarDia();
+    chgDesenhar();
+  }
+  async function chgCarregarCfg(){
+    let c=null;
+    try{ const j=await chamarTransf("chegLer",{}); if("cheg" in j){ c=j.cheg; CHG.cfgLocal=false; } else CHG.cfgLocal=true; }catch(e){ CHG.cfgLocal=true; }
+    if(CHG.cfgLocal){ try{ c=JSON.parse(localStorage.getItem("chg_cfg")||"null"); }catch(e){} }
+    CHG.cfg={...CHG_PADRAO,...(c||{})};
+    const v={}; Object.entries(CHG.cfg.vend||{}).forEach(([k,a])=>{ v[chgCanon(k)]=a; }); CHG.cfg.vendC=v;
+  }
+  async function chgCarregarDia(){
+    CHG.trf=null; CHG.disp=null;
+    try{ CHG.trf=await chamarTransf("ler",{semana:trfSegunda(CHG.data)}); }catch(e){}
+    try{ CHG.disp=await dispDoDia(CHG.data); }catch(e){}
+  }
+  async function chgSalvarCfg(novo){
+    const c={...CHG.cfg,...novo}; delete c.vendC;
+    const salvar={vend:c.vend,vendAte:c.vendAte,idiomas:c.idiomas,ai:c.ai,gap:c.gap,corteA:c.corteA,corteB:c.corteB,corteVend:c.corteVend};
+    if(!CHG.cfgLocal){ try{ const j=await chamarTransf("chegSalvar",{cheg:salvar}); if(!("cheg" in j)) CHG.cfgLocal=true; }catch(e){ alert(e.message); return; } }
+    if(CHG.cfgLocal){ try{ localStorage.setItem("chg_cfg",JSON.stringify(salvar)); }catch(e){} }
+    CHG.cfg=null; CHG.cfg={...CHG_PADRAO,...salvar}; const v={}; Object.entries(CHG.cfg.vend||{}).forEach(([k,a])=>{ v[chgCanon(k)]=a; }); CHG.cfg.vendC=v;
+  }
+
+  // ---------- leitura dos arquivos ----------
+  function chgArquivo(tipo,inp){
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=async(e)=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array",cellDates:false});
+        if(tipo==="previa"){ CHG.previa=chgLerPrevia(wb); CHG.nomeP=f.name; CHG.modo=null; CHG.feitas={}; if(!CHG.previa.length) throw new Error("Não achei carros de IN nesse arquivo. É a Prévia de Escala (abas Dia e Noite)?"); }
+        else if(tipo==="utopia"){ CHG.utopia=chgLerUtopia(wb); CHG.nomeU=f.name; if(!CHG.utopia.length) throw new Error("Não achei reservas nesse arquivo. É o relatório de oportunidade do Utopia (aba Reservas)?");
+          const d=String(f.name).match(/(\d{4}-\d{2}-\d{2})/); if(d&&d[1]!==CHG.data){ CHG.data=d[1]; await chgCarregarDia(); } }
+        else if(tipo==="vendas"){ const v=chgLerVendas(wb); if(!Object.keys(v).length) throw new Error("Não achei a aba Vendas por Vendedor nesse arquivo.");
+          const p=String(f.name).match(/(\d{4})-(\d{2})-(\d{2})_a_(\d{4})-(\d{2})-(\d{2})/);
+          await chgSalvarCfg({vend:v,vendAte:p?(p[3]+"/"+p[2]+" a "+p[6]+"/"+p[5]+"/"+p[4]):f.name}); }
+        chgDesenhar();
+      }catch(err){ alert(err.message); }
+      inp.value="";
+    };
+    r.readAsArrayBuffer(f);
+  }
+  function chgLerPrevia(wb){
+    const carros=[];
+    wb.SheetNames.filter(n=>/^PREVIA ESCALA \((DIA|NOITE)\)/.test(chgHN(n))).forEach(sn=>{
+      const L=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:""});
+      const h=(L[0]||[]).map(chgHN), col=(n)=>h.indexOf(n);
+      const cH=col("HORARIO IN"), cHot=col("HOTEL IN"), cV=col("VEICULO"), cM=col("MOTORISTA"), cG=col("GUIA"), cIN=col("IN"), cP=col("PAXS IN");
+      if(cIN<0||cHot<0) return;
+      L.slice(1).forEach((r,i)=>{
+        const txt=String(r[cIN]||""); if(!/TRF IN/i.test(txt)) return;
+        const voos=[...txt.matchAll(/\b([A-Z0-9]{2}) - (\d{3,4})\b/g)].map(x=>x[1]+"-"+x[2]);
+        const dest=(txt.match(/TRF IN \(?([A-ZÀ-Ú]+)/i)||[])[1]||"";
+        let pax=parseFloat(String(r[cP]).replace(",","."))||0;
+        if(!pax) pax=[...txt.matchAll(/\|\s*(\d+)\s+[A-Z]/g)].reduce((s,x)=>s+(+x[1]),0);
+        const g=String(r[cG]||"").trim();
+        carros.push({id:sn.slice(-5,-1)+i, h:(String(r[cH]).match(/\d{1,2}:\d{2}/)||[""])[0].padStart(5,"0"), min:chgMin(r[cH]),
+          hot:String(r[cHot]||""), hoteis:String(r[cHot]||"").split(" + ").map(s=>s.trim()).filter(Boolean),
+          vei:String(r[cV]||"").trim(), mot:titulo(String(r[cM]||"").trim()), guia:g?normP(g):"", voos, dest:chgHN(dest), txt, pax, res:[]});
+      });
+    });
+    return carros;
+  }
+  function chgLerUtopia(wb){
+    const sn=wb.SheetNames.find(n=>chgHN(n)==="RESERVAS")||wb.SheetNames[0];
+    const L=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:""});
+    const h=(L[0]||[]).map(chgHN), col=(n)=>h.indexOf(n);
+    const c={rec:col("RESERVA MAE"),id:col("IDIOMA"),nome:col("NOME DO PASSAGEIRO"),tel:col("TELEFONE"),hot:col("HOTEL"),voo:col("VOO IN"),pax:col("PAXS"),serv:col("QTD. SERVICOS"),livres:col("DIAS LIVRES"),serv2:col("SERVICO")};
+    if(c.voo<0||c.hot<0) return [];
+    return L.slice(1).filter(r=>r[c.voo]).map(r=>({rec:String(r[c.rec]||""), idioma:String(r[c.id]||"pt-br").toLowerCase(), nome:String(r[c.nome]||""), tel:String(r[c.tel]||""),
+      hotel:String(r[c.hot]||""), voo:String(r[c.voo]).replace(/\s+/g,""), pax:+r[c.pax]||0, serv:+r[c.serv]||0, livres:+r[c.livres]||0, servico:String(r[c.serv2]||"")}));
+  }
+  function chgLerVendas(wb){
+    const sn=wb.SheetNames.find(n=>chgHN(n)==="VENDAS POR VENDEDOR"); if(!sn) return {};
+    const L=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:""});
+    const h=(L[0]||[]).map(chgHN), cN=h.indexOf("VENDEDOR"), cV=h.indexOf("VENDAS (LIQUIDAS)"), cP=h.indexOf("PAXS IN INDIVIDUAL");
+    const v={}; if(cN<0||cV<0||cP<0) return v;
+    L.slice(1).forEach(r=>{ const p=+r[cP]||0, n=normP(r[cN]); if(n&&p>0) v[n]=[Math.round((+r[cV]||0)/p),Math.round(p)]; });
+    return v;
+  }
+
+  // ---------- regras ----------
+  function chgEhAI(hotel){ const h=chgHN(hotel); return (CHG.cfg.ai||[]).some(a=>a&&h.includes(chgHN(a))); }
+  function chgRegiao(tel){
+    let d=String(tel||"").replace(/\D/g,""); if(d.startsWith("55")&&d.length>=12) d=d.slice(2);
+    if(d.length<10||/^(\d)\1+$/.test(d.slice(2))) return [1,"?"];
+    const ddd=+d.slice(0,2);
+    if(ddd>=11&&ddd<=19) return [3,"SP"];
+    if(ddd===31) return [2,"BH"];
+    if(ddd>=21&&ddd<=28) return [2,"RJ/ES"];
+    if(ddd>=41&&ddd<=55) return [2,"Sul"];
+    if(ddd>=32&&ddd<=38) return [0,"Int. MG"];
+    return [1,"DDD "+ddd];
+  }
+  function chgNota(x){
+    const ai=chgEhAI(x.hotel), hosp=ai?0:(/RESORT/.test(chgHN(x.hotel))?1:2), reg=chgRegiao(x.tel);
+    const liv=x.livres<=0?0:x.livres<=2?1:x.livres<=4?2:3, pas=x.serv===0?2:x.serv===1?1:0;
+    const n=hosp+reg[0]+liv+pas;
+    return {n, faixa:ai?"C":n>=9?"A":n>=7?"B":"C", ai, reg:reg[1]};
+  }
+  function chgAnalisar(){
+    const P=CHG.previa||[], U=CHG.utopia||[]; let casadas=0, paxU=0, paxC=0;
+    P.forEach(c=>{ c.res=[]; c.tok=c.tok||c.hoteis.map(chgTok); });
+    U.forEach(x=>{
+      paxU+=x.pax; const t=chgTok(x.hotel); if(!t.size) return;
+      for(const c of P){
+        if(!c.voos.includes(x.voo)) continue;
+        if(c.tok.some(k=>{ let n=0; t.forEach(w=>{ if(k.has(w)) n++; }); return n/t.size>=0.6; })){ c.res.push({...x,...chgNota(x)}); casadas++; paxC+=x.pax; return; }
+      }
+    });
+    P.forEach(c=>{
+      const conh=c.res.reduce((s,x)=>s+x.pax,0);
+      c.cob=c.pax?Math.min(1,conh/c.pax):0;
+      c.pot=c.res.filter(x=>x.faixa!=="C").reduce((s,x)=>s+x.pax*x.livres,0);
+      c.aiPax=c.res.filter(x=>x.ai).reduce((s,x)=>s+x.pax,0);
+      const lg={}; let est=0; c.res.forEach(x=>{ const l=x.idioma.slice(0,2); if(l&&l!=="pt"){ lg[l]=(lg[l]||0)+x.pax; est+=x.pax; } });
+      c.lang=est>conh/2?Object.keys(lg).sort((a,b)=>lg[b]-lg[a])[0]:"";
+      c.cls=!c.res.length?"-":c.pot>=CHG.cfg.corteA?"A":c.pot>=CHG.cfg.corteB?"B":"C";
+    });
+    return {casadas,total:U.length,paxU,paxC};
+  }
+  // o grupo da aba Transferistas é o que está nos passeios (Maragogi etc.); o outro grupo é o que faz os transfers
+  const chgGrupoTransfer=()=>CHG.trf?(CHG.trf.grupo==="A"?"B":"A"):"";
+  function chgTransfSemana(){ const t=CHG.trf; return t?((t.grupos||{})[chgGrupoTransfer()]||[]):[]; }
+  // base do guia pelas listas da Disponibilidade: guia de Recife não faz serviço de Porto
+  function chgBase(g){ const k=chgCanon(g), L=(n)=>((DSP_GRUPOS.find(x=>x[0]===n)||[])[1]||[]);
+    if(L("Guias Porto").some(x=>chgCanon(x)===k)) return "PORTO"; if(L("Guias Recife").some(x=>chgCanon(x)===k)) return "RECIFE";
+    if(L("Guias Porto").some(x=>chgBate(x,g))) return "PORTO"; if(L("Guias Recife").some(x=>chgBate(x,g))) return "RECIFE"; return ""; }
+  const chgBaseOk=(g,car)=>!(car.dest==="PGA"&&chgBase(g)==="RECIFE");
+  function chgTodosTransf(){ const t=CHG.trf; return t?[...((t.grupos||{}).A||[]),...((t.grupos||{}).B||[])]:[]; }
+  function chgVend(g){ const V=CHG.cfg.vendC||{}, k=chgCanon(g); if(V[k]) return V[k];
+    const ks=Object.keys(V).filter(x=>x.startsWith(k+" ")||k.startsWith(x+" ")); return ks.length===1?V[ks[0]]:null; }
+  function chgTier(g){
+    if(!g) return "-";
+    if(chgTransfSemana().some(n=>chgBate(n,g))) return "A";
+    const v=chgVend(g); return v&&v[1]>=300&&v[0]>=CHG.cfg.corteVend?"B":"C";
+  }
+  function chgFala(g,lang){ return !lang||((CHG.cfg.idiomas||{})[lang]||[]).some(n=>chgBate(n,g)); }
+  function chgFalaMais(g,lang){ return ((CHG.cfg.idiomas||{})[lang]||[]).some(n=>n.includes("~")&&chgBate(n,g)); }
+  function chgIndisp(g){ const r=CHG.disp; return r&&g?r.m[normP(r.of(g))]||null:null; }
+  function chgDiaTransf(g){ const t=CHG.trf; if(!t) return ""; const n=chgTodosTransf().find(x=>chgBate(x,g)); return n?(((t.dias||{})[n]||{})[CHG.data]||""):""; }
+
+  // prévia preenchida: trocas de 2 em 2, cada guia mantém o nº de carros
+  function chgTrocas(P){
+    const R={A:0,B:1,C:2,"-":3}, gapMin=(+CHG.cfg.gap||5)*60;
+    const cars=P.filter(c=>c.guia), at=new Map(cars.map(c=>[c,c.guia])), mexido=new Set(), tr=[];
+    const gapOk=(g,car,sai)=>cars.every(o=>at.get(o)!==g||o===sai||o.min==null||car.min==null||Math.abs(o.min-car.min)>=gapMin);
+    [...cars].filter(c=>c.cls==="A"||c.cls==="B").sort((a,b)=>b.pot-a.pot).forEach(c=>{
+      if(mexido.has(c)) return;
+      const g=at.get(c); if(R[chgTier(g)]<=R[c.cls]) return;
+      if(c.lang&&chgFala(g,c.lang)) return; // voo estrangeiro já com guia que fala a língua
+      const cand=cars.filter(o=>{ if(o===c||mexido.has(o)||o.cls==="-") return false; const g2=at.get(o);
+        if(g2===g||R[chgTier(g2)]>=R[chgTier(g)]||R[o.cls]<=R[c.cls]) return false;
+        if(!chgFala(g2,c.lang)||!chgFala(g,o.lang)||!chgBaseOk(g2,c)||!chgBaseOk(g,o)) return false;
+        if(chgIndisp(g2)) return false;
+        return gapOk(g2,c,o)&&gapOk(g,o,c); });
+      if(!cand.length) return;
+      // quem tem menos carros bons possíveis (por causa do horário) escolhe primeiro, para não sobrar carro A sem vendedor
+      const flex=(o)=>{ const g2=at.get(o); return cars.filter(x=>x!==o&&!mexido.has(x)&&(x.cls==="A"||x.cls==="B")&&R[x.cls]<R[o.cls]&&R[chgTier(at.get(x))]>R[chgTier(g2)]&&chgFala(g2,x.lang)&&gapOk(g2,x,o)).length; };
+      const o=cand.sort((a,b)=>R[chgTier(at.get(a))]-R[chgTier(at.get(b))]||flex(a)-flex(b)||((chgVend(at.get(b))||[0])[0]-(chgVend(at.get(a))||[0])[0]))[0];
+      const g2=at.get(o); at.set(c,g2); at.set(o,g); mexido.add(c); mexido.add(o);
+      tr.push({bom:c, ruim:o, sobe:g2, desce:g});
+    });
+    return tr;
+  }
+  // prévia vazia: indica quem colocar nos carros A e B
+  function chgSugestoes(P){
+    const gapMin=(+CHG.cfg.gap||5)*60, todosT=chgTodosTransf(), pool=[];
+    chgTransfSemana().forEach(n=>{ if(!chgDiaTransf(n)&&!chgIndisp(n)) pool.push({g:normP(n),tier:"A",max:2,carros:[]}); });
+    Object.entries(CHG.cfg.vendC||{}).filter(([k,v])=>v[1]>=300&&v[0]>=CHG.cfg.corteVend&&!todosT.some(t=>chgBate(t,k))&&!chgIndisp(k))
+      .sort((a,b)=>b[1][0]-a[1][0]).forEach(([k])=>pool.push({g:k,tier:"B",max:1,carros:[]}));
+    const sug=new Map();
+    P.filter(c=>c.cls==="A"||c.cls==="B").sort((a,b)=>(a.cls<b.cls?-1:a.cls>b.cls?1:0)||b.pot-a.pot).forEach(c=>{
+      const p=pool.find(p=>p.carros.length<p.max&&chgFala(p.g,c.lang)&&chgBaseOk(p.g,c)&&p.carros.every(o=>o.min==null||c.min==null||Math.abs(o.min-c.min)>=gapMin));
+      if(p){ p.carros.push(c); sug.set(c,p.g); }
+      else if(c.lang) sug.set(c,"(guia que fale "+chgLingua(c.lang)+")");
+    });
+    return {sug,pool};
+  }
+  const chgLingua=(l)=>({es:"espanhol",en:"inglês",fr:"francês",it:"italiano",de:"alemão"})[l]||l;
+  const chgBandeira=(l)=>({es:"🇪🇸",en:"🇺🇸",fr:"🇫🇷",it:"🇮🇹",de:"🇩🇪"})[l]||"🌐";
+
+  // ---------- tela ----------
+  const CHG_COR={A:["#d9f2ea","#0b6b5c"],B:["#fdf0d8","#a15c07"],C:["#eef1f0","#5c706b"],"-":["#f5f7f6","#9aaba7"]};
+  const chgSelo=(x,t)=>{ const c=CHG_COR[x]||CHG_COR["-"]; return '<span title="'+esc(t||"")+'" style="display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:24px;padding:0 7px;border-radius:7px;background:'+c[0]+';color:'+c[1]+';font-weight:800;font-size:.8rem">'+(x==="-"?"–":x)+'</span>'; };
+  const chgNomeG=(g)=>titulo(g||"");
+  function chgDesenhar(){
+    const box=document.getElementById("chgCorpo"); if(!box) return;
+    const C=CHG.cfg; let h="";
+    // arquivos
+    const btnArq=(tipo,rot,nome,acc)=>'<label class="btn '+(nome?"sec":"")+'" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">'+(nome?"✓ ":"")+rot+'<input type="file" accept="'+acc+'" style="display:none" onchange="chgArquivo(\''+tipo+'\',this)"></label>';
+    h+='<div class="card" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">'
+      +'<label style="font-size:.85rem;display:flex;gap:8px;align-items:center">Dia <input type="date" value="'+CHG.data+'" onchange="chgMudaDia(this.value)" style="height:40px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit"></label>'
+      +btnArq("previa","Prévia de Escala",CHG.nomeP,".xlsx,.xls")+btnArq("utopia","Utopia · oportunidade",CHG.nomeU,".xlsx,.xls")
+      +'<span style="flex:1"></span><span style="font-size:.8rem;color:var(--muted)">'+(CHG.trf?'No transfer: <b>Grupo '+esc(chgGrupoTransfer())+'</b> ('+esc(chgTransfSemana().map(titulo).join(", "))+') · nos passeios: Grupo '+esc(CHG.trf.grupo):'')+'</span></div>';
+    if(CHG.ajustes) h+=chgHtmlAjustes();
+    if(!CHG.previa||!CHG.utopia){
+      h+='<div class="card" style="color:var(--muted);line-height:1.6"><b style="color:var(--texto)">Como usar</b><br>1. Escolha o dia e suba a <b>Prévia de Escala</b> e o relatório de <b>oportunidade do Utopia</b> desse mesmo dia.<br>2. Com a prévia <b>sem guias</b>, a tela indica quem colocar em cada carro A e B.<br>3. Com a prévia <b>preenchida</b>, a tela sugere trocas de 2 em 2: cada guia continua com o mesmo número de carros.<br><span style="font-size:.8rem">Carro A/B/C = potencial de venda (pax × dias livres das reservas boas). Vendedor A = transferista do grupo que está no transfer · B = guia com R$ '+C.corteVend+'+ por pax · C = demais. Vendas: '+esc(C.vendAte||"")+'.</span></div>';
+      box.innerHTML=h; return;
+    }
+    const an=chgAnalisar(), P=CHG.previa;
+    const comGuia=P.filter(c=>c.guia&&c.cls!=="-").length, comDados=P.filter(c=>c.cls!=="-").length;
+    const modo=CHG.modo||(comDados&&comGuia/comDados>=0.3?"trocas":"sugerir");
+    const cont={A:0,B:0,C:0,"-":0}; P.forEach(c=>cont[c.cls]++);
+    // resumo
+    const tile=(n,t,cor)=>'<div class="card" style="margin:0;padding:12px 16px"><div style="font-size:1.5rem;font-weight:800;color:'+(cor||"inherit")+'">'+n+'</div><div style="font-size:.78rem;color:var(--muted)">'+t+'</div></div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px">'
+      +tile(cont.A,"carros A",CHG_COR.A[1])+tile(cont.B,"carros B",CHG_COR.B[1])+tile(cont.C,"carros C")+tile(cont["-"],"sem dados do Utopia","var(--muted)")
+      +tile(an.casadas+" / "+an.total,"reservas do Utopia achadas na prévia")+'</div>';
+    if(an.total&&an.casadas/an.total<0.5) h+='<div class="card" style="background:var(--alerta-bg);color:var(--alerta);border-color:#f3c1bb">Só '+Math.round(100*an.casadas/an.total)+'% das reservas do Utopia bateram com a prévia. Confira se os dois arquivos são do mesmo dia.</div>';
+    h+='<div style="margin-bottom:14px">'+segmento([["sugerir","Sugerir guias (prévia vazia)"],["trocas","Sugerir trocas (prévia preenchida)"]],modo,"CHG.modo='$v';chgDesenhar()")+'</div>';
+    // sugestões
+    let sug=new Map();
+    if(modo==="trocas"){
+      const tr=chgTrocas(P);
+      h+='<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><b>Trocas sugeridas</b><span style="font-size:.8rem;color:var(--muted)">de 2 em 2 · intervalo mínimo de '+C.gap+'h · respeita idioma e indisponibilidade</span><span style="flex:1"></span>'+(tr.length?'<button class="btn sec mini" onclick="chgCopiar()">Copiar lista</button>':'')+'</div>';
+      if(!tr.length) h+='<div style="color:var(--muted);font-size:.88rem">Nenhuma troca a sugerir: os carros bons já estão com quem vende, ou não há troca que respeite horário e idioma.</div>';
+      CHG._tr=tr;
+      tr.forEach((t,i)=>{ const k=t.bom.id+"|"+t.ruim.id, f=!!CHG.feitas[k];
+        h+='<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--linha);'+(f?'opacity:.5':'')+'"><input type="checkbox" '+(f?"checked":"")+' onchange="CHG.feitas[\''+k+'\']=this.checked;chgDesenhar()" style="margin-top:4px;width:18px;height:18px" title="Marcar como feita">'
+          +'<div style="flex:1;font-size:.9rem;line-height:1.5"><b>'+(i+1)+'. '+esc(chgNomeG(t.sobe))+'</b> '+chgSelo(chgTier(t.sobe))+' ↔ <b>'+esc(chgNomeG(t.desce))+'</b> '+chgSelo(chgTier(t.desce))
+          +'<div style="font-size:.82rem;color:var(--muted)">'+esc(chgNomeG(t.sobe))+' vai para '+chgSelo(t.bom.cls)+' <b>'+esc(t.bom.vei)+'</b> '+t.bom.h+' (potencial '+t.bom.pot+') · '+esc(chgNomeG(t.desce))+' vai para '+chgSelo(t.ruim.cls)+' '+esc(t.ruim.vei)+' '+t.ruim.h+' (potencial '+t.ruim.pot+')</div></div></div>'; });
+      h+='</div>';
+    } else {
+      const s=chgSugestoes(P); sug=s.sug;
+      const semVaga=s.pool.filter(p=>p.tier==="A"&&!p.carros.length);
+      h+='<div class="card" style="font-size:.86rem;line-height:1.6"><b>Onde colocar cada vendedor</b><br>A sugestão está na coluna <b>Sugestão</b> dos carros A e B. Transferistas do grupo do transfer pegam até 2 carros (com '+C.gap+'h de intervalo); guias B, 1 carro.'
+        +(semVaga.length?'<br><span style="color:var(--aviso)">Sem carro bom para: '+esc(semVaga.map(p=>chgNomeG(p.g)).join(", "))+'</span>':'')
+        +(false?'<br><span style="color:var(--muted)">Fora do IN neste dia (aba Transferistas): '+esc(chgTransfSemana().filter(n=>chgDiaTransf(n)).map(n=>titulo(n)+" · "+chgDiaTransf(n)).join(", "))+'</span>':'')+'</div>';
+    }
+    // lista de carros
+    h+='<div style="margin:4px 0 10px">'+segmento([["A","Carros A ("+cont.A+")"],["B","B ("+cont.B+")"],["C","C ("+cont.C+")"],["-","Sem dados ("+cont["-"]+")"],["todos","Todos"]],CHG.filtro,"CHG.filtro='$v';chgDesenhar()")+'</div>';
+    const lista=P.filter(c=>CHG.filtro==="todos"||c.cls===CHG.filtro).sort((a,b)=>b.pot-a.pot||(a.min||0)-(b.min||0));
+    h+='<style>.chgT th,.chgT td{padding:8px 8px;vertical-align:middle}</style><div class="card" style="padding:6px 10px;overflow-x:auto"><table class="chgT" style="width:100%;border-collapse:collapse;min-width:900px;font-size:.84rem"><thead><tr style="color:var(--muted);font-size:.74rem;text-align:left">'
+      +'<th style="padding:8px 6px"></th><th>Hora</th><th>Carro</th><th>Hotéis</th><th style="text-align:right">Pax</th><th style="text-align:right" title="pax × dias livres das reservas A e B">Potencial</th><th style="text-align:right" title="pax do carro achados no Utopia">Conhecido</th><th>Guia</th>'+(modo==="sugerir"?'<th>Sugestão</th>':'')+'</tr></thead><tbody>';
+    if(!lista.length) h+='<tr><td colspan="9" style="padding:14px;color:var(--muted)">Nenhum carro nessa faixa.</td></tr>';
+    lista.forEach(c=>{
+      const ab=!!CHG.abertos[c.id], ind=chgIndisp(c.guia), dT=c.guia?chgDiaTransf(c.guia):"";
+      const flags=(c.lang?' <span title="Maioria dos pax fala '+chgLingua(c.lang)+'">'+chgBandeira(c.lang)+'</span>':'')+(c.aiPax?' <span title="'+c.aiPax+' pax em all inclusive (não contam no potencial)" style="font-size:.72rem;color:var(--muted);border:1px solid var(--linha);border-radius:6px;padding:0 4px">AI '+c.aiPax+'</span>':'');
+      const gTxt=c.guia?'<b>'+esc(chgNomeG(c.guia))+'</b> '+chgSelo(chgTier(c.guia),(chgVend(c.guia)?"R$ "+chgVend(c.guia)[0]+"/pax":""))
+        +(c.lang&&!chgFala(c.guia,c.lang)?' <span style="color:var(--alerta);font-size:.75rem">não fala '+chgLingua(c.lang)+'</span>':'')
+        +(c.lang&&chgFalaMais(c.guia,c.lang)?' <span style="color:var(--aviso);font-size:.75rem">'+chgLingua(c.lang)+' mais ou menos</span>':'')
+        +(!chgBaseOk(c.guia,c)?'<div style="color:var(--alerta);font-size:.75rem">⚠ Guia de Recife em carro de Porto</div>':'')+(ind?'<div style="color:var(--alerta);font-size:.75rem">⚠ Marcou '+esc(ind.tipo)+'</div>':'')+(dT?'<div style="color:var(--aviso);font-size:.75rem">Na aba Transferistas: '+esc(dT)+'</div>':''):'<span style="color:var(--muted)">—</span>';
+      const sg=sug.get(c);
+      h+='<tr style="border-top:1px solid var(--linha);cursor:pointer" onclick="CHG.abertos[\''+c.id+'\']=!CHG.abertos[\''+c.id+'\'];chgDesenhar()">'
+        +'<td style="padding:9px 6px">'+chgSelo(c.cls)+'</td><td style="font-variant-numeric:tabular-nums;font-weight:700">'+c.h+'</td>'
+        +'<td><b>'+esc(c.vei||"—")+'</b><div style="font-size:.74rem;color:var(--muted)">'+esc(c.mot||"")+' · '+esc(c.voos.join(", ")||c.dest)+'</div></td>'
+        +'<td style="max-width:280px;font-size:.78rem">'+esc(c.hoteis.map(x=>titulo(x.split(" (")[0])).join(" + "))+flags+'</td>'
+        +'<td style="text-align:right">'+c.pax+'</td><td style="text-align:right;font-weight:800">'+(c.cls==="-"?"–":c.pot)+'</td>'
+        +'<td style="text-align:right;color:'+(c.cob<0.6?'var(--aviso)':'var(--muted)')+'">'+(c.cls==="-"?"–":Math.round(c.cob*100)+"%")+'</td>'
+        +'<td>'+gTxt+'</td>'+(modo==="sugerir"?'<td>'+(sg?'<b style="color:var(--verde)">'+esc(sg.startsWith("(")?sg:chgNomeG(sg))+'</b> '+(sg.startsWith("(")?"":chgSelo(chgTier(sg))):'')+'</td>':'')+'</tr>';
+      if(ab){
+        h+='<tr><td></td><td colspan="8" style="padding:4px 6px 14px">'+(c.res.length?'<table class="chgT" style="width:100%;border-collapse:collapse;font-size:.78rem"><tr style="color:var(--muted);text-align:left"><th>Reserva</th><th>Hotel</th><th style="text-align:right">Pax</th><th style="text-align:right">Dias livres</th><th style="text-align:right">Passeios</th><th>Região</th><th>Idioma</th><th style="text-align:right">Nota</th><th></th></tr>'
+          +c.res.sort((a,b)=>b.n-a.n).map(x=>'<tr style="border-top:1px solid var(--linha)"><td>'+esc(x.rec)+'</td><td>'+esc(titulo(x.hotel.split(" (")[0]))+(x.ai?' <b style="font-size:.7rem">AI</b>':'')+'</td><td style="text-align:right">'+x.pax+'</td><td style="text-align:right">'+x.livres+'</td><td style="text-align:right">'+x.serv+'</td><td>'+esc(x.reg)+'</td><td>'+esc(x.idioma)+'</td><td style="text-align:right">'+x.n+'</td><td>'+chgSelo(x.faixa)+'</td></tr>').join("")+'</table>'
+          :'<span style="color:var(--muted)">Nenhuma reserva deste carro no arquivo do Utopia.</span>')
+          +'<div style="font-size:.74rem;color:var(--muted);margin-top:6px;white-space:pre-line">'+esc(c.txt)+'</div></td></tr>';
+      }
+    });
+    h+='</tbody></table></div><p style="font-size:.76rem;color:var(--muted)">Clique no carro para ver as reservas. Nota da reserva (0–10): hospedagem (pousada/hotel/flat 2 · resort 1 · all inclusive 0) + região pelo DDD (SP 3 · Sul, RJ/ES e BH 2 · outras 1 · interior de MG 0) + dias livres (0–3) + passeios já comprados (nenhum 2 · um 1 · dois ou mais 0). Reserva A ≥ 9, B 7–8; all inclusive conta como C.</p>';
+    box.innerHTML=h;
+  }
+  function chgHtmlAjustes(){
+    const C=CHG.cfg, nV=Object.keys(C.vend||{}).length;
+    const inp=(id,v,w)=>'<input id="'+id+'" type="number" value="'+esc(v)+'" style="width:'+(w||80)+'px;height:38px;border:1px solid var(--linha);border-radius:9px;padding:0 8px;font:inherit">';
+    const ta=(id,v)=>'<textarea id="'+id+'" rows="3" style="width:100%;border:1px solid var(--linha);border-radius:10px;padding:8px 10px;font:inherit;font-size:.85rem">'+esc(v)+'</textarea>';
+    return '<div class="card"><b>Ajustes</b>'+(CHG.cfgLocal?' <span style="font-size:.76rem;color:var(--aviso)">(salvo só neste computador até a função transferistas ser atualizada)</span>':'')
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:12px;font-size:.85rem">'
+      +'<div><b>Ranking de vendas</b><div style="color:var(--muted);margin:4px 0 8px">'+nV+' vendedores · '+esc(C.vendAte||"")+'</div><label class="btn sec mini" style="cursor:pointer">Subir Relatório de vendas gerais<input type="file" accept=".xlsx" style="display:none" onchange="chgArquivo(\'vendas\',this)"></label></div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px"><label>Vendedor B a partir de R$ '+inp("chgCV",C.corteVend)+' por pax</label><label>Carro A com potencial ≥ '+inp("chgCA",C.corteA)+'</label><label>Carro B com potencial ≥ '+inp("chgCB",C.corteB)+'</label><label>Intervalo mínimo entre carros '+inp("chgGap",C.gap,64)+' h</label></div>'
+      +'<div><b>Hotéis all inclusive</b><div style="color:var(--muted);margin:2px 0 6px">separe por vírgula</div>'+ta("chgAI",(C.ai||[]).join(", "))+'</div>'
+      +'<div><b>Falam espanhol</b><div style="color:var(--muted);margin:2px 0 6px">separe por vírgula · ~ = mais ou menos</div>'+ta("chgES",((C.idiomas||{}).es||[]).join(", "))
+      +'<div style="margin-top:8px"><b>Falam inglês</b></div>'+ta("chgEN",((C.idiomas||{}).en||[]).join(", "))+'</div>'
+      +'</div><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px"><button class="btn sec" onclick="CHG.ajustes=false;chgDesenhar()">Fechar</button><button class="btn" onclick="chgSalvarAjustes()">Salvar ajustes</button></div></div>';
+  }
+  async function chgSalvarAjustes(){
+    const v=(id)=>document.getElementById(id).value, lst=(id)=>v(id).split(/[,\n]/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+    await chgSalvarCfg({corteVend:+v("chgCV")||85, corteA:+v("chgCA")||60, corteB:+v("chgCB")||30, gap:+v("chgGap")||5, ai:lst("chgAI").map(chgHN), idiomas:{...(CHG.cfg.idiomas||{}),es:lst("chgES"),en:lst("chgEN")}});
+    CHG.ajustes=false; chgDesenhar();
+  }
+  async function chgMudaDia(d){ if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return; CHG.data=d; await chgCarregarDia(); chgDesenhar(); }
+  function chgCopiar(){
+    const tr=(CHG._tr||[]).filter(t=>!CHG.feitas[t.bom.id+"|"+t.ruim.id]);
+    const txt="Trocas sugeridas · "+dataBR(CHG.data)+"\n"+tr.map((t,i)=>(i+1)+". "+chgNomeG(t.sobe)+" ↔ "+chgNomeG(t.desce)+": "+chgNomeG(t.sobe)+" vai para "+t.bom.vei+" "+t.bom.h+"; "+chgNomeG(t.desce)+" vai para "+t.ruim.vei+" "+t.ruim.h).join("\n");
+    navigator.clipboard.writeText(txt).then(()=>alert("Lista copiada."),()=>prompt("Copie:",txt));
   }
 
 
