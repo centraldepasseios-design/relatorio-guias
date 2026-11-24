@@ -4150,7 +4150,7 @@
   const CHG_PADRAO={ vend:{"GEORGE":[197,2052],"BRUNO MICHELOTI":[147,2382],"JUNIOR":[159,2189],"GESSYCA":[135,2281],"ARTHUR":[115,2516],"LUCIENE":[118,2259],"EDMILTON":[133,1990],"TATIANA":[108,2360],"FABIO":[103,2320],"FABIO COZZI":[116,2050],"RENATINHA":[129,1840],"KATARINA":[114,2049],"CAMILLA":[92,2500],"TALES":[101,2141],"DANIEL":[92,2090],"EDSON":[89,2164],"GIL":[54,2954],"VALTER":[54,2668],"XIMENES":[57,2485],"HENRIQUE FARIAS":[98,1337],"ALBERTO":[45,2829],"RODRIGO":[48,2236],"EVILAZIO":[52,2030],"LUIZ CARLOS":[66,1580],"NATALIA":[29,3536],"FRANCINALDO":[48,1940],"MATHEUS":[50,1799],"GONCALVES":[34,2228],"POLLY":[50,1484],"HENRIQUE JUNIOR":[73,968],"OLIVEIRA":[49,1442],"FELIPE":[24,2748],"SIDNEI":[25,2423],"VITOR":[37,1530],"LUIZ FELIPE DA SILVA SANTOS":[31,1720],"ANDRE":[27,1920],"HUMBERTO":[34,1503],"JOELMA":[41,1228],"JOEL":[77,650],"TAVARES":[25,1916],"BRENO":[21,2208],"ERLON":[39,1201],"AMAURY":[32,1482],"GLORINHA":[241,184],"SANTIAGO":[58,764],"ALICE":[51,874],"ADRIANE":[27,1568],"CHICO DINIZ":[41,1006],"NEIDE":[28,1497],"ADIANES":[28,1429],"IANNE":[29,1386],"FREITAS":[73,543],"HUGO":[33,1219],"ANA FLAVIA":[35,1015],"JACIANE":[35,979],"RAFAEL DA SILVA LIMA":[65,524],"LIDIANE":[26,1272],"ZENA":[138,228],"JUAN":[35,878],"GERARDO":[27,1039],"WIRON":[13,1924],"GUILHERME":[19,1258],"TOM":[14,1780],"ARLENE":[23,991],"ELISIO":[186,105],"SERGIO":[176,106],"MARI":[19,998],"REBECA":[80,196],"ALVARO":[58,258],"ISADORA":[22,680],"ENEZIANE":[44,324],"ANTONIO":[10,1334],"MARIANA":[44,279],"DRIELLY":[14,794],"RAISSA":[9,1068],"EUGENIO":[10,937],"ARLINDO":[44,218],"BRUNO":[158,46],"MARCOS":[34,124],"FRANCA":[11,382],"CRIS":[8,448],"ELANE":[18,154],"MADALENA":[32,81],"CARLOS":[14,98],"IZO":[5,120],"CHICO LIMA":[7,45],"ALLAN":[15,20],"DEYVISON":[12,13]}, vendAte:"01/01 a 30/11/2026",
     idiomas:{ es:["CAMILA","GUILHERME","HENRIQUE FARIAS","CHICO DINIZ","HUMBERTO","RAFAEL","JUAN","GERARDO","ELISIO","IANNE","JOEL~","EDSON~"] },
     ai:["ENOTEL","VILA GALE","SUMMERVILLE","MARUPIARA","WESTIN","OCAPORA"], gap:5, corteA:60, corteB:30, corteVend:85 };
-  const CHG={ data:null, previa:null, nomeP:"", utopia:null, nomeU:"", cfg:null, cfgLocal:false, trf:null, disp:null, filtro:"A", modo:null, ajustes:false, feitas:{}, abertos:{} };
+  const CHG={ data:null, previa:null, nomeP:"", utopia:null, nomeU:"", cfg:null, cfgLocal:false, trf:null, disp:null, filtro:"A", modo:null, ajustes:false, feitas:{}, abertos:{}, hist:null, vivo:null, verRes:false, salvoKey:"", salvoMsg:"", resDias:30 };
   const CHG_STOP=new Set(["POUSADA","HOTEL","FLAT","FLATS","BY","AFT","RESORT","RESORTS","PORTO","GALINHAS","BEACH","DAS","DOS","DE","DO","DA","MAI","GAV","E","EX","R"]);
   const chgHN=(s)=>String(s==null?"":s).normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().trim();
   const chgCanon=(s)=>normP(s).replace(/(.)\1+/g,"$1");
@@ -4166,7 +4166,47 @@
     await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js").catch(()=>{});
     if(!CHG.cfg) await chgCarregarCfg();
     await chgCarregarDia();
+    await chgCarregarHist();
     chgDesenhar();
+  }
+  // ---------- histórico (o que a tela aprende dia a dia) ----------
+  const chgSoma=(iso,n)=>{ const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
+  async function chgCarregarHist(){
+    const fim=consHoje(), ini=chgSoma(fim,-90);
+    try{ const j=await chamarTransf("chegHist",{inicio:ini,fim}); CHG.hist=Array.isArray(j.dias)?j.dias:null; }catch(e){ CHG.hist=null; }
+    // ranking vivo: R$ vendidos e pax de IN recebidos por guia nos últimos 90 dias
+    const v={}; (CHG.hist||[]).forEach(d=>(d.vendas||[]).forEach(x=>{ const k=chgCanon(x.g); if(!k) return; const o=v[k]=v[k]||{v:0,p:0,dias:0}; o.v+=+x.v||0; o.p+=+x.p||0; o.dias++; }));
+    CHG.vivo=v;
+  }
+  async function chgSalvarDia(P){
+    const carros=P.filter(c=>c.guia||c.cls!=="-").slice(0,200).map(c=>({h:c.h,v:c.vei,c:c.cls,p:c.pot,x:c.pax,g:c.guia,d:c.dest}));
+    try{ const j=await chamarTransf("chegDiaSalvar",{data:CHG.data,carros,arquivos:{previa:CHG.nomeP,utopia:CHG.nomeU}});
+      CHG.salvoMsg=("salvo" in j)?"✓ Dia "+dataBR(CHG.data).slice(0,5)+" guardado para os resultados":"Atualize a função transferistas para guardar os resultados";
+    }catch(e){ CHG.salvoMsg="Não guardou o dia: "+e.message; }
+    const el=document.getElementById("chgSalvoMsg"); if(el) el.textContent=CHG.salvoMsg;
+  }
+  function chgLerVendasDia(wb){
+    const L=(n)=>{ const sn=wb.SheetNames.find(x=>chgHN(x)===n); return sn?XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:""}):null; };
+    const f=L("FILTROS APLICADOS")||[], per={}; f.forEach(r=>{ per[chgHN(r[0])]=String(r[1]||"").slice(0,10); });
+    const vendas=[]; const v=L("VENDAS POR VENDEDOR");
+    if(v){ const h=(v[0]||[]).map(chgHN), cN=h.indexOf("VENDEDOR"), cV=h.indexOf("VENDAS (LIQUIDAS)"), cP=h.indexOf("PAXS IN INDIVIDUAL");
+      v.slice(1).forEach(r=>{ const g=normP(r[cN]); if(g) vendas.push({g, v:Math.round((+r[cV]||0)*100)/100, p:+r[cP]||0}); }); }
+    const hoteis=[]; const ho=L("HOTEIS ANALITICO");
+    if(ho){ const h=(ho[0]||[]).map(chgHN), cH=h.indexOf("HOTEL"), cP=h.indexOf("PAXS IN"), cV=h.indexOf("VENDAS (LIQUIDAS)");
+      ho.slice(1).forEach(r=>{ if(r[cH]) hoteis.push({h:String(r[cH]).slice(0,80), p:+r[cP]||0, v:Math.round((+r[cV]||0)*100)/100}); }); }
+    return {ini:per["DATA INICIO"]||"", fim:per["DATA FIM"]||"", vendas, hoteis};
+  }
+  async function chgSubirVendasDia(wb,nome){
+    const x=chgLerVendasDia(wb);
+    if(!x.vendas.length) throw new Error("Não achei a aba Vendas por Vendedor nesse arquivo.");
+    let data=x.ini&&x.ini===x.fim?x.ini:"";
+    if(!data){ const m=String(nome).match(/(\d{4}-\d{2}-\d{2})_a_(\d{4}-\d{2}-\d{2})/); if(m&&m[1]===m[2]) data=m[1]; }
+    if(!data) throw new Error("Esse relatório tem mais de um dia"+(x.ini?" ("+dataBR(x.ini)+" a "+dataBR(x.fim)+")":"")+". Para o resultado diário, exporte só o dia anterior. Para trocar o ranking base (ano), use Ajustes.");
+    const j=await chamarTransf("chegVendasDia",{data,vendas:x.vendas,hoteis:x.hoteis.slice(0,600)});
+    if(!("salvo" in j)) throw new Error("A função transferistas ainda não foi atualizada. Faça o deploy e suba de novo.");
+    await chgCarregarHist();
+    const dia=(CHG.hist||[]).find(d=>d.data===data);
+    alert("Vendas de "+dataBR(data)+" guardadas: "+x.vendas.length+" vendedores."+(dia&&(dia.carros||[]).length?"":"\n\nAinda não há prévia guardada desse dia, então essas vendas entram no ranking, mas não na comparação por carro."));
   }
   async function chgCarregarCfg(){
     let c=null;
@@ -4198,6 +4238,7 @@
         if(tipo==="previa"){ CHG.previa=chgLerPrevia(wb); CHG.nomeP=f.name; CHG.modo=null; CHG.feitas={}; if(!CHG.previa.length) throw new Error("Não achei carros de IN nesse arquivo. É a Prévia de Escala (abas Dia e Noite)?"); }
         else if(tipo==="utopia"){ CHG.utopia=chgLerUtopia(wb); CHG.nomeU=f.name; if(!CHG.utopia.length) throw new Error("Não achei reservas nesse arquivo. É o relatório de oportunidade do Utopia (aba Reservas)?");
           const d=String(f.name).match(/(\d{4}-\d{2}-\d{2})/); if(d&&d[1]!==CHG.data){ CHG.data=d[1]; await chgCarregarDia(); } }
+        else if(tipo==="vendasDia"){ await chgSubirVendasDia(wb,f.name); CHG.verRes=true; }
         else if(tipo==="vendas"){ const v=chgLerVendas(wb); if(!Object.keys(v).length) throw new Error("Não achei a aba Vendas por Vendedor nesse arquivo.");
           const p=String(f.name).match(/(\d{4})-(\d{2})-(\d{2})_a_(\d{4})-(\d{2})-(\d{2})/);
           await chgSalvarCfg({vend:v,vendAte:p?(p[3]+"/"+p[2]+" a "+p[6]+"/"+p[5]+"/"+p[4]):f.name}); }
@@ -4295,8 +4336,15 @@
     if(L("Guias Porto").some(x=>chgBate(x,g))) return "PORTO"; if(L("Guias Recife").some(x=>chgBate(x,g))) return "RECIFE"; return ""; }
   const chgBaseOk=(g,car)=>!(car.dest==="PGA"&&chgBase(g)==="RECIFE");
   function chgTodosTransf(){ const t=CHG.trf; return t?[...((t.grupos||{}).A||[]),...((t.grupos||{}).B||[])]:[]; }
-  function chgVend(g){ const V=CHG.cfg.vendC||{}, k=chgCanon(g); if(V[k]) return V[k];
-    const ks=Object.keys(V).filter(x=>x.startsWith(k+" ")||k.startsWith(x+" ")); return ks.length===1?V[ks[0]]:null; }
+  function chgBusca(V,k){ if(V[k]) return V[k]; const ks=Object.keys(V).filter(x=>x.startsWith(k+" ")||k.startsWith(x+" ")); return ks.length===1?V[ks[0]]:null; }
+  // R$ por pax: últimos 90 dias (relatórios diários) misturados com o ranking base; quanto mais pax recentes, mais pesa o recente
+  function chgVend(g){ const k=chgCanon(g), b=chgBusca(CHG.cfg.vendC||{},k), v=chgBusca(CHG.vivo||{},k), K=300;
+    if(!b&&!v) return null;
+    if(!b) return v.p>0?[Math.round(v.v/v.p),Math.round(v.p)]:null;
+    if(!v||!v.p) return b;
+    return [Math.round((v.v+b[0]*K)/(v.p+K)), Math.round(b[1]+v.p)]; }
+  const chgVendDet=(g)=>{ const k=chgCanon(g), b=chgBusca(CHG.cfg.vendC||{},k), v=chgBusca(CHG.vivo||{},k);
+    return (v&&v.p?"90 dias: R$ "+Math.round(v.v/v.p)+"/pax ("+Math.round(v.p)+" pax)":"")+(b?(v&&v.p?" · ":"")+"base: R$ "+b[0]+"/pax":""); };
   function chgTier(g){
     if(!g) return "-";
     if(chgTransfSemana().some(n=>chgBate(n,g))) return "A";
@@ -4334,7 +4382,7 @@
   function chgSugestoes(P){
     const gapMin=(+CHG.cfg.gap||5)*60, todosT=chgTodosTransf(), pool=[];
     chgTransfSemana().forEach(n=>{ if(!chgDiaTransf(n)&&!chgIndisp(n)) pool.push({g:normP(n),tier:"A",max:2,carros:[]}); });
-    Object.entries(CHG.cfg.vendC||{}).filter(([k,v])=>v[1]>=300&&v[0]>=CHG.cfg.corteVend&&!todosT.some(t=>chgBate(t,k))&&!chgIndisp(k))
+    [...new Set([...Object.keys(CHG.cfg.vendC||{}),...Object.keys(CHG.vivo||{})])].map(k=>[k,chgVend(k)]).filter(([k,v])=>v&&v[1]>=300&&v[0]>=CHG.cfg.corteVend&&!todosT.some(t=>chgBate(t,k))&&!chgIndisp(k))
       .sort((a,b)=>b[1][0]-a[1][0]).forEach(([k])=>pool.push({g:k,tier:"B",max:1,carros:[]}));
     const sug=new Map();
     P.filter(c=>c.cls==="A"||c.cls==="B").sort((a,b)=>(a.cls<b.cls?-1:a.cls>b.cls?1:0)||b.pot-a.pot).forEach(c=>{
@@ -4359,13 +4407,18 @@
     h+='<div class="card" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">'
       +'<label style="font-size:.85rem;display:flex;gap:8px;align-items:center">Dia <input type="date" value="'+CHG.data+'" onchange="chgMudaDia(this.value)" style="height:40px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font:inherit"></label>'
       +btnArq("previa","Prévia de Escala",CHG.nomeP,".xlsx,.xls")+btnArq("utopia","Utopia · oportunidade",CHG.nomeU,".xlsx,.xls")
+      +'<span style="width:1px;height:30px;background:var(--linha)"></span>'+btnArq("vendasDia","Vendas de ontem","",".xlsx")
+      +'<button class="btn '+(CHG.verRes?"":"sec")+'" onclick="CHG.verRes=!CHG.verRes;chgDesenhar()">Resultados</button>'
       +'<span style="flex:1"></span><span style="font-size:.8rem;color:var(--muted)">'+(CHG.trf?'No transfer: <b>Grupo '+esc(chgGrupoTransfer())+'</b> ('+esc(chgTransfSemana().map(titulo).join(", "))+') · nos passeios: Grupo '+esc(CHG.trf.grupo):'')+'</span></div>';
     if(CHG.ajustes) h+=chgHtmlAjustes();
+    if(CHG.verRes){ box.innerHTML=h+chgHtmlResultados(); return; }
     if(!CHG.previa||!CHG.utopia){
       h+='<div class="card" style="color:var(--muted);line-height:1.6"><b style="color:var(--texto)">Como usar</b><br>1. Escolha o dia e suba a <b>Prévia de Escala</b> e o relatório de <b>oportunidade do Utopia</b> desse mesmo dia.<br>2. Com a prévia <b>sem guias</b>, a tela indica quem colocar em cada carro A e B.<br>3. Com a prévia <b>preenchida</b>, a tela sugere trocas de 2 em 2: cada guia continua com o mesmo número de carros.<br><span style="font-size:.8rem">Carro A/B/C = potencial de venda (pax × dias livres das reservas boas). Vendedor A = transferista do grupo que está no transfer · B = guia com R$ '+C.corteVend+'+ por pax · C = demais. Vendas: '+esc(C.vendAte||"")+'.</span></div>';
       box.innerHTML=h; return;
     }
     const an=chgAnalisar(), P=CHG.previa;
+    const chave=CHG.data+"|"+CHG.nomeP+"|"+CHG.nomeU+"|"+P.length;
+    if(CHG.salvoKey!==chave&&an.total&&an.casadas/an.total>=0.5){ CHG.salvoKey=chave; CHG.salvoMsg="Guardando o dia…"; chgSalvarDia(P); }
     const comGuia=P.filter(c=>c.guia&&c.cls!=="-").length, comDados=P.filter(c=>c.cls!=="-").length;
     const modo=CHG.modo||(comDados&&comGuia/comDados>=0.3?"trocas":"sugerir");
     const cont={A:0,B:0,C:0,"-":0}; P.forEach(c=>cont[c.cls]++);
@@ -4373,7 +4426,8 @@
     const tile=(n,t,cor)=>'<div class="card" style="margin:0;padding:12px 16px"><div style="font-size:1.5rem;font-weight:800;color:'+(cor||"inherit")+'">'+n+'</div><div style="font-size:.78rem;color:var(--muted)">'+t+'</div></div>';
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px">'
       +tile(cont.A,"carros A",CHG_COR.A[1])+tile(cont.B,"carros B",CHG_COR.B[1])+tile(cont.C,"carros C")+tile(cont["-"],"sem dados do Utopia","var(--muted)")
-      +tile(an.casadas+" / "+an.total,"reservas do Utopia achadas na prévia")+'</div>';
+      +tile(an.casadas+" / "+an.total,"reservas do Utopia achadas na prévia")+'</div>'
+      +'<div id="chgSalvoMsg" style="font-size:.76rem;color:var(--muted);margin:-8px 0 12px">'+esc(CHG.salvoMsg||"")+'</div>';
     if(an.total&&an.casadas/an.total<0.5) h+='<div class="card" style="background:var(--alerta-bg);color:var(--alerta);border-color:#f3c1bb">Só '+Math.round(100*an.casadas/an.total)+'% das reservas do Utopia bateram com a prévia. Confira se os dois arquivos são do mesmo dia.</div>';
     h+='<div style="margin-bottom:14px">'+segmento([["sugerir","Sugerir guias (prévia vazia)"],["trocas","Sugerir trocas (prévia preenchida)"]],modo,"CHG.modo='$v';chgDesenhar()")+'</div>';
     // sugestões
@@ -4404,7 +4458,7 @@
     lista.forEach(c=>{
       const ab=!!CHG.abertos[c.id], ind=chgIndisp(c.guia), dT=c.guia?chgDiaTransf(c.guia):"";
       const flags=(c.lang?' <span title="Maioria dos pax fala '+chgLingua(c.lang)+'">'+chgBandeira(c.lang)+'</span>':'')+(c.aiPax?' <span title="'+c.aiPax+' pax em all inclusive (não contam no potencial)" style="font-size:.72rem;color:var(--muted);border:1px solid var(--linha);border-radius:6px;padding:0 4px">AI '+c.aiPax+'</span>':'');
-      const gTxt=c.guia?'<b>'+esc(chgNomeG(c.guia))+'</b> '+chgSelo(chgTier(c.guia),(chgVend(c.guia)?"R$ "+chgVend(c.guia)[0]+"/pax":""))
+      const gTxt=c.guia?'<b>'+esc(chgNomeG(c.guia))+'</b> '+chgSelo(chgTier(c.guia),chgVendDet(c.guia))
         +(c.lang&&!chgFala(c.guia,c.lang)?' <span style="color:var(--alerta);font-size:.75rem">não fala '+chgLingua(c.lang)+'</span>':'')
         +(c.lang&&chgFalaMais(c.guia,c.lang)?' <span style="color:var(--aviso);font-size:.75rem">'+chgLingua(c.lang)+' mais ou menos</span>':'')
         +(!chgBaseOk(c.guia,c)?'<div style="color:var(--alerta);font-size:.75rem">⚠ Guia de Recife em carro de Porto</div>':'')+(ind?'<div style="color:var(--alerta);font-size:.75rem">⚠ Marcou '+esc(ind.tipo)+'</div>':'')+(dT?'<div style="color:var(--aviso);font-size:.75rem">Na aba Transferistas: '+esc(dT)+'</div>':''):'<span style="color:var(--muted)">—</span>';
@@ -4438,6 +4492,52 @@
       +'<div><b>Falam espanhol</b><div style="color:var(--muted);margin:2px 0 6px">separe por vírgula · ~ = mais ou menos</div>'+ta("chgES",((C.idiomas||{}).es||[]).join(", "))
       +'<div style="margin-top:8px"><b>Falam inglês</b></div>'+ta("chgEN",((C.idiomas||{}).en||[]).join(", "))+'</div>'
       +'</div><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px"><button class="btn sec" onclick="CHG.ajustes=false;chgDesenhar()">Fechar</button><button class="btn" onclick="chgSalvarAjustes()">Salvar ajustes</button></div></div>';
+  }
+  function chgHtmlResultados(){
+    if(!CHG.hist) return '<div class="card" style="color:var(--muted)">Os resultados aparecem depois que a função <b>transferistas</b> for atualizada (deploy) e você começar a subir as vendas do dia anterior.</div>';
+    const ini=chgSoma(consHoje(),-CHG.resDias), dias=CHG.hist.filter(d=>d.data>=ini);
+    const comV=dias.filter(d=>(d.vendas||[]).length), comAmbos=comV.filter(d=>(d.carros||[]).length);
+    let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+segmento([["7","7 dias"],["30","30 dias"],["90","90 dias"]],String(CHG.resDias),"CHG.resDias=+'$v';chgDesenhar()")
+      +'<span style="font-size:.8rem;color:var(--muted)">'+comV.length+' dia(s) com vendas · '+comAmbos.length+' com prévia e vendas</span><span style="flex:1"></span>'
+      +'<button class="btn sec mini" onclick="chgExportar(\'guias\')">Baixar histórico (guias)</button><button class="btn sec mini" onclick="chgExportar(\'hoteis\')">Baixar histórico (hotéis)</button></div>';
+    // 1) carro x vendedor
+    const M={}; const add=(t,c,v,p)=>{ const o=M[t+c]=M[t+c]||{v:0,p:0,n:0}; o.v+=v; o.p+=p; o.n++; };
+    const R={A:0,B:1,C:2,"-":3};
+    comAmbos.forEach(d=>{ const vend={}; (d.vendas||[]).forEach(x=>{ vend[chgCanon(x.g)]=x; });
+      const porG={}; (d.carros||[]).forEach(c=>{ if(!c.g) return; const k=chgCanon(c.g); if(!porG[k]||R[c.c]<R[porG[k].c]) porG[k]=c; });
+      Object.entries(porG).forEach(([k,c])=>{ const x=chgBusca(vend,k); if(!x||!(+x.p>0)||c.c==="-") return; add(chgTier(k),c.c,+x.v||0,+x.p||0); add("T",c.c,+x.v||0,+x.p||0); }); });
+    const cel=(t,c)=>{ const o=M[t+c]; return o&&o.p?'<b>R$ '+Math.round(o.v/o.p)+'</b><div style="font-size:.72rem;color:var(--muted)">'+o.n+' guia-dia · '+Math.round(o.p)+' pax</div>':'<span style="color:var(--muted)">–</span>'; };
+    h+='<div class="card"><b>Venda por pax: carro × vendedor</b><p style="font-size:.8rem;color:var(--muted);margin:4px 0 10px">Se a nota do carro estiver certa, a linha "Todos" cai de A para C. Guia com 2 carros no dia conta pelo melhor.</p>'
+      +'<table class="chgT" style="width:100%;border-collapse:collapse;font-size:.85rem"><tr style="color:var(--muted);font-size:.75rem;text-align:left"><th>Vendedor ↓ / Carro →</th><th>'+chgSelo("A")+'</th><th>'+chgSelo("B")+'</th><th>'+chgSelo("C")+'</th></tr>'
+      +[["A","Transferistas (A)"],["B","Vendedores (B)"],["C","Demais (C)"],["T","Todos"]].map(([t,n])=>'<tr style="border-top:1px solid var(--linha)"><td style="font-weight:'+(t==="T"?800:600)+'">'+n+'</td>'+["A","B","C"].map(c=>'<td>'+cel(t,c)+'</td>').join("")+'</tr>').join("")+'</table></div>';
+    // 2) ranking
+    const G={}; comV.forEach(d=>(d.vendas||[]).forEach(x=>{ const k=chgCanon(x.g); if(!k||!(+x.p>0)) return; const o=G[k]=G[k]||{v:0,p:0,n:0}; o.v+=+x.v||0; o.p+=+x.p||0; o.n++; }));
+    const rk=Object.entries(G).filter(([k,o])=>o.p>=10).sort((a,b)=>b[1].v/b[1].p-a[1].v/a[1].p);
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px"><div class="card"><b>Ranking do período</b><p style="font-size:.8rem;color:var(--muted);margin:4px 0 10px">R$ vendido ÷ pax de IN recebidos. Guias com 10+ pax no período.</p>'
+      +(rk.length?'<table class="chgT" style="width:100%;border-collapse:collapse;font-size:.84rem"><tr style="color:var(--muted);font-size:.75rem;text-align:left"><th>#</th><th>Guia</th><th style="text-align:right">R$/pax</th><th style="text-align:right">Pax</th><th style="text-align:right">Dias</th><th style="text-align:right">Base</th></tr>'
+        +rk.slice(0,40).map(([k,o],i)=>{ const b=chgBusca(CHG.cfg.vendC||{},k), r=Math.round(o.v/o.p), seta=b?(r>b[0]*1.1?' <span style="color:var(--ok)">▲</span>':r<b[0]*0.9?' <span style="color:var(--alerta)">▼</span>':''):'';
+          return '<tr style="border-top:1px solid var(--linha)"><td style="color:var(--muted)">'+(i+1)+'</td><td><b>'+esc(titulo(k))+'</b> '+chgSelo(chgTier(k))+'</td><td style="text-align:right;font-weight:800">'+r+seta+'</td><td style="text-align:right">'+Math.round(o.p)+'</td><td style="text-align:right">'+o.n+'</td><td style="text-align:right;color:var(--muted)">'+(b?b[0]:"–")+'</td></tr>'; }).join("")+'</table>'
+        :'<div style="color:var(--muted);font-size:.86rem">Suba as vendas do dia anterior para começar.</div>')+'</div>';
+    // 3) hotéis
+    const H={}; comV.forEach(d=>(d.hoteis||[]).forEach(x=>{ const k=chgHN(x.h).replace(/\s*\(.*$/,""); const o=H[k]=H[k]||{v:0,p:0}; o.v+=+x.v||0; o.p+=+x.p||0; }));
+    const hk=Object.entries(H).filter(([k,o])=>o.p>=20).sort((a,b)=>b[1].v/b[1].p-a[1].v/a[1].p);
+    const linhaH=([k,o])=>'<tr style="border-top:1px solid var(--linha)"><td>'+esc(titulo(k))+(chgEhAI(k)?' <b style="font-size:.7rem">AI</b>':/RESORT/.test(k)?' <span style="font-size:.7rem;color:var(--muted)">resort</span>':'')+'</td><td style="text-align:right;font-weight:800">'+Math.round(o.v/o.p)+'</td><td style="text-align:right">'+Math.round(o.p)+'</td></tr>';
+    const tabH=(arr)=>'<table class="chgT" style="width:100%;border-collapse:collapse;font-size:.82rem"><tr style="color:var(--muted);font-size:.75rem;text-align:left"><th>Hotel</th><th style="text-align:right">R$/pax</th><th style="text-align:right">Pax IN</th></tr>'+arr.map(linhaH).join("")+'</table>';
+    h+='<div class="card"><b>Hotéis</b><p style="font-size:.8rem;color:var(--muted);margin:4px 0 10px">R$ vendido ÷ pax de IN do hotel. Hotéis com 20+ pax no período.</p>'
+      +(hk.length?'<div style="font-size:.78rem;font-weight:700;margin-bottom:4px">Os que mais vendem</div>'+tabH(hk.slice(0,12))+(hk.length>12?'<div style="font-size:.78rem;font-weight:700;margin:14px 0 4px">Os que menos vendem</div>'+tabH(hk.slice(12).slice(-12).reverse()):'')
+        :'<div style="color:var(--muted);font-size:.86rem">Sem dados ainda.</div>')+'</div></div>';
+    return h;
+  }
+  function chgExportar(tipo){
+    const L=[]; const q=(x)=>'"'+String(x==null?"":x).replace(/"/g,'""')+'"';
+    if(tipo==="guias"){ L.push(["data","guia","vendas","pax_in","carros","melhor_carro","potencial_total"].join(";"));
+      (CHG.hist||[]).forEach(d=>{ const cs=d.carros||[], vend={}; (d.vendas||[]).forEach(x=>{ vend[chgCanon(x.g)]=x; });
+        const ks=new Set([...Object.keys(vend),...cs.filter(c=>c.g).map(c=>chgCanon(c.g))]);
+        ks.forEach(k=>{ const x=vend[k]||{}, meus=cs.filter(c=>c.g&&chgCanon(c.g)===k), best=meus.map(c=>c.c).sort()[0]||"";
+          L.push([d.data,q(titulo(k)),String(x.v||"").replace(".",","),x.p||"",q(meus.map(c=>c.h+" "+c.v+" ("+c.c+" "+c.p+")").join(" | ")),best,meus.reduce((s,c)=>s+(+c.p||0),0)].join(";")); }); }); }
+    else { L.push(["data","hotel","pax_in","vendas"].join(";")); (CHG.hist||[]).forEach(d=>(d.hoteis||[]).forEach(x=>L.push([d.data,q(x.h),x.p,String(x.v).replace(".",",")].join(";")))); }
+    const blob=new Blob(["\ufeff"+L.join("\n")],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download="melhores-chegadas-"+tipo+"-"+consHoje()+".csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   }
   async function chgSalvarAjustes(){
     const v=(id)=>document.getElementById(id).value, lst=(id)=>v(id).split(/[,\n]/).map(s=>s.trim().toUpperCase()).filter(Boolean);
