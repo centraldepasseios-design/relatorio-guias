@@ -4238,7 +4238,7 @@
     r.onload=async(e)=>{
       try{
         const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array",cellDates:false});
-        if(tipo==="previa"){ CHG.previaTour=chgLerTour(wb); CHG.previa=chgLerPrevia(wb); CHG.nomeP=f.name; CHG.modo=null; CHG.feitas={}; if(!CHG.previa.length) throw new Error("Não achei carros de IN nesse arquivo. É a Prévia de Escala (abas Dia e Noite)?"); }
+        if(tipo==="previa"){ CHG.previaTour=chgLerTour(wb); CHG.previa=chgLerPrevia(wb); CHG.nomeP=f.name; CHG.modo=null; CHG.feitas={}; if(!CHG.previa.length) throw new Error("Não achei carros de IN nesse arquivo. É a Prévia de Escala (aba Dia)?"); }
         else if(tipo==="utopia"){ CHG.utopia=chgLerUtopia(wb); CHG.nomeU=f.name; if(!CHG.utopia.length) throw new Error("Não achei reservas nesse arquivo. É o relatório de oportunidade do Utopia (aba Reservas)?");
           const d=String(f.name).match(/(\d{4}-\d{2}-\d{2})/); if(d&&d[1]!==CHG.data){ CHG.data=d[1]; await chgCarregarDia(); } }
         else if(tipo==="vendasDia"){ await chgSubirVendasDia(wb,f.name); CHG.verRes=true; }
@@ -4253,7 +4253,7 @@
   }
   function chgLerPrevia(wb){
     const carros=[];
-    wb.SheetNames.filter(n=>/^PREVIA ESCALA \((DIA|NOITE)\)/.test(chgHN(n))).forEach(sn=>{
+    wb.SheetNames.filter(n=>/^PREVIA ESCALA \(DIA\)/.test(chgHN(n))) /* só a aba Dia: a Noite é de outra escala */.forEach(sn=>{
       const L=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:""});
       const h=(L[0]||[]).map(chgHN), col=(n)=>h.indexOf(n);
       const cH=col("HORARIO IN"), cHot=col("HOTEL IN"), cV=col("VEICULO"), cM=col("MOTORISTA"), cG=col("GUIA"), cIN=col("IN"), cP=col("PAXS IN");
