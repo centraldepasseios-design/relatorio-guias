@@ -336,6 +336,7 @@ function relRecs(l,it){
   const ini=(r)=>r.motivoBox?{rec:r.rec,foi:false,motivo:r.motivoBox}:{rec:r.rec,foi:true,motivo:""};
   if(!Array.isArray(it.recs)) it.recs=rs.map(ini);
   rs.forEach(r=>{ if(!it.recs.some(x=>x.rec===r.rec)) it.recs.push(ini(r)); });
+  it.recs.forEach(x=>{ const r=rs.find(y=>y.rec===x.rec); if(r&&+r.pax>0) x.pax=+r.pax; }); // pax de cada REC vai junto: o histórico conta só quem veio
   const foram=it.recs.filter(x=>x.foi).length;
   return '<div style="background:var(--claro);border-radius:12px;padding:10px 12px"><div class="peq" style="font-weight:800;margin-bottom:6px">Quem veio com você? ('+foram+' de '+it.recs.length+')</div>'
     +it.recs.map((x,k)=>{ const r=rs.find(y=>y.rec===x.rec)||{};
