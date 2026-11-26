@@ -1781,7 +1781,7 @@
     const comTrf=guias.filter(g=>g.itens.some(l=>l.tipo!=="TOUR"||l.auxiliar));
     // cabeçalho: botão de envio; resumo: guias, serviços, enviadas, mudaram depois do envio
     const topo=document.getElementById("escEnviarTopo");
-    if(topo) topo.innerHTML=comTrf.length?'<span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" onclick="escalaPdf()" title="Baixa a escala montada (todos os guias da tela) em PDF">📄 Baixar PDF</button><button class="btn" onclick="enviarEscalaTodos()">'+(ESC.turno==="noite"?"🌙 Enviar noite":"☀️ Enviar dia")+' para '+comTrf.length+' guia(s)</button></span>':'';
+    if(topo) topo.innerHTML=comTrf.length?'<span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" onclick="escalaPdf()" title="Baixa a escala montada (todos os guias da tela) em PDF">📄 Baixar PDF</button><button class="btn" onclick="enviarEscalaTodos()">'+(ESC.turno==="noite"?"🌙 Enviar noite":"☀️ Enviar dia")+' para '+comTrf.length+' guia(s)</button><button class="btn sec" onclick="abrirPlanejar()" title="Depois de enviar a escala: manda para cada guia as RECs do IN dele com um roteiro de vendas para os dias livres (pelo Utopia)">🧭 Planejar vendas</button></span>':'';
     const enviadas=comTrf.filter(g=>envioDe(ESC.data,tipoEnvioEscala(),g.nome));
     const mudaram=enviadas.filter(g=>{ const e=envioDe(ESC.data,tipoEnvioEscala(),g.nome); return e.hash&&e.hash!==assinatura(msgEscala(g,ESC.data)); });
     const rs=document.getElementById("escResumo");
@@ -2276,6 +2276,64 @@
     const gs=(ESC.guiasTela||[]).filter(g=>g.itens.some(entraNaEscala));
     abrirEnvio(tipoEnvioEscala(),ESC.data,gs.map(g=>({guia:g.nome,mensagem:msgEscala(g,ESC.data)})),()=>desenharEscala());
   }
+  // ======================= PLANEJAR VENDAS (concierge do guia) =======================
+  // Véspera, depois do envio da escala: cada guia recebe as RECs do IN dele, com hotel, até quando fica,
+  // dias livres e um roteiro com nossos passeios, valores e o combo. O Utopia (oportunidade) do dia dá a saída e os dias livres.
+  const PLV={data:null,utopia:null,nomeU:"",guias:null,res:{},enviando:false};
+  function plvFundo(){ let f=document.getElementById("plvFundo"); if(!f){ f=document.createElement("div"); f.id="plvFundo"; f.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto;"; f.onclick=(e)=>{ if(e.target===f) f.remove(); }; document.body.appendChild(f); } return f; }
+  const plvCard=(h)=>'<div class="card" style="max-width:780px;width:100%;margin:0">'+h+'</div>';
+  async function abrirPlanejar(){
+    PLV.data=ESC.data; PLV.guias=null; PLV.res={}; PLV.utopia=null; PLV.nomeU="";
+    await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js").catch(()=>{});
+    plvDesenhar();
+  }
+  function plvArquivo(inp){
+    const f=inp.files&&inp.files[0]; if(!f) return; const r=new FileReader();
+    r.onload=async(e)=>{ try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"}); const sn=wb.SheetNames.find(n=>chgHN(n)==="RESERVAS")||wb.SheetNames[0];
+      const L=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:""}); const h=(L[0]||[]).map(chgHN), c=(n)=>h.indexOf(n);
+      const iso=(v)=>{ if(typeof v==="number") return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10); const m=String(v||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m?m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0"):""; };
+      const C={rec:c("RESERVA MAE"),id:c("IDIOMA"),hot:c("HOTEL"),ch:c("DATA DE CHEGADA"),sa:c("DATA DE SAIDA"),qs:c("QTD. SERVICOS"),lv:c("DIAS LIVRES")};
+      if(C.rec<0||C.sa<0) throw new Error("Não reconheci o arquivo. É o relatório de oportunidade do Utopia (aba Reservas)?");
+      PLV.utopia=L.slice(1).filter(x=>x[C.rec]).map(x=>({rec:String(x[C.rec]),hotel:String(x[C.hot]||""),saidaD:iso(x[C.sa]),livres:+x[C.lv]||0,comprados:+x[C.qs]||0,idioma:String(x[C.id]||"").toLowerCase().startsWith("es")?"es":"pt"}));
+      const ch=C.ch>=0?iso((L[1]||[])[C.ch]):""; PLV.nomeU=f.name+" · "+PLV.utopia.length+" reservas";
+      if(ch&&ch!==PLV.data&&!confirm("O Utopia é de chegada "+dataBR(ch)+", e a escala aberta é de "+dataBR(PLV.data)+". Usar mesmo assim?")) { PLV.utopia=null; PLV.nomeU=""; plvDesenhar(); return; }
+      await plvMontar();
+    }catch(err){ alert(err.message); } inp.value=""; };
+    r.readAsArrayBuffer(f);
+  }
+  async function plvMontar(){
+    plvFundo().innerHTML=plvCard('<b>🧭 Planejar vendas · '+dataBR(PLV.data)+'</b><div style="color:var(--muted);margin-top:10px">Montando o planejamento de cada guia…</div>');
+    try{ const j=await chamarEnvios("conciergeMontar",{data:PLV.data,utopia:PLV.utopia}); if(!j.ok) throw new Error(j.erro); PLV.guias=j.guias; PLV.lidoEm=j.lidoEm; }
+    catch(e){ alert(e.message); PLV.guias=null; }
+    plvDesenhar();
+  }
+  function plvDesenhar(){
+    const f=plvFundo(), hora=(t)=>new Date(t).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:1.05rem">🧭 Planejar vendas · '+dataBR(PLV.data)+'</b><span style="flex:1"></span>'
+      +'<label class="btn '+(PLV.utopia?'sec':'')+' mini" style="cursor:pointer">'+(PLV.utopia?'✓ Trocar Utopia':'Subir Utopia (oportunidade) do dia')+'<input type="file" accept=".xlsx,.xls" style="display:none" onchange="plvArquivo(this)"></label></div>'
+      +'<div style="font-size:.8rem;color:var(--muted);margin:6px 0 12px">Cada guia recebe as RECs do IN dele, com hotel, até quando fica, dias livres e um roteiro com nossos passeios, valores e o combo (regras da Cartilha). '+(PLV.nomeU?'<b>'+esc(PLV.nomeU)+'</b>':'')+(PLV.lidoEm?' · escala lida do Phoenix às '+hora(PLV.lidoEm):'')+'</div>';
+    if(!PLV.guias){ h+='<div style="color:var(--muted);padding:10px 0">Suba o Utopia (oportunidade) com as chegadas de '+dataBR(PLV.data)+'.</div><div style="text-align:right"><button class="btn sec" onclick="document.getElementById(\'plvFundo\').remove()">Fechar</button></div>'; f.innerHTML=plvCard(h); return; }
+    if(!PLV.guias.length) h+='<div style="color:var(--muted);padding:10px 0">Nenhum guia com IN nesse dia.</div>';
+    PLV.guias.forEach((g,i)=>{ const r=PLV.res[g.guia];
+      h+='<div style="border-top:1px solid var(--linha);padding:12px 0"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
+        +'<input type="checkbox" id="plv-ck-'+i+'" '+(g.temContato&&!g.enviado?'checked':'')+(g.temContato?'':' disabled')+' style="width:18px;height:18px"><b>'+esc(titulo(g.guia))+'</b>'
+        +'<span style="font-size:.8rem;color:var(--muted)">'+g.recs+' REC(s) · '+g.pax+' pax · '+g.comDados+' com dados do Utopia'+(g.temContato?'':' · <span style="color:var(--alerta)">sem telefone nos contatos</span>')+'</span><span style="flex:1"></span>'
+        +(r?(r.ok?'<b style="color:var(--ok);font-size:.82rem">✓ Enviado agora</b>':'<b style="color:var(--alerta);font-size:.82rem">✗ '+esc(r.motivo||"")+'</b>'):g.enviado?'<span class="chip" style="background:#e3f2ee;color:#0b4f44">Enviado '+hora(g.enviado.em)+' · '+esc(g.enviado.por||"")+'</span>':'')+'</div>'
+        +'<details><summary style="cursor:pointer;font-size:.82rem;color:var(--ok);font-weight:700">ver / ajustar a mensagem</summary><textarea id="plv-tx-'+i+'" rows="18" style="width:100%;margin-top:8px;border:1px solid var(--linha);border-radius:10px;padding:10px 12px;font:inherit;font-size:.84rem;line-height:1.45">'+esc(g.texto)+'</textarea></details></div>'; });
+    h+='<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px"><button class="btn sec" onclick="document.getElementById(\'plvFundo\').remove()">Fechar</button>'+(PLV.guias.some(g=>g.temContato)?'<button class="btn" id="plvBtn" onclick="plvEnviar()">Enviar para os marcados</button>':'')+'</div>';
+    f.innerHTML=plvCard(h);
+  }
+  async function plvEnviar(){
+    if(PLV.enviando) return;
+    const itens=PLV.guias.map((g,i)=>{ const ck=document.getElementById("plv-ck-"+i); return ck&&ck.checked?{guia:g.guia,texto:(document.getElementById("plv-tx-"+i)||{}).value||g.texto}:null; }).filter(Boolean);
+    if(!itens.length){ alert("Marque pelo menos um guia."); return; }
+    if(!confirm("Enviar o planejamento de vendas para "+itens.length+" guia(s)?")) return;
+    PLV.enviando=true; const b=document.getElementById("plvBtn"); if(b){ b.disabled=true; b.textContent="Enviando…"; }
+    try{ const j=await chamarEnvios("conciergeEnviar",{data:PLV.data,itens}); if(!j.ok) throw new Error(j.erro); (j.resultados||[]).forEach(r=>{ PLV.res[r.guia]=r; }); }catch(e){ alert(e.message); }
+    PLV.enviando=false; plvDesenhar();
+  }
+
   // ======================= PONTOS DE APOIO =======================
   // No fim do dia, com os passeios escalados no Phoenix: manda para cada ponto de apoio (grupo ou números)
   // "1º GUIA – 27 sem / 4 com" de cada carro. Os números e grupos ficam guardados no servidor, não aqui.

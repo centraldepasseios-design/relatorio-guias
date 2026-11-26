@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Concierge Luck</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f3f6f5;--card:#fff;--tinta:#12302b;--muted:#5d726d;--linha:#dde7e4;--verde:#0e7a68;--verde-esc:#0b4f44;--claro:#e3f2ee;--ouro:#b8860b;--alerta:#c0392b;--aviso:#b45309}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a18;--card:#16231f;--tinta:#e6f0ed;--muted:#94aaa4;--linha:#28403a;--claro:#183a33;--verde:#3ccf9a;--verde-esc:#9be3c9}}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--tinta);font-family:Manrope,system-ui,sans-serif;font-size:15px}
+header{background:linear-gradient(135deg,#0b4f44,#0e7a68);color:#fff;padding:26px 16px 22px}
+header .in{max-width:1100px;margin:0 auto} header h1{margin:4px 0 6px;font-size:1.6rem} header p{margin:0;opacity:.85;max-width:680px;line-height:1.5}
+main{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
+.card{background:var(--card);border:1px solid var(--linha);border-radius:16px;padding:16px 18px;margin-bottom:14px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:11px;background:var(--verde);color:#fff;font:inherit;font-weight:700;padding:10px 16px;cursor:pointer;text-decoration:none;font-size:.9rem}
+.btn.sec{background:transparent;color:var(--verde);border:1px solid var(--verde)} .btn.mini{padding:6px 11px;font-size:.8rem;border-radius:9px}
+.btn.wa{background:#1f9d55} .btn:disabled{opacity:.45;cursor:default}
+.chip{display:inline-block;border-radius:999px;padding:3px 10px;font-size:.74rem;font-weight:800;background:var(--claro);color:var(--verde-esc)}
+.chip.ai{background:#fde4df;color:#9f2a15}.chip.mp{background:#fff1e0;color:#8a4a0c}
+.muted{color:var(--muted)} .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+select,textarea,input[type=text]{font:inherit;border:1px solid var(--linha);border-radius:10px;background:var(--card);color:var(--tinta)}
+select{height:36px;padding:0 8px} textarea{width:100%;padding:10px 12px;line-height:1.45;font-size:.86rem}
+.dias{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin:10px 0}
+.dia{border:1px solid var(--linha);border-radius:12px;padding:8px 10px} .dia b{display:block;font-size:.8rem;margin-bottom:4px}
+.dia select{width:100%}
+.rec{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha);padding:8px 0;font-size:.86rem}
+.rec .nome{flex:1;min-width:200px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.tabs button{border:1px solid var(--linha);background:var(--card);color:var(--tinta);border-radius:999px;padding:6px 12px;font:inherit;font-size:.82rem;font-weight:700;cursor:pointer}
+.tabs button.on{background:var(--verde);color:#fff;border-color:var(--verde)}
+details summary{cursor:pointer;font-weight:700}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div style="font-size:.8rem;opacity:.8;letter-spacing:.06em;text-transform:uppercase">Luck Receptivo · Central de Passeios</div>
+  <h1>Concierge</h1>
+  <p>Roteiro pronto para cada chegada, montado pelos dias livres e pelo hotel do pax, com valores e o desconto do combo. “Deixa comigo, você está de férias.”</p>
+</div></header>
+<main>
+  <div class="card row">
+    <label class="btn" style="cursor:pointer">Subir Utopia (oportunidade)<input type="file" accept=".xlsx,.xls" style="display:none" onchange="ler(this)"></label>
+    <span id="arq" class="muted" style="font-size:.85rem">Os dados do arquivo ficam só neste navegador.</span>
+  </div>
+  <div id="corpo"></div>
+</main>
+<script>
+// ===================== REGRAS (da Cartilha do Guia) =====================
+// Preço por adulto; criança de 2 a 11 anos paga 50%. Combo: 2 passeios 10%, 3 = 15%, 4 = 20%, 5+ = 25%.
+const PASSEIOS={
+  maragogi:{nome:"Maragogi",es:"Maragogi",desc:"piscinas naturais de águas cristalinas (Galés, conforme a maré)",descEs:"piscinas naturales de aguas cristalinas (Galés, según la marea)",prio:1},
+  carneiros:{nome:"Praia dos Carneiros",es:"Playa de Carneiros",desc:"uma das praias mais bonitas do Brasil, com a igrejinha à beira-mar",descEs:"una de las playas más lindas de Brasil, con la iglesita frente al mar",prio:2},
+  saojose:{nome:"São José da Coroa Grande",es:"São José da Coroa Grande",desc:"piscinas naturais e mar calmo, ótimo para família",descEs:"piscinas naturales y mar tranquilo, ideal para la familia",prio:3},
+  porto:{nome:"Porto de Galinhas",es:"Porto de Galinhas",desc:"a vila e as piscinas naturais mais famosas do Nordeste",descEs:"el pueblo y las piscinas naturales más famosas del Nordeste",prio:3},
+  cabo:{nome:"Praias do Cabo",es:"Playas del Cabo",desc:"Calhetas, Gaibu e o litoral do Cabo de Santo Agostinho",descEs:"Calhetas, Gaibu y la costa del Cabo de Santo Agostinho",prio:4},
+  jpa:{nome:"João Pessoa",es:"João Pessoa",desc:"a capital da Paraíba e o ponto mais oriental das Américas",descEs:"la capital de Paraíba y el punto más oriental de las Américas",prio:4},
+  city:{nome:"City Tour Recife e Olinda",es:"City Tour Recife y Olinda",desc:"história, cultura e o casario colorido de Olinda",descEs:"historia, cultura y las casitas coloridas de Olinda",prio:5},
+  litoral:{nome:"Litoral Norte",es:"Litoral Norte",desc:"Itamaracá e o litoral norte de Pernambuco",descEs:"Itamaracá y el litoral norte de Pernambuco",prio:6},
+};
+// dias da semana (0 = domingo) e preço do adulto por saída
+const SAIDAS={
+  porto:{rot:"Porto de Galinhas",preco:{maragogi:160,carneiros:160,city:142,saojose:160,cabo:142,litoral:148},
+    dias:{maragogi:[0,1,2,3,4,5,6],carneiros:[0,1,2,3,4,5,6],city:[1,2,3,4,5,6],litoral:[2,4],cabo:[1,3,5],saojose:[2,4,6]}},
+  recife:{rot:"Recife",preco:{city:112,porto:120,maragogi:160,carneiros:160,litoral:132,cabo:142,jpa:180},
+    dias:{porto:[1,2,3,5,6],city:[1,2,4,5,6],cabo:[1,5],maragogi:[0,2,4,5],carneiros:[0,3,6],jpa:[3],litoral:[4]}},
+};
+const COMBO=(n)=>n>=5?25:n===4?20:n===3?15:n===2?10:0;
+// hospedagem: all inclusive (lista da Central) · meia pensão = os outros "Resort" · pousada/hotel/flat
+const AI=["ENOTEL","VILA GALE","SUMMERVILLE","MARUPIARA","WESTIN","OCAPORA"];
+// quantos passeios sugerir (no máximo os dias livres)
+const MAXP={ai:2,mp:3,livre:4};
+
+// ===================== utilidades =====================
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const N=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase();
+const brl=v=>"R$ "+v.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const brl0=v=>"R$ "+Math.round(v).toLocaleString("pt-BR");
+const DS=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"], DSes=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+function dataIso(v){ if(v instanceof Date) return v.toISOString().slice(0,10); if(typeof v==="number"){ const d=new Date(Math.round((v-25569)*864e5)); return d.toISOString().slice(0,10); }
+  const m=String(v||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m?m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0"):""; }
+const soma=(iso,n)=>{ const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
+const wd=iso=>new Date(iso+"T12:00:00Z").getUTCDay();
+const dm=iso=>iso.slice(8,10)+"/"+iso.slice(5,7);
+const primeiro=n=>{ const p=String(n||"").trim().split(/\s+/)[0]||""; return p.charAt(0).toUpperCase()+p.slice(1).toLowerCase(); };
+function perfil(hotel){ const h=N(hotel); if(AI.some(a=>h.includes(a))) return "ai"; if(/RESORT/.test(h)) return "mp"; return "livre"; }
+const PERF={ai:["All inclusive","ai"],mp:["Meia pensão","mp"],livre:["Pousada / hotel",""]};
+function whats(t){ let d=String(t||"").replace(/\D/g,""); if(!d||/^(\d)\1+$/.test(d.slice(-8))) return "";
+  if(d.length===10||d.length===11) return "55"+d; if(d.startsWith("55")&&(d.length===12||d.length===13)) return d; return d.length>=11?d:""; }
+
+// ===================== estado =====================
+const ST={recs:[],cenarios:[],filtro:"todos",nomeArq:""};
+
+function ler(inp){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=e=>{ try{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+    const sn=wb.SheetNames.find(n=>N(n)==="RESERVAS")||wb.SheetNames[0];
+    const L=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:""}); const h=(L[0]||[]).map(N), c=n=>h.indexOf(n);
+    const C={rec:c("RESERVA MAE"),id:c("IDIOMA"),nome:c("NOME DO PASSAGEIRO"),tel:c("TELEFONE"),serv:c("SERVICO"),hotel:c("HOTEL"),ch:c("DATA DE CHEGADA"),sa:c("DATA DE SAIDA"),pax:c("PAXS"),qs:c("QTD. SERVICOS"),liv:c("DIAS LIVRES")};
+    if(C.hotel<0||C.ch<0) throw new Error("Não reconheci o arquivo. É o relatório de oportunidade do Utopia (aba Reservas)?");
+    ST.recs=L.slice(1).filter(r=>r[C.rec]).map(r=>({rec:String(r[C.rec]),idioma:String(r[C.id]||"pt-br").toLowerCase().startsWith("es")?"es":"pt",nome:String(r[C.nome]||""),tel:String(r[C.tel]||""),
+      saida:/GALINHAS|PORTO|MARAGOGI|CARNEIROS|TAMANDARE|MURO ALTO|CUPE|MARACAIPE/.test(N(r[C.serv]))?"porto":"recife",hotel:String(r[C.hotel]||"").replace(/\s*\(.*$/,""),
+      chegada:dataIso(r[C.ch]),saidaD:dataIso(r[C.sa]),pax:+r[C.pax]||1,comprados:+r[C.qs]||0,livres:+r[C.liv]||0}));
+    ST.nomeArq=f.name; montarCenarios(); desenhar();
+  }catch(err){ alert(err.message); } inp.value=""; };
+  r.readAsArrayBuffer(f);
+}
+
+// mesmo hotel + mesmas datas + mesmos dias livres + mesma saída = mesmo roteiro (monta uma vez e usa para todos)
+function montarCenarios(){
+  const mapa={};
+  ST.recs.forEach(x=>{ const k=[x.saida,N(x.hotel),x.chegada,x.saidaD,x.livres].join("|"); (mapa[k]=mapa[k]||{chave:k,saida:x.saida,hotel:x.hotel,chegada:x.chegada,saidaD:x.saidaD,livres:x.livres,perfil:perfil(x.hotel),recs:[]}).recs.push(x); });
+  ST.cenarios=Object.values(mapa).sort((a,b)=>b.recs.length-a.recs.length||a.hotel.localeCompare(b.hotel));
+  ST.cenarios.forEach(c=>{ c.dias=diasDoCenario(c); c.plano=sugerir(c); });
+}
+// dias inteiros entre a chegada e a saída
+function diasDoCenario(c){ const out=[]; if(!c.chegada||!c.saidaD) return out; for(let d=soma(c.chegada,1); d<c.saidaD; d=soma(d,1)) out.push(d); return out; }
+function sugerir(c){
+  const S=SAIDAS[c.saida], plano={}; c.dias.forEach(d=>plano[d]="");
+  const n=Math.min(c.livres, MAXP[c.perfil], c.dias.length); if(n<=0) return plano;
+  const ordem=Object.keys(S.preco).sort((a,b)=>PASSEIOS[a].prio-PASSEIOS[b].prio);
+  const usados=new Set(); let feitos=0;
+  // espalha: primeiro tenta dias não colados a outro passeio, depois qualquer dia em que o passeio sai
+  for(const folga of [true,false]) for(const p of ordem){
+    if(feitos>=n||usados.has(p)) continue;
+    const ok=c.dias.find(d=>!plano[d]&&S.dias[p].includes(wd(d))&&(!folga||(!plano[soma(d,-1)]&&!plano[soma(d,1)])));
+    if(ok){ plano[ok]=p; usados.add(p); feitos++; }
+  }
+  return plano;
+}
+
+// ===================== mensagem =====================
+function valores(c,pax){
+  const S=SAIDAS[c.saida], ps=Object.values(c.plano).filter(Boolean);
+  const itens=ps.map(p=>({p,v:S.preco[p]*pax})), total=itens.reduce((s,x)=>s+x.v,0), pc=COMBO(ps.length);
+  return {itens,total,pc,comDesc:total*(1-pc/100)};
+}
+function mensagem(c,x){
+  const es=x.idioma==="es", S=SAIDAS[c.saida], dias=c.dias.filter(d=>c.plano[d]), v=valores(c,x.pax), nome=primeiro(x.nome);
+  if(!dias.length) return "";
+  const parcial=x.comprados>0;
+  const linhaDia=d=>{ const p=PASSEIOS[c.plano[d]]; return "• "+(es?DSes:DS)[wd(d)]+", "+dm(d)+" – *"+(es?p.es:p.nome)+"*: "+(es?p.descEs:p.desc); };
+  const precos=v.itens.map(i=>(es?PASSEIOS[i.p].es:PASSEIOS[i.p].nome)+": "+brl0(i.v)).join("\n");
+  const descanso=c.perfil==="ai"?(es?"Dejé los otros días libres para que disfrute el resort 🏖️":"Deixei os outros dias livres para você aproveitar o resort 🏖️"):"";
+  if(es) return "¡Hola, "+nome+"! 🌴 Aquí es Luck Receptivo. ¡Bienvenido(a) a "+S.rot+"!\n\n"
+    +"Ya preparé un itinerario para sus días libres"+(parcial?" (además de los paseos que ya tiene)":"")+". Usted elige y nosotros nos encargamos de todo: ¡usted está de vacaciones! 😉\n\n"
+    +"🗓️ *Itinerario sugerido*\n"+dias.map(linhaDia).join("\n")+"\n"+(descanso?descanso+"\n":"")
+    +"Salida del hotel temprano y regreso al final de la tarde.\n\n"
+    +"💰 *Valores para "+x.pax+" persona"+(x.pax>1?"s":"")+"*\n"+precos+"\nTotal: "+brl0(v.total)
+    +(v.pc?"\n✨ *Llevando los "+dias.length+" paseos: "+v.pc+"% de descuento → "+brl0(v.comDesc)+"*":"")
+    +"\nHasta 10x sin intereses con tarjeta. Niños de 2 a 11 años pagan la mitad."
+    +(dias.some(d=>c.plano[d]==="maragogi")?"\nLas piscinas de Maragogi dependen de la marea: le confirmo el mejor día.":"")
+    +"\n\n🛡️ *Con Luck, la empresa más premiada de Brasil:* guía de turismo, vehículo con aire acondicionado, seguro al turista y asistencia 24 horas. Si algo pasa, lo resolvemos nosotros: usted solo disfruta."
+    +"\n\n¿Prefiere otro día u otro paseo? Me dice y lo ajusto. Para reservar, responda aquí ✅";
+  return "Olá, "+nome+"! 🌴 Aqui é a Luck Receptivo. Seja bem-vindo(a) a "+S.rot+"!\n\n"
+    +"Já deixei um roteiro pronto para os seus dias livres"+(parcial?" (além dos passeios que você já tem)":"")+". Você escolhe e a gente cuida de tudo: você está de férias! 😉\n\n"
+    +"🗓️ *Roteiro sugerido*\n"+dias.map(linhaDia).join("\n")+"\n"+(descanso?descanso+"\n":"")
+    +"Saída do hotel no início da manhã e volta no fim da tarde.\n\n"
+    +"💰 *Valores para "+x.pax+" pessoa"+(x.pax>1?"s":"")+"*\n"+precos+"\nTotal: "+brl0(v.total)
+    +(v.pc?"\n✨ *Fechando os "+dias.length+" passeios: "+v.pc+"% de desconto → "+brl0(v.comDesc)+"*":"")
+    +"\nEm até 10x sem juros no cartão. Crianças de 2 a 11 anos pagam metade."
+    +(dias.some(d=>c.plano[d]==="maragogi")?"\nAs piscinas de Maragogi dependem da maré: eu confirmo o melhor dia para você.":"")
+    +"\n\n🛡️ *Com a Luck, a empresa mais premiada do Brasil:* guia de turismo, veículo com ar-condicionado, seguro turista e assistência 24 horas. Se acontecer qualquer coisa, a gente resolve: você só aproveita."
+    +"\n\nPrefere outro dia ou outro passeio? Me fala que eu ajusto. Para reservar, é só responder aqui ✅";
+}
+
+// ===================== tela =====================
+function desenhar(){
+  const box=document.getElementById("corpo");
+  document.getElementById("arq").textContent=ST.nomeArq?ST.nomeArq+" · "+ST.recs.length+" reservas":"Os dados do arquivo ficam só neste navegador.";
+  if(!ST.recs.length){ box.innerHTML='<div class="card muted" style="line-height:1.6"><b style="color:var(--tinta)">Como funciona</b><br>1. Suba o relatório de oportunidade do Utopia do dia.<br>2. A tela junta quem está no mesmo hotel, com as mesmas datas e os mesmos dias livres, e monta um roteiro só para esse grupo.<br>3. Ajuste o roteiro, se quiser: a mudança vale para todas as reservas do grupo.<br>4. Em cada reserva, copie a mensagem ou abra direto no WhatsApp do pax.<br><br><b style="color:var(--tinta)">Regras usadas</b><br>Dias e valores da Cartilha do Guia · all inclusive: até 2 passeios · meia pensão (os outros resorts): até 3 · pousada/hotel: até 4 · nunca mais que os dias livres · combo: 2 passeios 10%, 3 = 15%, 4 = 20%, 5+ = 25%.</div>'; return; }
+  const comDias=ST.cenarios.filter(c=>c.livres>0&&c.dias.length), sem=ST.cenarios.filter(c=>!(c.livres>0&&c.dias.length));
+  const cont={todos:comDias.length,ai:0,mp:0,livre:0}; comDias.forEach(c=>cont[c.perfil]++);
+  let h='<div class="tabs">'+[["todos","Todos"],["livre","Pousada / hotel"],["mp","Meia pensão"],["ai","All inclusive"]].map(([k,t])=>'<button class="'+(ST.filtro===k?"on":"")+'" onclick="ST.filtro=\''+k+'\';desenhar()">'+t+' ('+cont[k]+')</button>').join("")+'</div>';
+  comDias.filter(c=>ST.filtro==="todos"||c.perfil===ST.filtro).forEach(c=>{
+    const i=ST.cenarios.indexOf(c), S=SAIDAS[c.saida], pf=PERF[c.perfil];
+    const pax=c.recs.reduce((s,x)=>s+x.pax,0), v=valores(c,2);
+    h+='<div class="card"><div class="row"><b style="font-size:1.02rem">'+esc(c.hotel)+'</b><span class="chip '+pf[1]+'">'+pf[0]+'</span><span class="chip">Saindo de '+S.rot+'</span>'
+      +'<span class="muted" style="font-size:.82rem">'+dm(c.chegada)+' a '+dm(c.saidaD)+' · '+c.livres+' dia(s) livre(s) · '+c.recs.length+' reserva(s), '+pax+' pax</span>'
+      +(c.recs.length>1?'<span class="chip" style="background:#e6edfb;color:#1e3a8a">mesmo roteiro para '+c.recs.length+'</span>':'')+'</div>'
+      +'<div class="dias">'+c.dias.map(d=>{ const op=Object.keys(S.preco).filter(p=>S.dias[p].includes(wd(d)));
+        return '<div class="dia"><b>'+DS[wd(d)]+', '+dm(d)+'</b><select onchange="trocar('+i+',\''+d+'\',this.value)"><option value="">Livre</option>'+op.map(p=>'<option value="'+p+'"'+(c.plano[d]===p?" selected":"")+'>'+PASSEIOS[p].nome+' · '+brl0(S.preco[p])+'</option>').join("")+'</select></div>'; }).join("")+'</div>'
+      +(Object.values(c.plano).filter(Boolean).length>c.livres?'<div style="color:var(--aviso);font-size:.82rem;margin-bottom:6px">⚠ Mais passeios do que dias livres ('+c.livres+'): confira se não bate com algum passeio já comprado.</div>':'')
+      +'<div class="muted" style="font-size:.82rem;margin-bottom:6px">Para 2 pessoas: '+brl0(v.total)+(v.pc?' · com o combo ('+v.pc+'%): <b style="color:var(--tinta)">'+brl0(v.comDesc)+'</b>':'')+'</div>'
+      +c.recs.map((x,k)=>{ const w=whats(x.tel), msg=mensagem(c,x);
+        return '<div class="rec"><span class="nome"><b>'+esc(x.rec)+'</b> · '+esc(x.nome)+' <span class="muted">· '+x.pax+' pax'+(x.idioma==="es"?' · 🇪🇸':'')+(x.comprados?' · já tem '+x.comprados+' passeio(s)':'')+'</span></span>'
+          +'<button class="btn sec mini" onclick="ver('+i+','+k+')">Ver mensagem</button><button class="btn sec mini" onclick="copiar('+i+','+k+')">Copiar</button>'
+          +(w&&msg?'<a class="btn wa mini" target="_blank" rel="noopener" href="https://wa.me/'+w+'?text='+encodeURIComponent(msg)+'">WhatsApp</a>':'<span class="muted" style="font-size:.78rem">sem telefone</span>')+'</div>'
+          +'<div id="msg-'+i+'-'+k+'" style="display:none;padding:0 0 10px"><textarea rows="16" readonly>'+esc(msg)+'</textarea></div>'; }).join("")
+      +'</div>';
+  });
+  if(sem.length) h+='<details class="card"><summary>Sem dias livres ('+sem.reduce((s,c)=>s+c.recs.length,0)+' reservas)</summary><div class="muted" style="font-size:.84rem;margin-top:8px;line-height:1.6">'+sem.map(c=>esc(c.hotel)+' · '+dm(c.chegada)+' a '+dm(c.saidaD)+' · '+c.recs.map(x=>esc(x.rec)).join(", ")).join("<br>")+'</div></details>';
+  box.innerHTML=h;
+}
+function trocar(i,d,p){ ST.cenarios[i].plano[d]=p; desenhar(); }
+function ver(i,k){ const e=document.getElementById("msg-"+i+"-"+k); e.style.display=e.style.display==="none"?"block":"none"; }
+function copiar(i,k){ const c=ST.cenarios[i], t=mensagem(c,c.recs[k]); navigator.clipboard.writeText(t).then(()=>alert("Mensagem copiada."),()=>prompt("Copie:",t)); }
+desenhar();
+</script>
+</body>
+</html>
