@@ -2283,10 +2283,12 @@
   function apoioFundo(){ let f=document.getElementById("apoFundo"); if(!f){ f=document.createElement("div"); f.id="apoFundo"; f.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto;"; f.onclick=(e)=>{ if(e.target===f) apoioFechar(); }; document.body.appendChild(f); } return f; }
   function apoioFechar(){ const f=document.getElementById("apoFundo"); if(f) f.remove(); APO.config=false; APO.cfg=null; }
   const apoCard=(h)=>'<div class="card" style="max-width:760px;width:100%;margin:0">'+h+'</div>';
+  // observação de cada passeio da montagem do dia (ex.: BORAMAR / ITAOCA decide o ponto de apoio que reveza)
+  const apoioObs=()=>(PLANO.plano&&PLANO.data===APO.data?(PLANO.plano.passeios||[]):[]).map(p=>({nome:p.nome,obs:p.obs||""}));
   async function abrirApoio(atualizar){
     APO.data=PLANO.data; APO.saida=PLANO.area==="porto"?"porto":"recife"; APO.res={}; const f=apoioFundo();
     f.innerHTML=apoCard('<b>📍 Pontos de apoio · '+dataBR(APO.data)+'</b><div style="color:var(--muted);margin-top:10px">Lendo a escala do Phoenix…</div>');
-    try{ const j=await chamarEnvios("apoioMontar",{data:APO.data,saida:APO.saida,atualizar:!!atualizar}); if(!j.ok) throw new Error(j.erro); APO.destinos=j.destinos; apoioDesenhar(); }
+    try{ const j=await chamarEnvios("apoioMontar",{data:APO.data,saida:APO.saida,obsPlano:apoioObs(),atualizar:!!atualizar}); if(!j.ok) throw new Error(j.erro); APO.destinos=j.destinos; APO.avisos=j.avisos||[]; apoioDesenhar(); }
     catch(e){ f.innerHTML=apoCard('<b>📍 Pontos de apoio</b><div style="color:var(--alerta);margin-top:10px">'+esc(e.message)+'</div><div style="text-align:right;margin-top:12px"><button class="btn sec" onclick="apoioFechar()">Fechar</button></div>'); }
   }
   function apoioDesenhar(){
@@ -2295,7 +2297,8 @@
     const com=(APO.destinos||[]).filter(d=>d.texto), sem=(APO.destinos||[]).filter(d=>!d.texto);
     let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:1.05rem">📍 Pontos de apoio · '+dataBR(APO.data)+'</b><span class="chip on">Saindo de '+(APO.saida==="porto"?"Porto":"Recife")+'</span><span style="flex:1"></span>'
       +'<button class="btn sec mini" onclick="abrirApoio(true)" title="Lê a escala do Phoenix de novo">Atualizar do Phoenix</button><button class="btn sec mini" onclick="APO.config=true;apoioDesenhar()">Configurar</button></div>'
-      +'<div style="font-size:.8rem;color:var(--muted);margin:6px 0 12px">Pela escala do Phoenix. Confira e ajuste o texto antes de enviar; sai pelo WhatsApp da Z-API.</div>';
+      +'<div style="font-size:.8rem;color:var(--muted);margin:6px 0 12px">Pela escala do Phoenix. Confira e ajuste o texto antes de enviar; sai pelo WhatsApp da Z-API.</div>'
+      +(APO.avisos||[]).map(a=>'<div style="background:#fff1e0;color:#8a4a0c;border-radius:10px;padding:9px 12px;font-size:.84rem;margin-bottom:10px">⚠ '+esc(a)+'</div>').join("");
     com.forEach(d=>{
       const r=APO.res[d.id];
       h+='<div style="border-top:1px solid var(--linha);padding:12px 0">'
@@ -2316,9 +2319,9 @@
     if(!confirm("Enviar para "+envios.length+" ponto(s) de apoio?")) return;
     APO.enviando=true; const b=document.getElementById("apoBtn"); if(b){ b.disabled=true; b.textContent="Enviando…"; }
     const tx={}; envios.forEach(e=>tx[e.id]=e.texto);
-    try{ const j=await chamarEnvios("apoioEnviar",{data:APO.data,saida:APO.saida,envios}); if(!j.ok) throw new Error(j.erro);
+    try{ const j=await chamarEnvios("apoioEnviar",{data:APO.data,saida:APO.saida,obsPlano:apoioObs(),envios}); if(!j.ok) throw new Error(j.erro);
       (j.resultado||[]).forEach(r=>{ APO.res[r.id]=r; });
-      const j2=await chamarEnvios("apoioMontar",{data:APO.data,saida:APO.saida}); if(j2.ok) APO.destinos=j2.destinos.map(d=>({...d,texto:APO.res[d.id]&&!APO.res[d.id].ok&&tx[d.id]?tx[d.id]:d.texto}));
+      const j2=await chamarEnvios("apoioMontar",{data:APO.data,saida:APO.saida,obsPlano:apoioObs()}); if(j2.ok) APO.destinos=j2.destinos.map(d=>({...d,texto:APO.res[d.id]&&!APO.res[d.id].ok&&tx[d.id]?tx[d.id]:d.texto}));
     }catch(e){ alert(e.message); }
     APO.enviando=false; apoioDesenhar();
   }
@@ -2338,7 +2341,9 @@
         +'<label style="'+lab+'">Envia para<select id="apd-t-'+i+'" style="'+inp+'" onchange="apoioCfgLer();apoioDesenharConfig()"><option value="grupo"'+(d.tipo==="grupo"?' selected':'')+'>Grupo</option><option value="numeros"'+(d.tipo!=="grupo"?' selected':'')+'>Número(s)</option></select></label>'
         +(d.tipo==="grupo"?'<label style="'+lab+'">Grupo'+(d.grupoNome&&!d.grupoId?' (procure: '+esc(d.grupoNome)+')':'')+'<select id="apd-g-'+i+'" style="'+inp+'">'+gOpts(d.grupoId)+'</select></label>'
           :'<label style="'+lab+'">Números<input id="apd-f-'+i+'" value="'+esc((d.telefones||[]).map(t=>"("+t.slice(0,2)+") "+t.slice(2,7)+"-"+t.slice(7)).join(", "))+'" placeholder="(81) 99999-0000" style="'+inp+'"></label>')
-        +'<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82rem">'+C.passeios.map(p=>'<label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="apd-p-'+i+'-'+p.id+'"'+((d.passeios||[]).includes(p.id)?' checked':'')+'>'+esc(p.nome)+'</label>').join("")
+        +'<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.8rem;align-items:center"><label style="display:flex;gap:5px;align-items:center;font-weight:700"><input type="checkbox" id="apd-todos-'+i+'"'+(d.todos?' checked':'')+' onchange="apoioCfgLer();apoioDesenharConfig()">Todos os passeios, menos os marcados</label><label style="display:flex;gap:5px;align-items:center;font-weight:700"><input type="checkbox" id="apd-sp-'+i+'"'+(d.semPriv?' checked':'')+'>Sem privativos</label>'
+        +'<label style="display:flex;gap:6px;align-items:center;color:var(--muted)">Só quando a observação do passeio na montagem tiver<input id="apd-o-'+i+'" value="'+esc(d.seObs||"")+'" placeholder="ex.: BORAMAR" style="width:120px;height:30px;border:1px solid var(--linha);border-radius:8px;padding:0 8px;font:inherit;font-size:.8rem"></label></div>'
+        +'<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82rem">'+(d.todos?'<span style="color:var(--alerta);font-weight:700">Não entram:</span>':'')+C.passeios.map(p=>'<label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="apd-p-'+i+'-'+p.id+'"'+((d.passeios||[]).includes(p.id)?' checked':'')+'>'+esc(p.nome)+'</label>').join("")
         +'<span style="flex:1"></span><a href="#" style="color:var(--alerta)" onclick="event.preventDefault();apoioCfgLer();APO.cfg.destinos.splice('+i+',1);apoioDesenharConfig()">remover</a></div></div>';
     });
     h+='<button class="btn sec mini" onclick="apoioCfgLer();APO.cfg.destinos.push({id:\'d\'+Date.now(),nome:\'\',tipo:\'numeros\',telefones:[],passeios:[]});apoioDesenharConfig()">+ Destino</button>'
@@ -2360,7 +2365,8 @@
     C.destinos.forEach((d,i)=>{ if(v("apd-n-"+i)==null) return; d.nome=v("apd-n-"+i).trim(); d.tipo=v("apd-t-"+i);
       const g=document.getElementById("apd-g-"+i); if(g){ d.grupoId=g.value; if(g.value) d.grupoNome=g.options[g.selectedIndex].text; }
       const fo=v("apd-f-"+i); if(fo!=null) d.telefones=lst(fo).map(t=>t.replace(/\D/g,"").replace(/^55(?=\d{10,11}$)/,""));
-      d.passeios=C.passeios.filter(p=>{ const c=document.getElementById("apd-p-"+i+"-"+p.id); return c&&c.checked; }).map(p=>p.id); });
+      d.passeios=C.passeios.filter(p=>{ const c=document.getElementById("apd-p-"+i+"-"+p.id); return c&&c.checked; }).map(p=>p.id);
+      const td=document.getElementById("apd-todos-"+i); if(td) d.todos=td.checked; const sp=document.getElementById("apd-sp-"+i); if(sp) d.semPriv=sp.checked; const so=v("apd-o-"+i); if(so!=null) d.seObs=so.trim().toUpperCase(); });
   }
   async function apoioCfgSalvar(){
     apoioCfgLer();
