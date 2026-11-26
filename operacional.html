@@ -1974,14 +1974,14 @@
     const carros=lista.reduce((s,p)=>s+p.carros.length,0), semGuia=lista.reduce((s,p)=>s+p.carros.filter(c=>!c.guia).length,0);
     const info=document.getElementById("planoInfo");
     if(info) info.textContent=PLANO.plano.atualizadoPor?("Última alteração: "+PLANO.plano.atualizadoPor+" às "+new Date(PLANO.plano.atualizadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})):"";
-    if(!lista.length){ const tp=document.getElementById("planoAcoesTopo"); if(tp) tp.innerHTML=""; box.innerHTML=(podeGuia()?htmlAvisosPlano():"")+'<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio planejado</h3><p>Clique em “Adicionar passeio” para montar os carros de '+dataBR(PLANO.data)+'.</p></div>'; return; }
+    if(!lista.length){ const tp=document.getElementById("planoAcoesTopo"); if(tp) tp.innerHTML='<button class="btn sec" onclick="abrirApoio()">📍 Pontos de apoio'+(PLANO.area==="porto"?" (Porto)":" (Recife)")+'</button>'; box.innerHTML=(podeGuia()?htmlAvisosPlano():"")+'<div class="em-breve"><div class="ic">🏖️</div><h3>Nenhum passeio planejado</h3><p>Clique em “Adicionar passeio” para montar os carros de '+dataBR(PLANO.data)+'.</p></div>'; return; }
     const comGuia=lista.reduce((s,p)=>s+p.carros.filter(c=>c.guia).length,0);
     const comPdf=lista.some(p=>podePdf(p)&&p.carros.some(c=>c.guia));
     const bannerAvisos=podeGuia()?htmlAvisosPlano():"";
     const rotSaida=PLANO.saida==="todas"?"":PLANO.saida==="porto"?" de Porto":" de Recife";
     // botões de envio no cabeçalho, como na prévia
     const topoP=document.getElementById("planoAcoesTopo");
-    if(topoP) topoP.innerHTML='<button class="btn sec" onclick="abrirApoio()" title="Manda para o grupo de cada ponto de apoio quantos pax e qual guia vão em cada carro (pela escala do Phoenix)">📍 Pontos de apoio</button>'+(comPdf?'<button class="btn sec" onclick="imprimirPdfPasseios()">🖨️ Imprimir todas as escalas'+(podeGuia()?rotSaida:" de Porto")+'</button><button class="btn sec" onclick="enviarPdfPasseios(null)">Enviar PDF da escala'+(podeGuia()?rotSaida:" de Porto")+'</button>':'')
+    if(topoP) topoP.innerHTML='<button class="btn sec" onclick="abrirApoio()" title="Manda para cada ponto de apoio quantos pax e qual guia vão em cada carro (pela escala do Phoenix). Porto dispara os passeios saindo de Porto; a Central, os saindo de Recife">📍 Pontos de apoio'+(PLANO.area==="porto"?" (Porto)":" (Recife)")+'</button>'+(comPdf?'<button class="btn sec" onclick="imprimirPdfPasseios()">🖨️ Imprimir todas as escalas'+(podeGuia()?rotSaida:" de Porto")+'</button><button class="btn sec" onclick="enviarPdfPasseios(null)">Enviar PDF da escala'+(podeGuia()?rotSaida:" de Porto")+'</button>':'')
       +(podeGuia()&&comGuia?'<button class="btn" onclick="avisarPasseios(null)">Avisar guias'+(PLANO.saida==="todas"?"":rotSaida)+'</button>':'');
     let h=bannerAvisos
       +'<div class="cards-resumo"><div class="resumo"><div class="num">'+lista.length+'</div><div class="lbl">Passeios</div></div><div class="resumo"><div class="num">'+carros+'</div><div class="lbl">Carros</div></div><div class="resumo '+(semGuia?"alerta":"ok")+'"><div class="num">'+semGuia+'</div><div class="lbl">Sem guia</div></div>'
@@ -2284,16 +2284,16 @@
   function apoioFechar(){ const f=document.getElementById("apoFundo"); if(f) f.remove(); APO.config=false; APO.cfg=null; }
   const apoCard=(h)=>'<div class="card" style="max-width:760px;width:100%;margin:0">'+h+'</div>';
   async function abrirApoio(atualizar){
-    APO.data=PLANO.data; APO.res={}; const f=apoioFundo();
+    APO.data=PLANO.data; APO.saida=PLANO.area==="porto"?"porto":"recife"; APO.res={}; const f=apoioFundo();
     f.innerHTML=apoCard('<b>📍 Pontos de apoio · '+dataBR(APO.data)+'</b><div style="color:var(--muted);margin-top:10px">Lendo a escala do Phoenix…</div>');
-    try{ const j=await chamarEnvios("apoioMontar",{data:APO.data,atualizar:!!atualizar}); if(!j.ok) throw new Error(j.erro); APO.destinos=j.destinos; apoioDesenhar(); }
+    try{ const j=await chamarEnvios("apoioMontar",{data:APO.data,saida:APO.saida,atualizar:!!atualizar}); if(!j.ok) throw new Error(j.erro); APO.destinos=j.destinos; apoioDesenhar(); }
     catch(e){ f.innerHTML=apoCard('<b>📍 Pontos de apoio</b><div style="color:var(--alerta);margin-top:10px">'+esc(e.message)+'</div><div style="text-align:right;margin-top:12px"><button class="btn sec" onclick="apoioFechar()">Fechar</button></div>'); }
   }
   function apoioDesenhar(){
     const f=apoioFundo(); if(APO.config){ apoioDesenharConfig(); return; }
     const hora=(t)=>new Date(t).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
     const com=(APO.destinos||[]).filter(d=>d.texto), sem=(APO.destinos||[]).filter(d=>!d.texto);
-    let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:1.05rem">📍 Pontos de apoio · '+dataBR(APO.data)+'</b><span style="flex:1"></span>'
+    let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:1.05rem">📍 Pontos de apoio · '+dataBR(APO.data)+'</b><span class="chip on">Saindo de '+(APO.saida==="porto"?"Porto":"Recife")+'</span><span style="flex:1"></span>'
       +'<button class="btn sec mini" onclick="abrirApoio(true)" title="Lê a escala do Phoenix de novo">Atualizar do Phoenix</button><button class="btn sec mini" onclick="APO.config=true;apoioDesenhar()">Configurar</button></div>'
       +'<div style="font-size:.8rem;color:var(--muted);margin:6px 0 12px">Pela escala do Phoenix. Confira e ajuste o texto antes de enviar; sai pelo WhatsApp da Z-API.</div>';
     com.forEach(d=>{
@@ -2304,7 +2304,7 @@
           :d.enviado?'<span class="chip" style="'+(d.enviado.mudou?'background:#fff1e0;color:#8a4a0c':'background:#e3f2ee;color:#0b4f44')+'">'+(d.enviado.mudou?'Mudou depois do envio ('+hora(d.enviado.em)+')':'Enviado '+hora(d.enviado.em)+' · '+esc(d.enviado.por||""))+'</span>':'')+'</div>'
         +'<textarea id="apo-tx-'+d.id+'" rows="'+Math.min(16,d.texto.split("\n").length+1)+'" style="width:100%;border:1px solid var(--linha);border-radius:10px;padding:10px 12px;font:inherit;font-size:.88rem;line-height:1.45">'+esc(d.texto)+'</textarea></div>';
     });
-    if(!com.length) h+='<div style="border-top:1px solid var(--linha);padding:14px 0;color:var(--muted)">Nenhum passeio dos pontos de apoio escalado no Phoenix para '+dataBR(APO.data)+'.</div>';
+    if(!com.length) h+='<div style="border-top:1px solid var(--linha);padding:14px 0;color:var(--muted)">Nenhum passeio saindo de '+(APO.saida==="porto"?"Porto":"Recife")+' escalado no Phoenix para '+dataBR(APO.data)+'.</div>';
     if(sem.length) h+='<div style="border-top:1px solid var(--linha);padding:10px 0;font-size:.8rem;color:var(--muted)">Sem passeio neste dia: '+sem.map(d=>esc(d.nome)).join(" · ")+'</div>';
     h+='<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px"><button class="btn sec" onclick="apoioFechar()">Fechar</button>'+(com.some(d=>d.pronto)?'<button class="btn" id="apoBtn" onclick="apoioEnviar()">Enviar para os marcados</button>':'')+'</div>';
     f.innerHTML=apoCard(h);
@@ -2316,9 +2316,9 @@
     if(!confirm("Enviar para "+envios.length+" ponto(s) de apoio?")) return;
     APO.enviando=true; const b=document.getElementById("apoBtn"); if(b){ b.disabled=true; b.textContent="Enviando…"; }
     const tx={}; envios.forEach(e=>tx[e.id]=e.texto);
-    try{ const j=await chamarEnvios("apoioEnviar",{data:APO.data,envios}); if(!j.ok) throw new Error(j.erro);
+    try{ const j=await chamarEnvios("apoioEnviar",{data:APO.data,saida:APO.saida,envios}); if(!j.ok) throw new Error(j.erro);
       (j.resultado||[]).forEach(r=>{ APO.res[r.id]=r; });
-      const j2=await chamarEnvios("apoioMontar",{data:APO.data}); if(j2.ok) APO.destinos=j2.destinos.map(d=>({...d,texto:APO.res[d.id]&&!APO.res[d.id].ok&&tx[d.id]?tx[d.id]:d.texto}));
+      const j2=await chamarEnvios("apoioMontar",{data:APO.data,saida:APO.saida}); if(j2.ok) APO.destinos=j2.destinos.map(d=>({...d,texto:APO.res[d.id]&&!APO.res[d.id].ok&&tx[d.id]?tx[d.id]:d.texto}));
     }catch(e){ alert(e.message); }
     APO.enviando=false; apoioDesenhar();
   }
