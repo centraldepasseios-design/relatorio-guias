@@ -355,6 +355,7 @@
       {id:"cen-contatos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z\"/></svg>", nome:"Contatos dos guias"},
       {id:"cen-pagamentos", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M2 10h20M6 15h4\"/></svg>", nome:"Pagamentos"},
       {id:"cen-disp", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><path d=\"m9 11 3 3L22 4\"/></svg>", nome:"Disponibilidade"},
+      {id:"cen-bonus", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"8\" width=\"18\" height=\"4\" rx=\"1\"/><path d=\"M12 8v13\"/><path d=\"M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7\"/><path d=\"M7.5 8a2.5 2.5 0 0 1 0-5C9.5 3 12 8 12 8s2.5-5 4.5-5a2.5 2.5 0 0 1 0 5\"/></svg>", nome:"Bonificação"},
       {id:"cen-reclam", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>", nome:"Reclamações"},
       {id:"cen-passeios", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z\"/><path d=\"M9 4v14M15 6v14\"/></svg>", nome:"Passeios"},
       {id:"cen-solic", ic:"<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"m16 11 2 2 4-4\"/></svg>", nome:"Solicitações"},
@@ -450,6 +451,7 @@
     if(id==="cen-contatos"){ renderContatos(m); return; }
     if(id==="cen-pagamentos"){ renderPagamentos(m); return; }
     if(id==="cen-disp"){ renderDisponibilidade(m); return; }
+    if(id==="cen-bonus"){ renderBonus(m); return; }
     if(id==="inicio"){ renderInicio(m); return; }
     if(id==="cen-reclam"){ renderReclamacoes(m); return; }
     if(id==="cen-relatorio"){ renderRelatorio(m); return; }
@@ -1953,7 +1955,9 @@
     try{
       const j=await chamarPlano("ler",{});
       if(!j.ok){ box.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(j.erro||"Erro")+'</div>'; return; }
-      PLANO.plano=j.plano; PLANO.sugestoes=j.sugestoes||[]; desenharPlano();
+      PLANO.plano=j.plano; PLANO.sugestoes=j.sugestoes||[];
+      if(podeGuia()){ try{ const b=await chamarDisp("bonusListar",{}); PLANO.bonus=b.itens||[]; }catch(e){ PLANO.bonus=PLANO.bonus||[]; } }
+      desenharPlano();
     }catch(e){ if(!silencioso) box.innerHTML='<div class="card" style="color:var(--alerta)">Erro de conexão. Tente de novo.</div>'; }
   }
   // aviso no carro: guia que marcou indisponível/restrição (ou "não convidar") para o dia
@@ -2023,9 +2027,13 @@
           const hh=(e)=>new Date(e.em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
           st=pdf?'<span class="tag st-ok">✓ PDF '+hh(pdf)+'</span>':(av?'<span class="tag st-av">Avisado '+hh(av)+'</span>':'');
         }
-        const acoes=(c.guia?'<button class="btn mini sec" style="padding:3px 9px" title="Avisar só '+esc(c.guia)+' do passeio dele" onclick="avisarGuiaPasseio(\''+esc(c.guia).replace(/'/g,"")+'\')">📲</button>':'')+(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')
+        const bnc=podeGuia()?bonusDoCarro(c):null, bnPend=podeGuia()&&c.guia&&!bnc?bonusPendentes(c.guia):[];
+        const bnTag=bnc?'<div style="margin-top:4px"><span class="tag" style="background:#fbf5e6;color:#7a5a06;border:1px solid #ecd9a6" title="'+esc(bnc.servico||"")+'">🎁 BÔNUS'+(bnc.rec?' · REC-'+esc(bnc.rec):'')+'</span>'
+          +(normGuia(bnc.guia)!==normGuia(c.guia||"")?' <span style="font-size:.72rem;font-weight:800;color:#9f2a15">⚠ bônus é de '+esc(titulo(bnc.guia))+'</span>':'')
+          +' <a href="#" style="font-size:.74rem;color:#9f2a15" onclick="bonusDesligar(\''+bnc.id+'\');return false">tirar</a></div>':'';
+        const acoes=(bnPend.length?'<button class="btn mini sec" style="padding:3px 9px;background:#fbf5e6;border-color:#ecd9a6" title="'+esc(titulo(c.guia))+' tem '+bnPend.length+' bônus pendente(s). Marcar este passeio como bônus" onclick="bonusMarcar(\''+p.id+'\',\''+c.id+'\')">🎁'+(bnPend.length>1?bnPend.length:'')+'</button>':'')+(c.guia?'<button class="btn mini sec" style="padding:3px 9px" title="Avisar só '+esc(c.guia)+' do passeio dele" onclick="avisarGuiaPasseio(\''+esc(c.guia).replace(/'/g,"")+'\')">📲</button>':'')+(c.guia&&podePdf(p)?'<button class="btn mini sec" style="padding:3px 9px" title="Enviar o PDF da escala só para '+esc(c.guia)+'" onclick="enviarPdfGuia(\''+esc(c.guia).replace(/'/g,"")+'\')">📄</button>':'')
           +(dono?'<button class="btn mini danger" style="padding:3px 9px" title="Cancelar este carro" onclick="removerCarro(\''+p.id+'\',\''+c.id+'\','+(i+1)+')">✕</button>':'');
-        h+='<div class="carro-card'+(c.guia?'':' vazio')+'">'+rot+guia+(c.guia?avisoCarro(c.guia):'')
+        h+='<div class="carro-card'+(c.guia?'':' vazio')+'">'+rot+guia+(c.guia?avisoCarro(c.guia):'')+bnTag
           +((st||acoes)?'<div style="display:flex;align-items:center;gap:6px;min-height:26px">'+st+'<span style="margin-left:auto;display:flex;gap:4px">'+acoes+'</span></div>':'')+'</div>';
       });
       h+='</div></section>';
@@ -2250,9 +2258,95 @@
   function msgPasseio(guia, carros, data){
     const quando=data===amanhaISO()?"Amanhã, "+dataBR(data):"Dia "+dataBR(data);
     return '🏖️ *'+quando+'*\n\n'
-      +carros.map(x=>'Você está no *'+x.p.nome+'*'+(x.p.obs?' ('+x.p.obs+')':'')+'\nCarro '+x.n+' · '+tipoCarro(x.c.tipo)+(idiomaCarro(x.c)?' · '+idiomaCarro(x.c).toLowerCase():'')+(x.c.privativo?' · PVT '+(x.c.privativo.reserva||'')+(x.c.privativo.pax?' ('+x.c.privativo.pax+' pax)':''):'')).join('\n\n')
+      +carros.map(x=>'Você está no *'+x.p.nome+'*'+(x.p.obs?' ('+x.p.obs+')':'')+'\nCarro '+x.n+' · '+tipoCarro(x.c.tipo)+(idiomaCarro(x.c)?' · '+idiomaCarro(x.c).toLowerCase():'')+(x.c.privativo?' · PVT '+(x.c.privativo.reserva||'')+(x.c.privativo.pax?' ('+x.c.privativo.pax+' pax)':''):'')+linhaBonus(x.c)).join('\n\n')
       +'\n\nA escala completa segue mais tarde.'+RODAPE;
   }
+  // ---- bônus na aba Passeios ----
+  function bonusDoCarro(c){ return (PLANO.bonus||[]).find(b=>b.uso&&b.uso.carroId===c.id&&b.uso.data===PLANO.data&&b.status!=="pendente")||null; }
+  function bonusPendentes(guia){ const k=normGuia(guia); return (PLANO.bonus||[]).filter(b=>b.status==="pendente"&&normGuia(b.guia)===k).sort((a,b)=>(a.data||"").localeCompare(b.data||"")); }
+  function descBonus(b){ return (b.servico?b.servico:"serviço VIP")+(b.rec?" · REC-"+b.rec:"")+(b.data?" ("+dataBR(b.data).slice(0,5)+")":""); }
+  function linhaBonus(c){ if(!PLANO.bonus||!podeGuia()) return ""; const b=bonusDoCarro(c); if(!b) return "";
+    return '\n🎁 Este passeio é referente ao seu *bônus* pelo serviço'+(b.rec?' na *REC-'+b.rec+'*':'')+(b.servico?' ('+b.servico+(b.data?', '+dataBR(b.data).slice(0,5):'')+')':(b.data?' do dia '+dataBR(b.data).slice(0,5):''))+'. Obrigado pelo capricho! 💚'; }
+  async function bonusMarcar(passeioId,carroId){
+    const p=(PLANO.plano.passeios||[]).find(x=>x.id===passeioId), c=p&&p.carros.find(x=>x.id===carroId); if(!c||!c.guia) return;
+    const pend=bonusPendentes(c.guia); if(!pend.length){ alert("Esse guia não tem bônus pendente."); return; }
+    let b=pend[0];
+    if(pend.length>1){ const r=prompt(titulo(c.guia)+" tem "+pend.length+" bônus pendentes. Qual este passeio paga?\n\n"+pend.map((x,k)=>(k+1)+") "+descBonus(x)).join("\n")+"\n\nDigite o número:","1"); if(r===null) return; b=pend[parseInt(r,10)-1]; if(!b){ alert("Número inválido."); return; } }
+    else if(!confirm("Marcar o "+nomeServ(p.nome)+" de "+dataBR(PLANO.data)+" como BÔNUS de "+titulo(c.guia)+"?\n\n"+descBonus(b)+"\n\nNo aviso do passeio vai a linha: \"Este passeio é referente ao seu bônus pelo serviço...\"")) return;
+    try{ await chamarDisp("bonusAgendar",{id:b.id,data:PLANO.data,passeioId,carroId,passeio:nomeServ(p.nome)}); }catch(e){ alert(e.message); return; }
+    await carregarPlano(true);
+  }
+  async function bonusDesligar(id){ if(!confirm("Tirar a marcação de bônus deste carro? O bônus volta a ficar pendente.")) return;
+    try{ await chamarDisp("bonusLiberar",{id}); }catch(e){ alert(e.message); return; } await carregarPlano(true); }
+
+  // ======================= BONIFICAÇÃO =======================
+  // serviço VIP (geralmente o bloqueio na Disponibilidade) gera um passeio bônus (Maragogi, Carneiros, São José...).
+  // Entra pelo "Vai gerar bônus?" do bloqueio ou à mão aqui; é pago marcando 🎁 no carro, na aba Passeios.
+  const BON={itens:[],filtro:"pendente",busca:"",form:null};
+  function renderBonus(m){
+    cab("Passeios bônus por serviço VIP",'<button class="btn" onclick="BON.form={};desenharBonus()">＋ Bônus</button>');
+    m.innerHTML='<div id="bonConteudo"><div class="card" style="color:var(--muted)">Carregando...</div></div><datalist id="bonGuias"></datalist>';
+    carregarBonus();
+    chamarEnvios("contatos",{}).then(ct=>{ const dl=document.getElementById("bonGuias"); if(dl&&ct&&ct.contatos) dl.innerHTML=ct.contatos.map(c=>'<option value="'+esc(c.nome)+'">').join(""); }).catch(()=>{});
+  }
+  async function carregarBonus(){
+    try{ const j=await chamarDisp("bonusListar",{}); BON.itens=j.itens||[]; desenharBonus(); }
+    catch(e){ const b=document.getElementById("bonConteudo"); if(b) b.innerHTML='<div class="card" style="color:var(--alerta)">'+esc(e.message)+'</div>'; }
+  }
+  function desenharBonus(){
+    const box=document.getElementById("bonConteudo"); if(!box) return;
+    const ST={pendente:["#fbf5e6","#7a5a06","Pendente"],agendado:["#e6edfb","#1e3a8a","Agendado"],usado:["#e3f2ee","#0b4f44","Usado"]};
+    const cont={pendente:0,agendado:0,usado:0}; BON.itens.forEach(x=>cont[x.status]=(cont[x.status]||0)+1);
+    const b=normP(BON.busca);
+    const vis=BON.itens.filter(x=>(BON.filtro==="todos"||x.status===BON.filtro)&&(!b||normP(x.guia).includes(b)))
+      .sort((a,c)=>BON.filtro==="pendente"?(a.data||"").localeCompare(c.data||""):((c.uso&&c.uso.data)||c.data||"").localeCompare((a.uso&&a.uso.data)||a.data||""));
+    const inp='style="height:44px;border:1px solid #cfdcd8;border-radius:12px;padding:0 12px;font-family:inherit;font-size:.92rem"', lb='display:flex;flex-direction:column;gap:6px;font-size:.8rem;font-weight:700;color:var(--muted)';
+    let h='';
+    if(BON.form){ const f=BON.form;
+      h+='<div class="card" style="border:2px solid var(--verde)"><h3 style="margin-bottom:12px">'+(f.id?'Editar bônus':'Novo bônus')+'</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">'
+        +'<label style="'+lb+'">Guia<input id="bnGuia" list="bonGuias" value="'+esc(f.guia||"")+'" '+inp+'></label>'
+        +'<label style="'+lb+'">Dia do serviço VIP<input type="date" id="bnData" value="'+esc(f.data||hojeISO())+'" '+inp+'></label>'
+        +'<label style="'+lb+'">REC<input id="bnRec" value="'+esc(f.rec||"")+'" placeholder="ex.: 981234" inputmode="numeric" '+inp+'></label>'
+        +'<label style="'+lb+'">Serviço<input id="bnServ" value="'+esc(f.servico||"")+'" placeholder="ex.: Transfer VIP / evento" '+inp+'></label>'
+        +'<label style="'+lb+';grid-column:1/-1">Observação (só a Central vê)<input id="bnObs" value="'+esc(f.obs||"")+'" '+inp+'></label></div>'
+        +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="BON.form=null;desenharBonus()">Cancelar</button><button class="btn" onclick="bonusSalvarForm()">Salvar</button></div></div>';
+    }
+    h+='<div class="cards-resumo"><div class="resumo alerta"><div class="num">'+cont.pendente+'</div><div class="lbl">Pendentes</div></div><div class="resumo"><div class="num">'+cont.agendado+'</div><div class="lbl">Agendados</div></div><div class="resumo ok"><div class="num">'+cont.usado+'</div><div class="lbl">Usados</div></div></div>';
+    const porGuia={}; BON.itens.filter(x=>x.status==="pendente").forEach(x=>{ porGuia[x.guia]=(porGuia[x.guia]||0)+1; });
+    const pg=Object.entries(porGuia).sort((a,c)=>c[1]-a[1]);
+    if(pg.length) h+='<div class="card" style="padding:14px 18px;background:#fffbf0;border-color:#ecd9a6"><b style="color:#7a5a06">🎁 Guias com passeio bônus para receber:</b> <span style="font-size:.9rem">'+pg.map(([g,n])=>esc(titulo(g))+(n>1?' ('+n+')':'')).join(" · ")+'</span><div style="font-size:.8rem;color:#8a6d1f;margin-top:4px">Para pagar: na aba Passeios, coloque o guia no carro e clique no 🎁 do carro. O aviso do passeio já sai com a REC do serviço.</div></div>';
+    h+='<div class="filtros">'+campoBusca("bonBusca","Buscar guia",BON.busca,"BON.busca=this.value;desenharBonus();setTimeout(()=>{const e=document.getElementById(\'bonBusca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)")
+      +segmento([["pendente","Pendentes"],["agendado","Agendados"],["usado","Usados"],["todos","Todos"]],BON.filtro,"BON.filtro='$v';desenharBonus()")+'</div>';
+    if(!vis.length) h+='<div class="em-breve"><div class="ic">🎁</div><h3>Nenhum bônus aqui</h3><p>Os bônus entram quando você marca “Vai gerar bônus?” ao bloquear um guia para serviço (Disponibilidade), ou pelo botão ＋ Bônus.</p></div>';
+    else h+='<div style="display:flex;flex-direction:column;gap:8px">'+vis.map(x=>{ const st=ST[x.status]||ST.pendente;
+      return '<div class="card" style="margin:0;padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">'
+        +'<b style="min-width:150px">'+esc(titulo(x.guia))+'</b><span class="pill" style="background:'+st[0]+';color:'+st[1]+'">'+st[2]+'</span>'
+        +'<span style="font-size:.86rem;flex:1 1 260px">'+(x.data?dataBR(x.data).slice(0,5)+' · ':'')+esc(x.servico||"Serviço VIP")+(x.rec?' · <b style="color:#1e3a8a">REC-'+esc(x.rec)+'</b>':'')+(x.obs?' <span style="color:var(--muted)">· '+esc(x.obs)+'</span>':'')
+        +(x.uso?'<span style="display:block;font-size:.8rem;color:#0b4f44;font-weight:700;margin-top:2px">🏖️ '+esc(x.uso.passeio||"Passeio")+' em '+dataBR(x.uso.data).slice(0,5)+(x.uso.por?' · por '+esc(x.uso.por):'')+'</span>':'')+'</span>'
+        +'<span style="margin-left:auto;display:flex;gap:6px">'
+        +(x.status==="pendente"?'<button class="btn mini sec" title="Pago fora da aba Passeios" onclick="bonusPagoManual(\''+x.id+'\')">Marcar como pago</button><button class="btn mini sec" onclick="bonusEditar(\''+x.id+'\')">Editar</button>':'<button class="btn mini sec" onclick="bonusLiberarTab(\''+x.id+'\')">Voltar a pendente</button>')
+        +'<button class="btn mini danger" onclick="bonusRemoverTab(\''+x.id+'\')">Remover</button></span></div>'; }).join("")+'</div>';
+    box.innerHTML=h;
+  }
+  function bonusEditar(id){ const x=BON.itens.find(y=>y.id===id); if(!x) return; BON.form={id,guia:titulo(x.guia),data:x.data,rec:x.rec,servico:x.servico,obs:x.obs}; desenharBonus(); window.scrollTo({top:0,behavior:"smooth"}); }
+  async function bonusSalvarForm(){
+    const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():""; };
+    const d={id:BON.form.id,guia:v("bnGuia"),data:v("bnData"),rec:v("bnRec"),servico:v("bnServ"),obs:v("bnObs")};
+    if(!d.guia){ alert("Informe o guia."); return; }
+    try{ await chamarDisp("bonusSalvar",d); }catch(e){ alert(e.message); return; }
+    BON.form=null; BON.filtro="pendente"; await carregarBonus();
+  }
+  async function bonusPagoManual(id){
+    const x=BON.itens.find(y=>y.id===id); if(!x) return;
+    const passeio=prompt("Qual passeio pagou o bônus de "+titulo(x.guia)+"? (ex.: Maragogi)",""); if(passeio===null) return;
+    const dia=prompt("Dia do passeio (dd/mm/aaaa):",dataBR(hojeISO())); if(dia===null) return;
+    const m=dia.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(!m){ alert("Use o formato dd/mm/aaaa."); return; }
+    const iso=m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+    try{ await chamarDisp("bonusAgendar",{id,data:iso,passeio}); }catch(e){ alert(e.message); return; } await carregarBonus();
+  }
+  async function bonusLiberarTab(id){ if(!confirm("Voltar este bônus para pendente? A marcação no carro da aba Passeios sai também.")) return; try{ await chamarDisp("bonusLiberar",{id}); }catch(e){ alert(e.message); return; } await carregarBonus(); }
+  async function bonusRemoverTab(id){ if(!confirm("Remover este bônus?")) return; try{ await chamarDisp("bonusRemover",{id}); }catch(e){ alert(e.message); return; } await carregarBonus(); }
+
   // situação do envio da escala (como na prévia): Enviada 07:32 · Mudou desde o envio · Não enviada
   function acoesEscalaGuia(g){
     if(!g.itens.some(entraNaEscala)) return '';
@@ -5496,7 +5590,7 @@
     h+=secoes.filter(([,ls])=>ls.length).map(([t,ls])=>'<h3 style="font-size:1.05rem;font-weight:800;margin:18px 0 10px;color:var(--tinta)">'+t+' <span style="font-size:.82rem;font-weight:600;color:var(--muted)">('+ls.length+' guias)</span></h3><div style="display:flex;flex-direction:column;gap:8px">'+ls.map(linhaDisp).join("")+'</div>').join("");
     const servs=DSP.internos.filter(x=>(DSP.filtro==="b"?x.tipo==="servico":DSP.filtro==="n"?x.tipo==="naoConvidar":DSP.filtro==="todos")&&(!b||normP(x.guia).includes(b))).filter(x=>x.fim>=hojeISO()).sort((a,c)=>a.inicio.localeCompare(c.inicio));
     if(servs.length) h+='<h3 style="font-size:1.1rem;font-weight:800;margin:22px 0 10px">Bloqueios e "não convidar" registrados</h3><div style="display:flex;flex-direction:column;gap:8px">'+servs.map(x=>'<div class="card" style="margin:0;padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><b>'+esc(titulo(x.guia))+'</b><span class="pill" style="background:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][0]+';color:'+DSP_COR[x.tipo==="naoConvidar"?"n":"b"][1]+'">'+(x.tipo==="naoConvidar"?"Não convidar":"Bloqueado")+'</span><span style="font-size:.86rem">'+dataBR(x.inicio).slice(0,5)+(x.fim!==x.inicio?' a '+dataBR(x.fim).slice(0,5):'')+(x.horario?' · '+esc(x.horario):'')+'</span>'
-      +(x.tipo==="servico"?'<span style="font-size:.86rem">'+esc(x.descricao||"")+(x.rec?' · <b style="color:#1e3a8a">REC-'+esc(x.rec)+'</b>':'')+(x.quemPediu?' · pedido por '+esc(x.quemPediu):'')+'</span>':'<span style="font-size:.86rem;color:var(--muted)">'+esc(x.motivo||"")+'</span>')
+      +(x.tipo==="servico"?'<span style="font-size:.86rem">'+esc(x.descricao||"")+(x.rec?' · <b style="color:#1e3a8a">REC-'+esc(x.rec)+'</b>':'')+(x.quemPediu?' · pedido por '+esc(x.quemPediu):'')+'</span>'+(x.bonus?'<span class="pill" style="background:#fbf5e6;color:#7a5a06">🎁 Gera bônus</span>':''):'<span style="font-size:.86rem;color:var(--muted)">'+esc(x.motivo||"")+'</span>')
       +'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn mini sec" onclick="editarInternoDisp(\''+x.id+'\')">Editar</button><button class="btn mini danger" onclick="removerInternoDisp(\''+x.id+'\')">Remover</button></span></div>').join("")+'</div>';
     box.innerHTML=h;
   }
@@ -5523,6 +5617,7 @@
         :'<label style="'+lb+'">'+(sv?'Dia':'De')+'<input type="date" id="dfIni" value="'+val("ini",DSP.data)+'" '+guardar("ini")+' '+inp+'></label>'
          +'<label style="'+lb+'">'+(sv?'Até (se for mais de um dia)':'Até')+'<input type="date" id="dfFim" value="'+val("fim",sv?DSP.data:somaDias(DSP.data,14))+'" '+guardar("fim")+' '+inp+'></label>')
       +(sv?'<label style="'+lb+'">Horário<input id="dfHor" value="'+val("hor")+'" '+guardar("hor")+' placeholder="ex.: 10h às 15h" '+inp+'></label><label style="'+lb+'">REC<input id="dfRec" value="'+val("rec")+'" '+guardar("rec")+' placeholder="ex.: 981234" inputmode="numeric" '+inp+'></label><label style="'+lb+'">Descrição<input id="dfDesc" value="'+val("desc")+'" '+guardar("desc")+' placeholder="ex.: Evento corporativo" '+inp+'></label><label style="'+lb+'">Quem pediu<input id="dfQuem" value="'+val("quem")+'" '+guardar("quem")+' placeholder="ex.: Comercial, por e-mail" '+inp+'></label>'
+         +'<label style="grid-column:1/-1;display:flex;align-items:center;gap:10px;background:#fbf5e6;border:1px solid #ecd9a6;border-radius:12px;padding:10px 14px;font-size:.9rem;font-weight:700;color:#7a5a06;cursor:pointer"><input type="checkbox" id="dfBonus" style="width:20px;height:20px" '+(DSP.fv.bonus?'checked':'')+' onchange="DSP.fv.bonus=this.checked">🎁 Vai gerar bônus? <span style="font-weight:500;color:#8a6d1f">(serviço VIP: o guia ganha um passeio bônus e ele já entra na aba Bonificação)</span></label>'
          :'<label style="'+lb+';grid-column:1/-1">Motivo (só a coordenação vê)<input id="dfMot" value="'+val("mot")+'" '+guardar("mot")+' '+inp+'></label>')
       +'</div><div id="dfProg" style="font-size:.82rem;color:var(--muted);margin-top:10px"></div>'
       +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="dspFecharForm()">Cancelar</button><button class="btn" id="dfSalvar" onclick="salvarInternoDisp()">Salvar</button></div></div>';
@@ -5541,7 +5636,8 @@
     const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():""; };
     const solto=v("dfGuia"); if(solto&&!DSP.fGuias.some(g=>g.toUpperCase()===solto.toUpperCase())) DSP.fGuias.push(solto);
     const guias=DSP.fGuias.slice();
-    const base={tipo:DSP.form,horario:v("dfHor"),rec:v("dfRec").replace(/^REC-?/i,""),descricao:v("dfDesc"),quemPediu:v("dfQuem"),motivo:v("dfMot")};
+    const bx=document.getElementById("dfBonus");
+    const base={tipo:DSP.form,horario:v("dfHor"),rec:v("dfRec").replace(/^REC-?/i,""),descricao:v("dfDesc"),quemPediu:v("dfQuem"),motivo:v("dfMot"),bonus:DSP.form==="servico"&&!!(bx&&bx.checked)};
     if(!guias.length){ alert("Informe pelo menos um guia."); return; }
     if(base.tipo==="servico"&&!base.descricao&&!base.rec&&!base.horario){ alert("Para bloquear para um serviço, informe a descrição, a REC ou o horário. Se a ideia é só não convidar, escolha \"Não convidar\" no topo do formulário."); return; }
     let blocos;
@@ -5556,9 +5652,9 @@
     if(total>1&&!confirm("Salvar "+total+" registro(s): "+guias.length+" guia(s) × "+blocos.length+" período(s)?")) return;
     const bt=document.getElementById("dfSalvar"), pr=document.getElementById("dfProg"); if(bt) bt.disabled=true;
     const erros=[]; let k=0;
-    for(const g of guias) for(const [ini,fim] of blocos){
+    for(const g of guias) for(const [bi,[ini,fim]] of blocos.entries()){
       k++; if(pr) pr.textContent="Salvando "+k+" de "+total+"...";
-      try{ await chamarDisp("salvarInterno",{...base,guia:g,inicio:ini,fim}); }catch(e){ erros.push(g+" ("+dataBR(ini).slice(0,5)+"): "+e.message); }
+      try{ await chamarDisp("salvarInterno",{...base,guia:g,inicio:ini,fim,criarBonus:bi===0}); }catch(e){ erros.push(g+" ("+dataBR(ini).slice(0,5)+"): "+e.message); }
     }
     if(erros.length){ alert("Alguns não foram salvos:\n"+erros.join("\n")); if(bt) bt.disabled=false; if(pr) pr.textContent=""; await carregarDisp(); return; }
     DSP.form=null; DSP.fGuias=[]; DSP.fDias=[]; DSP.fv={}; await carregarDisp();
@@ -5567,7 +5663,7 @@
   function editarInternoDisp(id){
     const x=(DSP.internos||[]).find(y=>y.id===id); if(!x) return;
     DSP.editId=id; DSP.form=x.tipo==="naoConvidar"?"naoConvidar":"servico"; DSP.fGuias=[x.guia]; DSP.fDias=[]; DSP.fModo="periodo";
-    DSP.fv={ini:x.inicio,fim:x.fim,hor:x.horario||"",rec:x.rec||"",desc:x.descricao||"",quem:x.quemPediu||"",mot:x.motivo||""};
+    DSP.fv={ini:x.inicio,fim:x.fim,hor:x.horario||"",rec:x.rec||"",desc:x.descricao||"",quem:x.quemPediu||"",mot:x.motivo||"",bonus:!!x.bonus};
     desenharDisp(); window.scrollTo({top:0,behavior:"smooth"});
   }
   async function removerInternoDisp(id){ if(!confirm("Remover este registro?")) return; try{ await chamarDisp("removerInterno",{id}); await carregarDisp(); }catch(e){ alert(e.message); } }
