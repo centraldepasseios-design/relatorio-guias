@@ -2308,6 +2308,7 @@
         +'<label style="'+lb+'">Dia do serviço VIP<input type="date" id="bnData" value="'+esc(f.data||hojeISO())+'" '+inp+'></label>'
         +'<label style="'+lb+'">REC<input id="bnRec" value="'+esc(f.rec||"")+'" placeholder="ex.: 981234" inputmode="numeric" '+inp+'></label>'
         +'<label style="'+lb+'">Serviço<input id="bnServ" value="'+esc(f.servico||"")+'" placeholder="ex.: Transfer VIP / evento" '+inp+'></label>'
+        +(f.id?'':'<label style="'+lb+'">Quantos passeios bônus?<select id="bnQtd" '+inp+'>'+[1,2,3,4,5].map(n=>'<option>'+n+'</option>').join("")+'</select></label>')
         +'<label style="'+lb+';grid-column:1/-1">Observação (só a Central vê)<input id="bnObs" value="'+esc(f.obs||"")+'" '+inp+'></label></div>'
         +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="BON.form=null;desenharBonus()">Cancelar</button><button class="btn" onclick="bonusSalvarForm()">Salvar</button></div></div>';
     }
@@ -2331,7 +2332,7 @@
   function bonusEditar(id){ const x=BON.itens.find(y=>y.id===id); if(!x) return; BON.form={id,guia:titulo(x.guia),data:x.data,rec:x.rec,servico:x.servico,obs:x.obs}; desenharBonus(); window.scrollTo({top:0,behavior:"smooth"}); }
   async function bonusSalvarForm(){
     const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():""; };
-    const d={id:BON.form.id,guia:v("bnGuia"),data:v("bnData"),rec:v("bnRec"),servico:v("bnServ"),obs:v("bnObs")};
+    const d={id:BON.form.id,guia:v("bnGuia"),data:v("bnData"),rec:v("bnRec"),servico:v("bnServ"),obs:v("bnObs"),qtd:v("bnQtd")||1};
     if(!d.guia){ alert("Informe o guia."); return; }
     try{ await chamarDisp("bonusSalvar",d); }catch(e){ alert(e.message); return; }
     BON.form=null; BON.filtro="pendente"; await carregarBonus();
@@ -5617,7 +5618,7 @@
         :'<label style="'+lb+'">'+(sv?'Dia':'De')+'<input type="date" id="dfIni" value="'+val("ini",DSP.data)+'" '+guardar("ini")+' '+inp+'></label>'
          +'<label style="'+lb+'">'+(sv?'Até (se for mais de um dia)':'Até')+'<input type="date" id="dfFim" value="'+val("fim",sv?DSP.data:somaDias(DSP.data,14))+'" '+guardar("fim")+' '+inp+'></label>')
       +(sv?'<label style="'+lb+'">Horário<input id="dfHor" value="'+val("hor")+'" '+guardar("hor")+' placeholder="ex.: 10h às 15h" '+inp+'></label><label style="'+lb+'">REC<input id="dfRec" value="'+val("rec")+'" '+guardar("rec")+' placeholder="ex.: 981234" inputmode="numeric" '+inp+'></label><label style="'+lb+'">Descrição<input id="dfDesc" value="'+val("desc")+'" '+guardar("desc")+' placeholder="ex.: Evento corporativo" '+inp+'></label><label style="'+lb+'">Quem pediu<input id="dfQuem" value="'+val("quem")+'" '+guardar("quem")+' placeholder="ex.: Comercial, por e-mail" '+inp+'></label>'
-         +'<label style="grid-column:1/-1;display:flex;align-items:center;gap:10px;background:#fbf5e6;border:1px solid #ecd9a6;border-radius:12px;padding:10px 14px;font-size:.9rem;font-weight:700;color:#7a5a06;cursor:pointer"><input type="checkbox" id="dfBonus" style="width:20px;height:20px" '+(DSP.fv.bonus?'checked':'')+' onchange="DSP.fv.bonus=this.checked">🎁 Vai gerar bônus? <span style="font-weight:500;color:#8a6d1f">(serviço VIP: o guia ganha um passeio bônus e ele já entra na aba Bonificação)</span></label>'
+         +'<label style="grid-column:1/-1;display:flex;align-items:center;gap:10px;background:#fbf5e6;border:1px solid #ecd9a6;border-radius:12px;padding:10px 14px;font-size:.9rem;font-weight:700;color:#7a5a06;cursor:pointer"><input type="checkbox" id="dfBonus" style="width:20px;height:20px" '+(DSP.fv.bonus?'checked':'')+' onchange="DSP.fv.bonus=this.checked">🎁 Vai gerar bônus? <span style="font-weight:500;color:#8a6d1f">(serviço VIP: entra na aba Bonificação)</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-weight:600">Quantos passeios? <select id="dfBonusQtd" onchange="DSP.fv.bonusQtd=this.value" style="height:34px;border:1px solid #ecd9a6;border-radius:8px;padding:0 8px;font-family:inherit;font-weight:700">'+[1,2,3,4,5].map(n=>'<option'+(String(DSP.fv.bonusQtd||1)===String(n)?' selected':'')+'>'+n+'</option>').join("")+'</select></span></label>'
          :'<label style="'+lb+';grid-column:1/-1">Motivo (só a coordenação vê)<input id="dfMot" value="'+val("mot")+'" '+guardar("mot")+' '+inp+'></label>')
       +'</div><div id="dfProg" style="font-size:.82rem;color:var(--muted);margin-top:10px"></div>'
       +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn sec" onclick="dspFecharForm()">Cancelar</button><button class="btn" id="dfSalvar" onclick="salvarInternoDisp()">Salvar</button></div></div>';
@@ -5637,7 +5638,7 @@
     const solto=v("dfGuia"); if(solto&&!DSP.fGuias.some(g=>g.toUpperCase()===solto.toUpperCase())) DSP.fGuias.push(solto);
     const guias=DSP.fGuias.slice();
     const bx=document.getElementById("dfBonus");
-    const base={tipo:DSP.form,horario:v("dfHor"),rec:v("dfRec").replace(/^REC-?/i,""),descricao:v("dfDesc"),quemPediu:v("dfQuem"),motivo:v("dfMot"),bonus:DSP.form==="servico"&&!!(bx&&bx.checked)};
+    const base={tipo:DSP.form,horario:v("dfHor"),rec:v("dfRec").replace(/^REC-?/i,""),descricao:v("dfDesc"),quemPediu:v("dfQuem"),motivo:v("dfMot"),bonus:DSP.form==="servico"&&!!(bx&&bx.checked),bonusQtd:v("dfBonusQtd")||1};
     if(!guias.length){ alert("Informe pelo menos um guia."); return; }
     if(base.tipo==="servico"&&!base.descricao&&!base.rec&&!base.horario){ alert("Para bloquear para um serviço, informe a descrição, a REC ou o horário. Se a ideia é só não convidar, escolha \"Não convidar\" no topo do formulário."); return; }
     let blocos;
